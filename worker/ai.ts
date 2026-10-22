@@ -54,7 +54,7 @@ function parseTasks(text: string): string[] {
     .slice(0, 12)
 }
 
-async function run(env: Env, model: string, kind: keyof typeof PROMPTS, input: string) {
+async function run(env: Env, model: string, kind: keyof typeof PROMPTS, input: string, extra: object = {}) {
   const res = await env.AI.run(model as any, {
     messages: [
       { role: 'system', content: PROMPTS[kind] },
@@ -63,13 +63,15 @@ async function run(env: Env, model: string, kind: keyof typeof PROMPTS, input: s
     response_format: { type: 'json_schema', json_schema: schema },
     max_tokens: 800,
     temperature: 0.2,
+    ...extra,
   } as any)
   return parseTasks(extractText(res))
 }
 
 export async function aiTasks(env: Env, kind: keyof typeof PROMPTS, input: string): Promise<string[]> {
   try {
-    const tasks = await run(env, MODEL, kind, input)
+    // 推論 (thinking) を切ると応答が 3〜7 秒 → 2 秒弱になる
+    const tasks = await run(env, MODEL, kind, input, { chat_template_kwargs: { enable_thinking: false } })
     if (tasks.length) return tasks
   } catch (e) {
     console.error('primary model failed', e)

@@ -252,6 +252,11 @@ export function App() {
 
   const onBreakdown = useCallback(
     async (task: UITask, title: string, note: string) => {
+      // シートは分解後に閉じるので、編集中のタイトル・詳細を先に保存しておく
+      const patch: Partial<Pick<Task, 'title' | 'note'>> = {}
+      if (title && title !== task.title) patch.title = title
+      if (note !== task.note) patch.note = note
+      if (Object.keys(patch).length) patchTask(task, patch)
       try {
         const { tasks: titles } = await api.ai('breakdown', note ? `${title}\n${note}` : title)
         if (!titles.length) throw new Error('empty')
@@ -266,9 +271,8 @@ export function App() {
       } catch {
         showToast('AIを利用できませんでした')
       }
-      void task
     },
-    [setTab, showToast, upsert],
+    [patchTask, setTab, showToast, upsert],
   )
 
   const logout = useCallback(async () => {
