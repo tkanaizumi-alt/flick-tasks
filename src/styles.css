@@ -97,15 +97,46 @@
 body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%); pointer-events: none; }
 
 /* ---------- ステータス切り替え ---------- */
-.status-tabs {
+.me-toolbar {
   position: sticky;
   top: calc(var(--safe-t) + var(--composer-h) + 18px);
   z-index: 20;
   display: flex;
-  padding: 4px;
+  gap: 6px;
   margin-bottom: 12px;
+}
+.status-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  padding: 4px;
   border-radius: 18px;
 }
+.tool-btn {
+  flex: none;
+  width: 42px;
+  border: 0;
+  border-radius: 16px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+.tool-btn svg { width: 20px; height: 20px; }
+.search-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 18px;
+  height: 46px;
+  color: var(--ink-3);
+}
+.search-box svg { width: 18px; height: 18px; flex: none; }
+.search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 16px; color: var(--ink); }
+.empty-text { font-size: 14px; font-weight: 600; color: var(--ink-3); }
 .stab {
   position: relative;
   flex: 1;
@@ -114,14 +145,16 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
   background: none;
   border-radius: 14px;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   color: var(--ink-2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
 }
 .stab.on { color: var(--ink); }
 .stab-pill {
@@ -133,12 +166,12 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
 }
 .stab-label, .stab-count { position: relative; }
 .stab-count {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
-  font-size: 12px;
-  line-height: 20px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 18px;
   background: rgba(20, 28, 48, 0.06);
   font-variant-numeric: tabular-nums;
 }

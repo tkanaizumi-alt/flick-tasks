@@ -2,9 +2,27 @@ import { Hono } from 'hono'
 import { isAllowed, type Env, type Vars } from './env'
 import { auth, resolveUser } from './auth'
 import { aiTasks } from './ai'
-import { addStat, applyTaskXp, classifyWeights, fight, getPlayer, learnSkill, resetBuild } from './game'
+import {
+  addStat,
+  applyTaskXp,
+  claimMission,
+  classifyWeights,
+  doneCutoff,
+  equipItem,
+  fight,
+  getMissions,
+  getPlayer,
+  learnSkill,
+  openChest,
+  purgeOldDone,
+  resetBuild,
+  sellItem,
+} from './game'
 import { STATUSES, type Activity, type Person, type Status, type Task } from '../shared/types'
 import { jstDayStart, type StatKey } from '../shared/game'
+
+/** 完了から 7 日経ったタスクは (削除前でも) 返さない */
+const VISIBLE = "NOT (status = 'done' AND COALESCE(done_at, updated_at) < ?)"
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>()
 
@@ -49,8 +67,8 @@ const isId = (v: unknown): v is string => typeof v === 'string' && /^[\w-]{8,64}
 api.get('/me', (c) => c.json({ user: c.get('user') }))
 
 api.get('/tasks', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM tasks WHERE user_id = ? ORDER BY position DESC')
-    .bind(c.get('user').id)
+  const { results } = await c.env.DB.prepare(`SELECT * FROM tasks WHERE user_id = ? AND ${VISIBLE} ORDER BY position DESC`)
+    .bind(c.get('user').id, doneCutoff())
     .all()
   return c.json({ tasks: results.map(toTask) })
 })
@@ -93,13 +111,15 @@ api.post('/tasks', async (c) => {
   return c.json({ tasks }, 201)
 })
 
-api.patch('/tasks/:id', async (c) => {
-  const body = await c.req.json<any>().catch(() => ({}))
+type Patch = { title?: unknown; note?: unknown; status?: unknown; position?: unknown }
+
+/** タスク 1 件を更新し、ステータスが完了をまたいだら XP・ゴールドを付与/取り消す */
+async function updateTask(db: D1Database, userId: string, id: string, body: Patch) {
   const sets: string[] = []
   const vals: unknown[] = []
   if (body.title !== undefined) {
     const t = cleanTitle(body.title)
-    if (!t) return c.json({ error: 'title required' }, 400)
+    if (!t) return { error: 'title required', code: 400 as const }
     sets.push('title = ?')
     vals.push(t)
   }
@@ -108,7 +128,7 @@ api.patch('/tasks/:id', async (c) => {
     vals.push(body.note.slice(0, 5000))
   }
   if (body.status !== undefined) {
-    if (!isStatus(body.status)) return c.json({ error: 'invalid status' }, 400)
+    if (!isStatus(body.status)) return { error: 'invalid status', code: 400 as const }
     sets.push('status = ?')
     vals.push(body.status)
   }
@@ -116,18 +136,50 @@ api.patch('/tasks/:id', async (c) => {
     sets.push('position = ?')
     vals.push(body.position)
   }
-  if (!sets.length) return c.json({ error: 'nothing to update' }, 400)
+  if (!sets.length) return { error: 'nothing to update', code: 400 as const }
   sets.push('updated_at = ?')
   vals.push(Date.now())
+  const before = await db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').bind(id, userId).first()
+  if (!before) return { error: 'not found', code: 404 as const }
+  await db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).bind(...vals, id, userId).run()
+  const xp = body.status !== undefined ? await applyTaskXp(db, userId, before, body.status as Status) : null
+  const row = await db.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first()
+  return { task: toTask(row), xp }
+}
+
+api.patch('/tasks/:id', async (c) => {
+  const body = await c.req.json<Patch>().catch(() => ({}))
+  const r = await updateTask(c.env.DB, c.get('user').id, c.req.param('id'), body)
+  if ('error' in r) return c.json({ error: r.error }, r.code)
+  return c.json(r)
+})
+
+/** 選択した複数タスクのステータス変更・削除 */
+api.post('/tasks/bulk', async (c) => {
+  const body = await c.req.json<{ ids?: unknown; status?: unknown; delete?: boolean }>().catch(() => ({}) as any)
+  const ids = Array.isArray(body.ids) ? body.ids.filter(isId).slice(0, 100) : []
+  if (!ids.length) return c.json({ error: 'ids required' }, 400)
   const userId = c.get('user').id
-  const before = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').bind(c.req.param('id'), userId).first()
-  if (!before) return c.json({ error: 'not found' }, 404)
-  await c.env.DB.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`)
-    .bind(...vals, c.req.param('id'), userId)
-    .run()
-  const xp = body.status !== undefined ? await applyTaskXp(c.env.DB, userId, before, body.status) : null
-  const row = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(c.req.param('id')).first()
-  return c.json({ task: toTask(row), xp })
+  if (body.delete) {
+    await c.env.DB.batch(ids.map((id: string) => c.env.DB.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').bind(id, userId)))
+    return c.json({ ok: true })
+  }
+  if (!isStatus(body.status)) return c.json({ error: 'invalid status' }, 400)
+  const tasks: Task[] = []
+  const xp = { amount: 0, gold: 0, bonuses: [] as string[], level: 0, leveledUp: false }
+  const now = Date.now()
+  for (const [i, id] of ids.entries()) {
+    const r = await updateTask(c.env.DB, userId, id, { status: body.status, position: now - i })
+    if ('error' in r) continue
+    tasks.push(r.task)
+    if (r.xp) {
+      xp.amount += r.xp.amount
+      xp.gold += r.xp.gold
+      xp.level = r.xp.level
+      xp.leveledUp ||= r.xp.leveledUp
+    }
+  }
+  return c.json({ tasks, xp: xp.amount ? xp : null })
 })
 
 api.delete('/tasks/:id', async (c) => {
@@ -172,19 +224,39 @@ api.post('/player/reset', async (c) => gameResponse(c, await resetBuild(c.env.DB
 
 api.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)))
 
+api.post('/chest', async (c) => {
+  const r = await openChest(c.env.DB, c.get('user').id)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+api.post('/items/:id/equip', async (c) => {
+  const { on } = await c.req.json<{ on?: boolean }>().catch(() => ({ on: true }))
+  return gameResponse(c, await equipItem(c.env.DB, c.get('user').id, c.req.param('id'), on !== false))
+})
+
+api.post('/items/:id/sell', async (c) => gameResponse(c, await sellItem(c.env.DB, c.get('user').id, c.req.param('id'))))
+
+api.get('/missions', async (c) => c.json(await getMissions(c.env.DB, c.get('user').id)))
+
+api.post('/missions/:id/claim', async (c) => {
+  const r = await claimMission(c.env.DB, c.get('user').id, c.req.param('id'))
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
 // ---------- みんな ----------
 api.get('/people', async (c) => {
   const now = Date.now()
   const { results } = await c.env.DB.prepare(
     `SELECT u.id, u.name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage,
-            SUM(t.status = 'todo') AS todo, SUM(t.status = 'doing') AS doing, SUM(t.status = 'done') AS done,
+            SUM(t.status = 'todo') AS todo, SUM(t.status = 'doing') AS doing,
+            SUM(t.status = 'done' AND COALESCE(t.done_at, t.updated_at) >= ?) AS done,
             SUM(t.done_at >= ? AND t.xp_awarded > 0) AS today, SUM(t.done_at >= ? AND t.xp_awarded > 0) AS week
        FROM users u
        LEFT JOIN players p ON p.user_id = u.id
        LEFT JOIN tasks t ON t.user_id = u.id
       GROUP BY u.id`,
   )
-    .bind(jstDayStart(now), jstDayStart(now) - 6 * 86400000)
+    .bind(doneCutoff(), jstDayStart(now), jstDayStart(now) - 6 * 86400000)
     .all()
   const me = c.get('user').id
   const people: Person[] = (results as any[])
@@ -212,7 +284,7 @@ api.get('/people/:id', async (c) => {
   if (!user || !isAllowed(c.env, user.email)) return c.json({ error: 'not found' }, 404)
   const [player, { results }] = await Promise.all([
     getPlayer(c.env.DB, id),
-    c.env.DB.prepare('SELECT * FROM tasks WHERE user_id = ? ORDER BY position DESC LIMIT 200').bind(id).all(),
+    c.env.DB.prepare(`SELECT * FROM tasks WHERE user_id = ? AND ${VISIBLE} ORDER BY position DESC LIMIT 200`).bind(id, doneCutoff()).all(),
   ])
   return c.json({
     person: { id: user.id, name: user.name || user.email.split('@')[0], picture: user.picture },
@@ -245,4 +317,10 @@ app.route('/api', api)
 
 app.notFound((c) => c.json({ error: 'not found' }, 404))
 
-export default app
+export default {
+  fetch: app.fetch,
+  // 毎日 3:00 (JST) に完了から 7 日経ったタスクを削除
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(purgeOldDone(env.DB).then((n) => console.log('purged done tasks', n)))
+  },
+} satisfies ExportedHandler<Env>

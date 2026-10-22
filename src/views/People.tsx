@@ -5,6 +5,7 @@ import { enemyForStage, levelInfo } from '../../shared/game'
 import { api } from '../api'
 import { Avatar } from '../components/Dock'
 import { PersonSheet } from '../components/PersonSheet'
+import { StageBoard } from '../components/StageBoard'
 
 const POLL_MS = 30_000
 
@@ -43,10 +44,11 @@ export function People() {
         </div>
       ) : (
         <>
+          <StageBoard people={people} onOpen={setOpenId} />
           <ul className="person-list">
             {people.map((p) => {
               const lv = levelInfo(p.xp).level
-              const cleared = p.stage - 1
+              const boss = enemyForStage(p.stage)
               const total = p.todo + p.doing + p.done || 1
               return (
                 <li key={p.id}>
@@ -61,7 +63,9 @@ export function People() {
                       <div className="person-meta">
                         <span>今日 ✓{p.today}</span>
                         <span>7日 ✓{p.week}</span>
-                        <span>{cleared > 0 ? `${enemyForStage(cleared).icon} St.${cleared}` : '冒険前'}</span>
+                        <span className="person-stage">
+                          St.{p.stage} {boss.icon} {boss.name}
+                        </span>
                       </div>
                       <div className="mini-bar" aria-label={`未着手${p.todo} 進行中${p.doing} 完了${p.done}`}>
                         <span className="todo" style={{ flex: p.todo / total }} />
@@ -84,7 +88,13 @@ export function People() {
                     <Avatar name={a.name} picture={a.picture} size={26} />
                     <span className="feed-text">
                       <b>{a.name}</b>
-                      {a.kind === 'done' ? ` ✓ ${a.text}` : a.kind === 'levelup' ? ` が ${a.text} に到達` : ` が ${a.text} を撃破`}
+                      {a.kind === 'done'
+                        ? ` ✓ ${a.text}`
+                        : a.kind === 'levelup'
+                          ? ` が ${a.text} に到達`
+                          : a.kind === 'item'
+                            ? ` が ${a.text} を入手`
+                            : ` が ${a.text} を撃破`}
                     </span>
                     <time>{ago(a.createdAt)}</time>
                   </li>

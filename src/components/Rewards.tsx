@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 export interface XpPopData {
   id: number
   amount: number
+  gold: number
   bonuses: string[]
 }
 
@@ -24,6 +25,13 @@ export function XpPops({ pops }: { pops: XpPopData[] }) {
             <b>
               {p.amount > 0 ? '+' : ''}
               {p.amount} XP
+              {p.gold !== 0 && (
+                <em>
+                  {' '}
+                  {p.gold > 0 ? '+' : ''}
+                  {p.gold} G
+                </em>
+              )}
             </b>
             {p.bonuses.length > 0 && <span>{p.bonuses.join(' ・ ')}</span>}
           </motion.div>

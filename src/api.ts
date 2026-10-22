@@ -1,8 +1,9 @@
 import type { Activity, Person, Status, Task, User } from '../shared/types'
-import type { BattleResult, PlayerState, StatKey } from '../shared/game'
+import type { BattleResult, Item, MissionDef, PlayerState, StatKey } from '../shared/game'
 
 export interface XpChange {
   amount: number
+  gold: number
   bonuses: string[]
   level: number
   leveledUp: boolean
@@ -42,7 +43,22 @@ export const api = {
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),
   learn: (id: string) => req<{ player: PlayerState }>('/api/player/skill', { method: 'POST', json: { id } }),
   resetBuild: () => req<{ player: PlayerState }>('/api/player/reset', { method: 'POST', json: {} }),
-  battle: () => req<{ result: BattleResult; player: PlayerState }>('/api/battle', { method: 'POST', json: {} }),
+  battle: () =>
+    req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState }>('/api/battle', {
+      method: 'POST',
+      json: {},
+    }),
+  bulk: (ids: string[], action: { status: Status } | { delete: true }) =>
+    req<{ tasks?: Task[]; xp?: XpChange | null }>('/api/tasks/bulk', { method: 'POST', json: { ids, ...action } }),
+  chest: () => req<{ item: Item; player: PlayerState }>('/api/chest', { method: 'POST', json: {} }),
+  equip: (id: string, on: boolean) => req<{ player: PlayerState }>(`/api/items/${id}/equip`, { method: 'POST', json: { on } }),
+  sell: (id: string) => req<{ player: PlayerState }>(`/api/items/${id}/sell`, { method: 'POST', json: {} }),
+  missions: () => req<{ missions: Mission[] }>('/api/missions'),
+  claim: (id: string) =>
+    req<{ item: Item | null; gold: number; player: PlayerState; missions: Mission[] }>(`/api/missions/${id}/claim`, {
+      method: 'POST',
+      json: {},
+    }),
   people: () => req<{ people: Person[] }>('/api/people'),
   person: (id: string) =>
     req<{ person: Pick<Person, 'id' | 'name' | 'picture'>; player: PlayerState; tasks: Task[] }>(`/api/people/${id}`),
@@ -52,6 +68,8 @@ export const api = {
     req<{ tasks: string[] }>(`/api/ai/${kind}`, { method: 'POST', json: { text } }),
   logout: () => req<{ ok: true }>('/auth/logout', { method: 'POST' }),
 }
+
+export type Mission = MissionDef & { value: number; done: boolean; claimed: boolean }
 
 export interface PendingMemo {
   id: string

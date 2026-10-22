@@ -4,12 +4,43 @@ export type StatKey = 'atk' | 'hp' | 'crit' | 'heal'
 export type Weight = 'S' | 'M' | 'L'
 export type Branch = 'warrior' | 'guardian' | 'sage'
 
+export type Slot = 'weapon' | 'armor' | 'charm'
+export type Rarity = 'N' | 'R' | 'SR' | 'SSR'
+
+export interface Item {
+  id: string
+  slot: Slot
+  name: string
+  icon: string
+  rarity: Rarity
+  atk: number
+  hp: number
+  crit: number
+  heal: number
+  effect: string | null
+}
+
 export interface PlayerState {
   xp: number
   stats: Record<StatKey, number> // 振り分けたポイント数
   skills: string[]
   stage: number // 次に挑むステージ (1 始まり)
   resets: number // リセットの書
+  gold: number
+  items: Item[]
+  equipped: Partial<Record<Slot, string>> // スロット → 装備中のアイテム ID
+}
+
+type BattleStats = Pick<PlayerState, 'stats' | 'skills'> & Partial<Pick<PlayerState, 'items' | 'equipped'>>
+
+export function equippedItems(p: Partial<Pick<PlayerState, 'items' | 'equipped'>>): Item[] {
+  const ids = Object.values(p.equipped ?? {})
+  return (p.items ?? []).filter((i) => ids.includes(i.id))
+}
+
+/** スキルと装備の効果をまとめて判定 */
+export function hasEffect(p: BattleStats, id: string) {
+  return p.skills.includes(id) || equippedItems(p).some((i) => i.effect === id)
 }
 
 // ---------- レベル ----------
@@ -43,10 +74,11 @@ export const STATS: { key: StatKey; label: string; unit: string; per: number; ba
   { key: 'heal', label: '回復', unit: '/ターン', per: 2, base: 0 },
 ]
 
-export function effectiveStats(p: Pick<PlayerState, 'stats'>) {
+export function effectiveStats(p: Pick<PlayerState, 'stats'> & Partial<Pick<PlayerState, 'items' | 'equipped'>>) {
+  const gear = equippedItems(p)
   const v = (k: StatKey) => {
     const s = STATS.find((x) => x.key === k)!
-    return s.base + s.per * (p.stats[k] ?? 0)
+    return s.base + s.per * (p.stats[k] ?? 0) + gear.reduce((a, i) => a + i[k], 0)
   }
   return { atk: v('atk'), hp: v('hp'), crit: Math.min(60, v('crit')), heal: v('heal') }
 }
@@ -156,10 +188,10 @@ export function rng(seed: number) {
 
 export const MAX_TURNS = 25
 
-export function simulateBattle(p: Pick<PlayerState, 'stats' | 'skills'>, enemy: Enemy, seed: number): BattleResult {
+export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): BattleResult {
   const r = rng(seed)
   const s = effectiveStats(p)
-  const has = (id: string) => p.skills.includes(id)
+  const has = (id: string) => hasEffect(p, id)
   let hp = s.hp
   let enemyHp = enemy.hp
   let gutsUsed = false
@@ -168,21 +200,30 @@ export function simulateBattle(p: Pick<PlayerState, 'stats' | 'skills'>, enemy: 
   for (let turn = 1; turn <= MAX_TURNS; turn++) {
     const log: TurnLog = { turn, hits: [], taken: 0, healed: 0, guts: false, hp, enemyHp }
     const swings = has('double') && r() < 0.25 ? 2 : 1
+    let dealt = 0
     for (let i = 0; i < swings && enemyHp > 0; i++) {
       const crit = r() * 100 < s.crit
       const smash = i === 0 && has('smash') && turn % 3 === 0
       let dmg = s.atk * (0.9 + r() * 0.2)
       if (crit) dmg *= has('critup') ? 2.5 : 2
       if (smash) dmg *= 3
+      if (turn === 1 && i === 0 && has('first')) dmg *= 2
       dmg = Math.max(1, Math.round(dmg))
       enemyHp = Math.max(0, enemyHp - dmg)
+      dealt += dmg
       log.hits.push({ dmg, crit, smash })
+    }
+    if (has('lifesteal') && dealt > 0) {
+      const before = hp
+      hp = Math.min(s.hp, hp + Math.round(dealt * 0.1))
+      log.healed += hp - before
     }
     if (enemyHp > 0) {
       let taken = enemy.atk * (0.9 + r() * 0.2)
       if (has('wall')) taken *= 0.8
       log.taken = Math.max(1, Math.round(taken))
       hp -= log.taken
+      if (has('thorns')) enemyHp = Math.max(0, enemyHp - Math.round(log.taken * 0.3))
       if (hp <= 0 && has('guts') && !gutsUsed) {
         hp = 1
         gutsUsed = true
@@ -192,7 +233,7 @@ export function simulateBattle(p: Pick<PlayerState, 'stats' | 'skills'>, enemy: 
         const heal = s.heal + (has('regen') ? Math.round(s.hp * 0.05) : 0)
         const before = hp
         hp = Math.min(s.hp, hp + heal)
-        log.healed = hp - before
+        log.healed += hp - before
       }
     }
     log.hp = Math.max(0, hp)
@@ -204,20 +245,29 @@ export function simulateBattle(p: Pick<PlayerState, 'stats' | 'skills'>, enemy: 
 }
 
 /** 勝率の目安 (表示用) */
-export function winRate(p: Pick<PlayerState, 'stats' | 'skills'>, enemy: Enemy, trials = 60) {
+export function winRate(p: BattleStats, enemy: Enemy, trials = 60) {
   let wins = 0
   for (let i = 0; i < trials; i++) if (simulateBattle(p, enemy, 7919 * (i + 1)).win) wins++
   return wins / trials
 }
 
-// ---------- 経験値 ----------
+/** ボス撃破の報酬ゴールド */
+export const bossGold = (stage: number) => 40 + stage * 20
+
+// ---------- 経験値・ゴールド ----------
 export const WEIGHT_XP: Record<Weight, number> = { S: 10, M: 20, L: 40 }
 export const WEIGHT_LABEL: Record<Weight, string> = { S: '小', M: '中', L: '大' }
 
 const JST = 9 * 60 * 60 * 1000
+const DAY = 86400000
 /** JST の日付の 0 時 (UTC ミリ秒) */
-export const jstDayStart = (t: number) => Math.floor((t + JST) / 86400000) * 86400000 - JST
+export const jstDayStart = (t: number) => Math.floor((t + JST) / DAY) * DAY - JST
 const jstHour = (t: number) => new Date(t + JST).getUTCHours()
+
+/** 完了タスクを残す日数 */
+export const DONE_KEEP_DAYS = 7
+export const doneDaysLeft = (doneAt: number, now = Date.now()) =>
+  Math.max(0, DONE_KEEP_DAYS - Math.floor((now - doneAt) / DAY))
 
 export interface XpInput {
   weight: Weight | null
@@ -226,10 +276,12 @@ export interface XpInput {
   doneToday: number // この完了より前に今日完了した件数
   source: string
   skills: string[]
+  effects?: string[] // 装備の効果
 }
 
 export function computeXp(x: XpInput) {
   const bonuses: string[] = []
+  const fx = x.effects ?? []
   let amount = WEIGHT_XP[x.weight ?? 'M']
   // 作ってすぐ完了したものは大きく減らす (稼ぎ防止)
   if (x.now - x.createdAt < 2 * 60 * 1000) {
@@ -249,10 +301,146 @@ export function computeXp(x: XpInput) {
     mult += 0.1
     bonuses.push('分解の達人 +10%')
   }
+  if (fx.includes('xpup')) {
+    mult += 0.1
+    bonuses.push('装備 XP+10%')
+  }
   amount = Math.round(amount * mult)
   if (x.doneToday === 0) {
     amount += 5
     bonuses.push('今日の初完了 +5')
   }
-  return { amount, bonuses }
+  const gold = Math.ceil((amount / 2) * (fx.includes('goldup') ? 1.2 : 1))
+  return { amount, gold, bonuses }
+}
+
+// ---------- 装備 ----------
+export const CHEST_COST = 100
+export const INVENTORY_MAX = 40
+export const SLOTS: { key: Slot; label: string }[] = [
+  { key: 'weapon', label: '武器' },
+  { key: 'armor', label: '防具' },
+  { key: 'charm', label: 'お守り' },
+]
+export const RARITY_SELL: Record<Rarity, number> = { N: 10, R: 25, SR: 60, SSR: 150 }
+const RARITY_ROLL: [Rarity, number][] = [
+  ['SSR', 0.03],
+  ['SR', 0.12],
+  ['R', 0.3],
+  ['N', 1],
+]
+const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.6, SR: 2.4, SSR: 3.5 }
+
+export const EFFECTS: Record<string, string> = {
+  first: '先制: 1ターン目の攻撃×2',
+  lifesteal: '吸収: 与ダメージの10%回復',
+  thorns: '反撃: 受けたダメージの30%を返す',
+  double: '連撃: 25%で2回攻撃',
+  wall: '鉄壁: 受けるダメージ-20%',
+  xpup: '学び: タスクのXP+10%',
+  goldup: '金運: タスクのゴールド+20%',
+}
+const EFFECT_POOL: Record<Slot, string[]> = {
+  weapon: ['first', 'lifesteal', 'double'],
+  armor: ['thorns', 'wall', 'lifesteal'],
+  charm: ['xpup', 'goldup', 'first'],
+}
+
+const BASES: Record<Slot, { name: string; icon: string }[]> = {
+  weapon: [
+    { name: '木の剣', icon: '🪵' },
+    { name: '鉄の剣', icon: '🗡️' },
+    { name: '炎の剣', icon: '🔥' },
+    { name: '雷の槍', icon: '⚡' },
+    { name: '勇者の剣', icon: '⚔️' },
+  ],
+  armor: [
+    { name: '布の服', icon: '👕' },
+    { name: '革の鎧', icon: '🦺' },
+    { name: '鋼の盾', icon: '🛡️' },
+    { name: '竜鱗の鎧', icon: '🐉' },
+    { name: '聖なる鎧', icon: '✨' },
+  ],
+  charm: [
+    { name: '幸運のお守り', icon: '🧿' },
+    { name: '四つ葉', icon: '🍀' },
+    { name: '星のかけら', icon: '⭐' },
+    { name: '女神の涙', icon: '💎' },
+    { name: '王の冠', icon: '👑' },
+  ],
+}
+
+/** 宝箱から装備を 1 つ生成。後半のステージほど数値が伸びる */
+export function rollItem(seed: number, stage: number, forceRarity?: Rarity): Omit<Item, 'id'> {
+  const r = rng(seed)
+  const roll = r()
+  const rarity = forceRarity ?? RARITY_ROLL.find(([, p]) => roll < p)![0]
+  const slot = (['weapon', 'armor', 'charm'] as Slot[])[Math.floor(r() * 3)]
+  const tier = { N: [0, 1], R: [1, 2], SR: [2, 3], SSR: [3, 4] }[rarity]
+  const base = BASES[slot][tier[0] + Math.floor(r() * (tier[1] - tier[0] + 1))]
+  const power = RARITY_MULT[rarity] * (1 + (stage - 1) * 0.25)
+  const jitter = () => 0.85 + r() * 0.3
+  const stats = { atk: 0, hp: 0, crit: 0, heal: 0 }
+  if (slot === 'weapon') {
+    stats.atk = Math.round(2 * power * jitter())
+    if (rarity !== 'N' && r() < 0.5) stats.crit = Math.round(1 + power * jitter())
+  } else if (slot === 'armor') {
+    stats.hp = Math.round(10 * power * jitter())
+    if (rarity !== 'N' && r() < 0.5) stats.heal = Math.round(power * jitter())
+  } else {
+    stats.crit = Math.round(1.5 * power * jitter())
+    if (r() < 0.5) stats.heal = Math.round(power * 0.8 * jitter())
+    else stats.atk = Math.round(power * jitter())
+  }
+  const effect = rarity === 'SSR' || (rarity === 'SR' && r() < 0.6) ? EFFECT_POOL[slot][Math.floor(r() * 3)] : null
+  return { slot, name: base.name, icon: base.icon, rarity, ...stats, effect }
+}
+
+// ---------- デイリーミッション ----------
+export interface MissionDef {
+  id: string
+  label: string
+  goal: number
+  gold: number
+  chest?: boolean
+}
+const MISSION_POOL: MissionDef[] = [
+  { id: 'done5', label: 'タスクを5件完了', goal: 5, gold: 60 },
+  { id: 'big', label: '「大」のタスクを1件完了', goal: 1, gold: 40 },
+  { id: 'early', label: '朝9時までに1件完了', goal: 1, gold: 30 },
+  { id: 'battle', label: 'ボスに挑戦する', goal: 1, gold: 20 },
+  { id: 'mid2', label: '「中」以上のタスクを2件完了', goal: 2, gold: 40 },
+]
+export const DAILY_BASE: MissionDef = { id: 'done3', label: 'タスクを3件完了', goal: 3, gold: 30 }
+export const DAILY_ALL: MissionDef = { id: 'all', label: '今日のミッションを全部クリア', goal: 3, gold: 0, chest: true }
+
+/** その日のミッション (日付から決まるので全員共通) */
+export function dailyMissions(dayStart: number): MissionDef[] {
+  const r = rng(Math.floor(dayStart / DAY))
+  const pool = [...MISSION_POOL]
+  const picks: MissionDef[] = []
+  for (let i = 0; i < 2; i++) picks.push(pool.splice(Math.floor(r() * pool.length), 1)[0])
+  return [DAILY_BASE, ...picks, DAILY_ALL]
+}
+
+export interface DailyCounts {
+  done: number
+  big: number
+  midPlus: number
+  early: number
+  battles: number
+}
+
+export function missionProgress(m: MissionDef, c: DailyCounts, claimed: string[]) {
+  const byId: Record<string, number> = {
+    done3: c.done,
+    done5: c.done,
+    big: c.big,
+    mid2: c.midPlus,
+    early: c.early,
+    battle: c.battles,
+    all: claimed.filter((id) => id !== 'all').length,
+  }
+  const value = byId[m.id] ?? 0
+  return { value: Math.min(value, m.goal), done: value >= m.goal, claimed: claimed.includes(m.id) }
 }

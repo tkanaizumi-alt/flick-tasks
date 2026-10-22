@@ -1,6 +1,8 @@
-import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react'
+import { useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform, type Variants } from 'motion/react'
 import type { Status } from '../../shared/types'
+import { doneDaysLeft } from '../../shared/game'
+import { STATUS_LABEL } from '../api'
 import type { UITask } from '../App'
 import { CheckIcon, PlayIcon, SparkIcon, TrashIcon, UndoIcon, CloudIcon } from './icons'
 
@@ -42,16 +44,51 @@ interface Props {
   index: number
   onSwipe: (task: UITask, dir: 1 | -1) => void
   onOpen: (task: UITask) => void
+  /** 選択モード中か / このカードが選択中か */
+  selecting?: boolean
+  selected?: boolean
+  onSelect?: (task: UITask) => void
+  /** 他の状態のタスクも混ざる検索結果ではステータスを表示する */
+  showStatus?: boolean
   ref?: Ref<HTMLLIElement>
 }
 
-export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
+const LONG_PRESS_MS = 450
+
+export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, onSelect, showStatus, ref }: Props) {
   const x = useMotionValue(0)
   const cardRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(360)
   const [armed, setArmed] = useState<0 | 1 | -1>(0)
   const dragged = useRef(false)
+  const press = useRef<{ t: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null)
   const locked = task.ai || task.syncing
+  const daysLeft = task.status === 'done' ? doneDaysLeft(task.doneAt ?? task.updatedAt) : null
+
+  // 長押しで選択モードへ (少しでも動いたらスワイプ扱いで中止)
+  const cancelPress = () => {
+    if (press.current) clearTimeout(press.current.t)
+    press.current = null
+  }
+  const startPress = (e: PointerEvent) => {
+    if (selecting || locked || !onSelect) return
+    cancelPress()
+    press.current = {
+      x: e.clientX,
+      y: e.clientY,
+      t: setTimeout(() => {
+        press.current = null
+        dragged.current = true
+        navigator.vibrate?.(15)
+        onSelect(task)
+        setTimeout(() => (dragged.current = false), 350)
+      }, LONG_PRESS_MS),
+    }
+  }
+  const movePress = (e: PointerEvent) => {
+    const p = press.current
+    if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) cancelPress()
+  }
 
   useLayoutEffect(() => {
     if (cardRef.current) setWidth(cardRef.current.offsetWidth)
@@ -105,9 +142,14 @@ export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
 
       <motion.div
         ref={cardRef}
-        className={`card card-surface s-${task.status} ${task.ai ? 'is-ai' : ''}`}
+        className={`card card-surface s-${task.status} ${task.ai ? 'is-ai' : ''} ${selecting ? 'selecting' : ''} ${selected ? 'selected' : ''}`}
+        aria-pressed={selecting ? !!selected : undefined}
         style={{ x, rotate }}
-        drag={locked ? false : 'x'}
+        drag={locked || selecting ? false : 'x'}
+        onPointerDown={startPress}
+        onPointerMove={movePress}
+        onPointerUp={cancelPress}
+        onPointerCancel={cancelPress}
         dragDirectionLock
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.92}
@@ -126,7 +168,9 @@ export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
           onSwipe(task, dir)
         }}
         onClick={() => {
-          if (!dragged.current && !locked) onOpen(task)
+          if (dragged.current || locked) return
+          if (selecting) onSelect?.(task)
+          else onOpen(task)
         }}
         role="button"
         tabIndex={0}
@@ -135,12 +179,24 @@ export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
           if (e.key === 'Enter') onOpen(task)
         }}
       >
-        <span className="status-dot" aria-hidden="true">
-          {task.status === 'done' ? <CheckIcon /> : null}
-        </span>
+        {selecting ? (
+          <span className={`select-dot ${selected ? 'on' : ''}`} aria-hidden="true">
+            {selected ? <CheckIcon /> : null}
+          </span>
+        ) : (
+          <span className="status-dot" aria-hidden="true">
+            {task.status === 'done' ? <CheckIcon /> : null}
+          </span>
+        )}
         <div className="card-body">
           <div className="card-title">{task.title}</div>
           {task.note ? <div className="card-note">{task.note}</div> : null}
+          {(showStatus || daysLeft !== null) && (
+            <div className="card-meta">
+              {showStatus && <span className={`meta-status t-${task.status}`}>{STATUS_LABEL[task.status]}</span>}
+              {daysLeft !== null && <span data-testid="days-left">{daysLeft === 0 ? '今日で消えます' : `あと${daysLeft}日で消えます`}</span>}
+            </div>
+          )}
         </div>
         {task.ai ? (
           <span className="card-badge ai" aria-label="AI処理中">

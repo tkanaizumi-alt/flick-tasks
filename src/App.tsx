@@ -7,7 +7,8 @@ import { Background } from './components/Background'
 import { Skeleton } from './components/Skeleton'
 import { TaskCard, exitDir } from './components/TaskCard'
 import { Dock, type View } from './components/Dock'
-import { StatusTabs } from './components/StatusTabs'
+import { MeToolbar } from './components/StatusTabs'
+import { SelectBar } from './components/SelectBar'
 import { Sheet } from './components/Sheet'
 import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
@@ -75,6 +76,8 @@ export function App() {
   const [aiBusy, setAiBusy] = useState(0)
   const [pops, setPops] = useState<XpPopData[]>([])
   const [levelUp, setLevelUp] = useState<number | null>(null)
+  const [selected, setSelected] = useState<Set<string> | null>(null) // null = 選択モードでない
+  const [query, setQuery] = useState<string | null>(null) // null = 検索を閉じている
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const tabRef = useRef(tab)
@@ -83,11 +86,13 @@ export function App() {
   viewRef.current = view
 
   const setTab = useCallback((t: Status) => {
+    setSelected(null)
     setTabState(t)
     store.set(TAB_KEY, t)
   }, [])
 
   const setView = useCallback((v: View) => {
+    setSelected(null)
     setViewState(v)
     store.set(VIEW_KEY, v)
     window.scrollTo({ top: 0 })
@@ -113,9 +118,9 @@ export function App() {
   const onXp = useCallback((xp: XpChange | null) => {
     if (!xp || xp.amount === 0) return
     const id = Date.now() + Math.random()
-    setPops((p) => [...p.slice(-2), { id, amount: xp.amount, bonuses: xp.bonuses }])
+    setPops((p) => [...p.slice(-2), { id, amount: xp.amount, gold: xp.gold, bonuses: xp.bonuses }])
     setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), 1800)
-    setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount) } : p))
+    setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount), gold: Math.max(0, p.gold + xp.gold) } : p))
     if (xp.leveledUp) {
       navigator.vibrate?.([12, 40, 12])
       setTimeout(() => setLevelUp(xp.level), 500)
@@ -314,6 +319,93 @@ export function App() {
     [patchTask, setTab, showToast, upsert],
   )
 
+  // --- 選択モード (長押し or 選択ボタン) ---
+  const onSelect = useCallback((task: UITask) => {
+    setSelected((prev) => {
+      const next = new Set(prev ?? [])
+      if (next.has(task.id)) next.delete(task.id)
+      else next.add(task.id)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!selected) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected])
+
+  const bulkMove = useCallback(
+    async (list: UITask[], dir: 1 | -1) => {
+      // ステータスごとに次 (前) の状態へ。端のものは動かさない
+      const groups = new Map<Status, UITask[]>()
+      for (const t of list) {
+        const i = ORDER.indexOf(t.status) + dir
+        if (i < 0 || i >= ORDER.length) continue
+        const to = ORDER[i]
+        groups.set(to, [...(groups.get(to) ?? []), t])
+      }
+      if (!groups.size) return
+      const now = Date.now()
+      upsert([...groups].flatMap(([to, ts]) => ts.map((t, i) => ({ ...t, status: to, position: now - i }))))
+      setSelected(null)
+      const moved = [...groups.values()].flat()
+      try {
+        for (const [to, ts] of groups) {
+          const r = await api.bulk(
+            ts.map((t) => t.id),
+            { status: to },
+          )
+          if (r.tasks) upsert(r.tasks)
+          onXp(r.xp ?? null)
+        }
+        const to = groups.size === 1 ? STATUS_LABEL[[...groups.keys()][0]] : dir > 0 ? '次' : '前'
+        showToast(`${moved.length}件を${to}へ`, async () => {
+          // 元のステータスごとにまとめて戻す
+          const back = new Map<Status, UITask[]>()
+          for (const t of moved) back.set(t.status, [...(back.get(t.status) ?? []), t])
+          upsert(moved)
+          for (const [st, ts] of back) {
+            const r = await api.bulk(
+              ts.map((t) => t.id),
+              { status: st },
+            )
+            onXp(r.xp ?? null)
+          }
+        })
+      } catch {
+        upsert(moved)
+        showToast('移動できませんでした')
+      }
+    },
+    [onXp, showToast, upsert],
+  )
+
+  const bulkDelete = useCallback(
+    async (list: UITask[]) => {
+      removeLocal(list.map((t) => t.id))
+      setSelected(null)
+      try {
+        await api.bulk(
+          list.map((t) => t.id),
+          { delete: true },
+        )
+        showToast(`${list.length}件を削除しました`, async () => {
+          upsert(list)
+          for (const src of ['user', 'ai'] as const) {
+            const ts = list.filter((t) => (t.source ?? 'user') === src)
+            if (ts.length) await api.create(ts, src)
+          }
+        })
+      } catch {
+        upsert(list)
+        showToast('削除できませんでした')
+      }
+    },
+    [removeLocal, showToast, upsert],
+  )
+
   const logout = useCallback(async () => {
     try {
       await api.logout()
@@ -334,7 +426,19 @@ export function App() {
     return c
   }, [tasks])
 
-  const visible = useMemo(() => tasks.filter((t) => t.status === tab).sort((a, b) => b.position - a.position), [tasks, tab])
+  const q = query?.trim().toLowerCase() ?? ''
+  const visible = useMemo(() => {
+    if (q) {
+      // 検索中は全ステータスから。未着手 → 進行中 → 完了 の順
+      return tasks
+        .filter((t) => t.title.toLowerCase().includes(q) || t.note.toLowerCase().includes(q))
+        .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || b.position - a.position)
+    }
+    return tasks.filter((t) => t.status === tab).sort((a, b) => b.position - a.position)
+  }, [tasks, tab, q])
+  const selectedTasks = selected ? visible.filter((t) => selected.has(t.id)) : []
+  const selStatuses = new Set(selectedTasks.map((t) => t.status))
+  const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q ? tab : null
   const openTask = tasks.find((t) => t.id === openId) ?? null
   const EmptyIcon = EMPTY_ICON[tab]
   const freeSp = player ? Math.max(0, spInfo(player).free) : 0
@@ -354,20 +458,40 @@ export function App() {
             <motion.main key={view} className={`view view-${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
                 {view === 'me' && (
                   <>
-                    <StatusTabs tab={tab} counts={counts} onChange={setTab} />
+                    <MeToolbar
+                      tab={tab}
+                      counts={counts}
+                      onChange={setTab}
+                      query={query}
+                      onQuery={(v) => {
+                        setQuery(v)
+                        setSelected(null)
+                      }}
+                      onStartSelect={() => setSelected((s) => (s ? null : new Set()))}
+                    />
                     <section className="list-page">
                       <LayoutGroup>
                         <ul className="list" data-testid={`list-${tab}`}>
                           <AnimatePresence mode="popLayout">
                             {visible.map((t, i) => (
-                              <TaskCard key={t.id} task={t} index={i} onSwipe={onSwipe} onOpen={(x) => setOpenId(x.id)} />
+                              <TaskCard
+                                key={t.id}
+                                task={t}
+                                index={i}
+                                onSwipe={onSwipe}
+                                onOpen={(x) => setOpenId(x.id)}
+                                selecting={!!selected}
+                                selected={!!selected?.has(t.id)}
+                                onSelect={onSelect}
+                                showStatus={!!q}
+                              />
                             ))}
                           </AnimatePresence>
                         </ul>
                       </LayoutGroup>
                       {visible.length === 0 && (
                         <div className={`empty t-${tab}`} data-testid="empty">
-                          <EmptyIcon />
+                          {q ? <span className="empty-text">見つかりません</span> : <EmptyIcon />}
                         </div>
                       )}
                     </section>
@@ -386,7 +510,19 @@ export function App() {
                   ))}
             </motion.main>
 
-            <Dock view={view} onChange={setView} user={user} onLogout={logout} badge={freeSp} />
+            {selected && view === 'me' ? (
+              <SelectBar
+                count={selectedTasks.length}
+                total={visible.length}
+                status={selStatus}
+                onAll={() => setSelected(selectedTasks.length === visible.length ? new Set() : new Set(visible.map((t) => t.id)))}
+                onCancel={() => setSelected(null)}
+                onMove={(dir) => bulkMove(selectedTasks, dir)}
+                onDelete={() => bulkDelete(selectedTasks)}
+              />
+            ) : (
+              <Dock view={view} onChange={setView} user={user} onLogout={logout} badge={freeSp} />
+            )}
 
             <AnimatePresence>
               {openTask && (

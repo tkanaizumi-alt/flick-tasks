@@ -91,3 +91,14 @@ export const SwordIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M5.5 12.5l6 6" />
   </svg>
 )
+export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M20 20l-4.2-4.2" />
+  </svg>
+)
+export const XIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+)

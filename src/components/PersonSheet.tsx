@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, useDragControls } from 'motion/react'
 import type { Task } from '../../shared/types'
-import { SKILL_MAP, STATS, effectiveStats, type PlayerState } from '../../shared/game'
+import { SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } from '../../shared/game'
 import { api, STATUS_LABEL } from '../api'
 import { CharacterHeader } from './CharacterHeader'
 
@@ -67,6 +67,15 @@ export function PersonSheet({ id, onClose }: { id: string; onClose: () => void }
                 </span>
               ))}
             </div>
+            {equippedItems(data.player).length > 0 && (
+              <div className="ps-skills">
+                {equippedItems(data.player).map((i) => (
+                  <span key={i.id} className={`chip gear r-${i.rarity}`}>
+                    {i.icon} {i.name}
+                  </span>
+                ))}
+              </div>
+            )}
             {data.player.skills.length > 0 && (
               <div className="ps-skills">
                 {data.player.skills.map((sid) => (
