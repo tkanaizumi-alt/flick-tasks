@@ -9,7 +9,7 @@ export function Skeleton() {
       className="boot-skel"
       aria-busy="true"
       aria-label="読み込み中"
-      exit={{ opacity: 0, filter: 'blur(8px)', scale: 1.02 }}
+      exit={{ opacity: 0, scale: 1.02 }}
       transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
     >
       <div className="skel-list">

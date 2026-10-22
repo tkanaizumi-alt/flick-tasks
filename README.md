@@ -14,6 +14,12 @@ https://flick-tasks.tkanaizumi.workers.dev
   - タスク詳細の「AIで分解」: サブタスクに分解
 - **Google ログインのみ** (OAuth 2.0 + PKCE、セッションは HttpOnly Cookie)
 - 全画面スケルトンローディング、Liquid Glass UI、モバイルファースト
+- **みんな**: 全員のレベル・完了数・到達ステージ・最近の動き。タップでその人のタスクとキャラクターを閲覧
+- **冒険** (ミニゲーム)
+  - タスク完了で XP。AI がタスクの重さを 小/中/大 で判定し 10/20/40 XP (作成直後の完了は減点、完了を戻すと XP も戻る)
+  - レベルごとに 3 SP。ステータス (攻撃・体力・会心・回復) に振るか、スキル (戦士・守護・賢者) を取るか選ぶ
+  - ステージ制のボスに自動バトルで挑戦。勝つとリセットの書 (SP 振り直し) を獲得
+  - ルールは `shared/game.ts`。判定はすべてサーバー側
 
 ## 構成
 
@@ -54,6 +60,8 @@ Google Cloud Console で「ウェブ アプリケーション」の OAuth クラ
 ```bash
 npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
+# 任意: 使える人を限定 (カンマ区切り)。未設定なら制限なし
+npx wrangler secret put ALLOWED_EMAILS
 ```
 
 ### デプロイ

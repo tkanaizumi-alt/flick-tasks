@@ -10,6 +10,10 @@ export interface Task {
   position: number
   createdAt: number
   updatedAt: number
+  weight?: 'S' | 'M' | 'L' | null
+  source?: 'user' | 'ai'
+  xpAwarded?: number
+  doneAt?: number | null
 }
 
 export interface User {
@@ -17,4 +21,29 @@ export interface User {
   email: string
   name: string
   picture: string
+}
+
+/** みんなの画面の 1 人分 */
+export interface Person {
+  id: string
+  name: string
+  picture: string
+  xp: number
+  stage: number
+  todo: number
+  doing: number
+  done: number
+  today: number
+  week: number
+  isMe: boolean
+}
+
+export interface Activity {
+  id: number
+  userId: string
+  name: string
+  picture: string
+  kind: 'done' | 'levelup' | 'boss'
+  text: string
+  createdAt: number
 }

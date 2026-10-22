@@ -27,18 +27,14 @@ export function actionFor(status: Status, dir: 1 | -1): Action {
 }
 
 const variants: Variants = {
-  initial: { opacity: 0, y: -16, scale: 0.94, filter: 'blur(6px)' },
+  initial: { opacity: 0, y: -12 },
   animate: ({ i }: { i: number }) => ({
     opacity: 1,
     y: 0,
-    scale: 1,
-    filter: 'blur(0px)',
-    transition: { type: 'spring', stiffness: 420, damping: 30, delay: Math.min(i, 10) * 0.04 },
+    transition: { duration: 0.22, ease: 'easeOut', delay: i < 6 ? i * 0.03 : 0 },
   }),
   exit: ({ id }: { id: string }) =>
-    exitDir.has(id)
-      ? { opacity: 0, transition: { duration: 0.32, ease: 'easeIn' } }
-      : { opacity: 0, scale: 0.86, filter: 'blur(6px)', transition: { duration: 0.24 } },
+    exitDir.has(id) ? { opacity: 0, transition: { duration: 0.2 } } : { opacity: 0, scale: 0.94, transition: { duration: 0.16 } },
 }
 
 interface Props {
@@ -70,7 +66,6 @@ export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
   const rightIcon = useTransform(x, [0, threshold * 0.7, threshold], [0.4, 0.85, 1.12])
   const leftIcon = useTransform(x, [-threshold, -threshold * 0.7, 0], [1.12, 0.85, 0.4])
   const rotate = useTransform(x, [-width, 0, width], [-5, 0, 5])
-  const glare = useTransform(x, [-width, 0, width], ['0%', '50%', '100%'])
 
   useMotionValueEvent(x, 'change', (v) => {
     const a = v > threshold ? 1 : v < -threshold ? -1 : 0
@@ -110,14 +105,13 @@ export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
 
       <motion.div
         ref={cardRef}
-        className={`card glass s-${task.status} ${task.ai ? 'is-ai' : ''}`}
-        style={{ x, rotate, ['--glare' as any]: glare }}
+        className={`card card-surface s-${task.status} ${task.ai ? 'is-ai' : ''}`}
+        style={{ x, rotate }}
         drag={locked ? false : 'x'}
         dragDirectionLock
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.92}
         dragTransition={{ bounceStiffness: 520, bounceDamping: 34 }}
-        whileTap={{ scale: 0.985 }}
         onDragStart={() => (dragged.current = true)}
         onDragEnd={(_, info) => {
           const v = x.get()

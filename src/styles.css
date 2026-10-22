@@ -11,8 +11,8 @@
 .glass {
   position: relative;
   background: var(--glass);
-  -webkit-backdrop-filter: blur(24px) saturate(190%);
-  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
   box-shadow: var(--glass-edge);
   isolation: isolate;
 }
@@ -56,42 +56,95 @@
 }
 
 /* ---------- 背景 ---------- */
+/* 静止したグラデーション (ぼかしフィルタや常時アニメーションは使わない) */
 .bg {
   position: fixed;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
-  background: var(--bg);
   pointer-events: none;
+  background:
+    radial-gradient(70% 45% at 0% 0%, rgba(179, 193, 255, 0.55), transparent 70%),
+    radial-gradient(60% 45% at 100% 35%, rgba(226, 198, 255, 0.45), transparent 70%),
+    radial-gradient(70% 45% at 15% 100%, rgba(180, 238, 217, 0.45), transparent 70%),
+    radial-gradient(50% 35% at 100% 100%, rgba(255, 211, 226, 0.4), transparent 70%),
+    var(--bg);
 }
-.blob {
-  position: absolute;
-  width: 70vmax;
-  height: 70vmax;
-  border-radius: 50%;
-  filter: blur(40px);
-  opacity: 0.85;
-  will-change: transform;
+.bg-plain { display: none; }
+
+/* 背景ぼかし無しの軽いカード面 */
+.card-surface {
+  position: relative;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
+  box-shadow: inset 0 1px 0 #fff, inset 0 0 0 0.5px rgba(255, 255, 255, 0.8), 0 1px 2px rgba(20, 28, 48, 0.05), 0 8px 20px -10px rgba(20, 28, 48, 0.14);
 }
-.b1 { background: radial-gradient(circle, #b3c1ff 0%, transparent 62%); top: -28vmax; left: -28vmax; animation: drift1 26s ease-in-out infinite alternate; }
-.b2 { background: radial-gradient(circle, #e2c6ff 0%, transparent 62%); top: 8vmax; right: -38vmax; animation: drift2 32s ease-in-out infinite alternate; }
-.b3 { background: radial-gradient(circle, #b4eed9 0%, transparent 62%); bottom: -36vmax; left: -14vmax; animation: drift3 30s ease-in-out infinite alternate; }
-.b4 { background: radial-gradient(circle, #ffd3e2 0%, transparent 62%); bottom: -22vmax; right: -28vmax; opacity: 0.7; animation: drift1 36s ease-in-out infinite alternate-reverse; }
-@keyframes drift1 { to { transform: translate(18vmax, 14vmax) scale(1.15); } }
-@keyframes drift2 { to { transform: translate(-16vmax, 20vmax) scale(0.9); } }
-@keyframes drift3 { to { transform: translate(14vmax, -16vmax) scale(1.1); } }
-.bg-plain { opacity: 0; transition: opacity 0.6s ease; }
 
 /* ---------- レイアウト ---------- */
 .app { min-height: 100dvh; }
-.list-zone {
+/* 本体の上でフェードアウトする間、操作を妨げない */
+.boot-skel { z-index: 5; pointer-events: none; }
+.view {
   position: relative;
   max-width: 640px;
   margin: 0 auto;
-  padding: calc(var(--safe-t) + var(--composer-h) + 24px) 12px calc(var(--safe-b) + 120px);
+  padding: calc(var(--safe-t) + 16px) 12px calc(var(--safe-b) + 120px);
   overflow-x: clip;
 }
+.view-me { padding-top: calc(var(--safe-t) + var(--composer-h) + 20px); }
 .list-page { position: relative; min-height: 50vh; }
+
+/* メモ欄は「自分」の画面だけ */
+.composer { transition: box-shadow 0.35s ease, transform 0.25s ease, opacity 0.2s ease; }
+body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%); pointer-events: none; }
+
+/* ---------- ステータス切り替え ---------- */
+.status-tabs {
+  position: sticky;
+  top: calc(var(--safe-t) + var(--composer-h) + 18px);
+  z-index: 20;
+  display: flex;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 18px;
+}
+.stab {
+  position: relative;
+  flex: 1;
+  height: 38px;
+  border: 0;
+  background: none;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.stab.on { color: var(--ink); }
+.stab-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fff;
+  box-shadow: 0 2px 8px -2px rgba(20, 28, 48, 0.18);
+}
+.stab-label, .stab-count { position: relative; }
+.stab-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 20px;
+  background: rgba(20, 28, 48, 0.06);
+  font-variant-numeric: tabular-nums;
+}
+.stab.on.t-todo .stab-count { background: var(--c-todo); color: #fff; }
+.stab.on.t-doing .stab-count { background: var(--c-doing); color: #fff; }
+.stab.on.t-done .stab-count { background: var(--c-done); color: #fff; }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 
 /* ---------- カード ---------- */
@@ -185,7 +238,8 @@
   place-items: center;
   color: var(--accent, rgba(12, 15, 23, 0.16));
 }
-.empty svg { width: 64px; height: 64px; stroke-width: 1.2; opacity: 0.35; }
+.empty svg { width: 64px; height: 64px; stroke-width: 1.2; opacity: 0.35; animation: fade-in 0.3s ease; }
+@keyframes fade-in { from { opacity: 0; } }
 .empty.t-todo { --accent: var(--c-todo); }
 .empty.t-doing { --accent: var(--c-doing); }
 .empty.t-done { --accent: var(--c-done); }
@@ -472,6 +526,191 @@
 @media (min-width: 720px) {
   .card-title { font-size: 16.5px; }
 }
+/* ---------- アバター ---------- */
+.av-img { border-radius: 50%; object-fit: cover; flex: none; display: block; }
+.av-text {
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(160deg, #8f9aff, var(--c-todo));
+}
+.avatar .av-img, .avatar .av-text { width: 44px !important; height: 44px !important; }
+.tab-count.sp { background: var(--c-danger); color: #fff; }
+
+/* ---------- 共通パネル ---------- */
+.panel { border-radius: 24px; padding: 16px; margin-bottom: 12px; }
+.panel h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.pill-btn.primary { color: #fff; background: linear-gradient(160deg, #7b87ff, #4f5bff); box-shadow: 0 6px 16px -6px rgba(79, 91, 255, 0.6); }
+.pill-btn.primary:disabled { opacity: 0.5; }
+.pill-btn.ghost { background: rgba(20, 28, 48, 0.06); color: var(--ink); }
+.skel-card.tall { height: 96px; }
+
+/* ---------- キャラクター ---------- */
+.char { display: flex; gap: 14px; align-items: center; }
+.char-body { flex: 1; min-width: 0; }
+.char-top { display: flex; align-items: baseline; gap: 8px; }
+.char-name { font-weight: 700; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.char-lv { margin-left: auto; font-weight: 800; font-size: 18px; color: var(--c-todo); font-variant-numeric: tabular-nums; }
+.xp-bar { height: 8px; border-radius: 4px; background: rgba(20, 28, 48, 0.07); overflow: hidden; margin: 8px 0 6px; }
+.xp-bar span { display: block; height: 100%; background: linear-gradient(90deg, #7b87ff, #a57bff); transform-origin: left; transition: transform 0.5s ease; }
+.char-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); gap: 8px; }
+
+/* ---------- ボス ---------- */
+.boss { display: flex; align-items: center; gap: 14px; }
+.boss-icon { font-size: 44px; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 20px; background: rgba(255, 255, 255, 0.7); flex: none; }
+.boss-body { flex: 1; min-width: 0; }
+.boss-stage { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: 0.04em; }
+.boss-name { font-size: 17px; font-weight: 750; }
+.boss-stats { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.rate { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.rate-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(20, 28, 48, 0.07); overflow: hidden; }
+.rate-bar span { display: block; height: 100%; border-radius: 3px; }
+.rate-bar .good { background: var(--c-done); }
+.rate-bar .mid { background: var(--c-doing); }
+.rate-bar .bad { background: var(--c-danger); }
+.rate-text { font-size: 12px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.boss .pill-btn { flex: none; }
+
+/* ---------- ステータス ---------- */
+.sp-pill { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 10px; background: rgba(20, 28, 48, 0.06); color: var(--ink-2); }
+.sp-pill.on { background: var(--c-danger); color: #fff; }
+.stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.stat-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px 8px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.55); }
+.stat-label { width: 44px; font-size: 14px; font-weight: 650; color: var(--ink-2); }
+.stat-value { flex: 1; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-value small { font-size: 11px; font-weight: 600; color: var(--ink-3); margin-left: 2px; }
+.stat-pts { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.plus {
+  width: 36px; height: 36px; border-radius: 12px; border: 0; cursor: pointer;
+  font: inherit; font-size: 20px; font-weight: 700; color: #fff;
+  background: linear-gradient(160deg, #7b87ff, #4f5bff);
+  transition: transform 0.12s ease, opacity 0.2s ease;
+}
+.plus:active { transform: scale(0.88); }
+.plus:disabled { opacity: 0.25; cursor: default; }
+
+/* ---------- スキル ---------- */
+.reset-btn { border: 0; font: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 10px; background: rgba(20, 28, 48, 0.06); cursor: pointer; }
+.reset-btn.confirm { background: var(--c-danger); color: #fff; }
+.branch + .branch { margin-top: 12px; }
+.branch-head { font-size: 13px; font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+.skill-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.skill {
+  text-align: left; border: 0; font: inherit; cursor: pointer;
+  padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.6);
+  display: flex; flex-direction: column; gap: 2px;
+  box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.06);
+  transition: transform 0.12s ease;
+}
+.skill:active:not(:disabled) { transform: scale(0.97); }
+.skill-name { font-size: 14px; font-weight: 750; }
+.skill-desc { font-size: 11.5px; color: var(--ink-2); line-height: 1.35; }
+.skill-cost { font-size: 11px; font-weight: 800; color: var(--c-todo); margin-top: 2px; }
+.skill.ready { box-shadow: inset 0 0 0 1.5px var(--c-todo); }
+.skill.owned { background: linear-gradient(160deg, #7b87ff, #4f5bff); color: #fff; cursor: default; }
+.skill.owned .skill-desc, .skill.owned .skill-cost { color: rgba(255, 255, 255, 0.85); }
+.skill.locked, .skill.short { opacity: 0.5; cursor: default; }
+
+/* ---------- バトル ---------- */
+.battle {
+  position: fixed; z-index: 60; inset: 0 12px; height: fit-content;
+  max-width: 420px; margin: auto;
+  border-radius: 28px; padding: 22px 18px 18px; text-align: center;
+  --glass: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.82));
+}
+.battle-enemy { font-size: 64px; line-height: 1; }
+.battle-enemy.hit { animation: hit 0.3s ease; }
+@keyframes hit { 30% { transform: translateX(-6px) scale(0.94); } 60% { transform: translateX(5px); } }
+.battle-name { font-weight: 750; margin: 6px 0 12px; }
+.hp { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+.hp-label { width: 32px; text-align: left; font-weight: 700; color: var(--ink-2); }
+.hp-track { flex: 1; height: 10px; border-radius: 5px; background: rgba(20, 28, 48, 0.07); overflow: hidden; }
+.hp-track span { display: block; height: 100%; transform-origin: left; transition: transform 0.3s ease; }
+.hp-enemy .hp-track span { background: linear-gradient(90deg, #ff7a8a, #ff4d6a); }
+.hp-me .hp-track span { background: linear-gradient(90deg, #4ee3a5, #16c784); }
+.hp-num { width: 72px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.battle-log { list-style: none; margin: 12px 0 0; padding: 0; min-height: 84px; font-size: 13px; text-align: left; }
+.battle-log li { display: flex; gap: 8px; padding: 3px 0; flex-wrap: wrap; }
+.battle-log b { color: var(--ink-3); width: 18px; }
+.battle-log .big { color: #e8590c; font-weight: 800; }
+.battle-log .taken { color: var(--c-danger); }
+.battle-log .healed { color: var(--c-done); }
+.skip { margin-top: 10px; border: 0; background: none; font: inherit; font-size: 13px; color: var(--ink-3); cursor: pointer; padding: 8px 16px; }
+.battle-result { margin-top: 12px; }
+.result-title { font-size: 28px; font-weight: 900; }
+.result-title.win { color: var(--c-done); }
+.result-title.lose { color: var(--ink-2); }
+.result-sub { font-size: 13px; color: var(--ink-2); margin: 4px 0 14px; }
+.battle-result .pill-btn { width: 100%; }
+
+/* ---------- みんな ---------- */
+.person-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.person {
+  width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  display: flex; gap: 12px; align-items: center; padding: 14px; border-radius: 22px;
+  transition: transform 0.12s ease;
+}
+.person:active { transform: scale(0.985); }
+.person-body { flex: 1; min-width: 0; }
+.person-top { display: flex; align-items: center; gap: 6px; }
+.person-name { font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-tag { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; background: var(--c-todo); color: #fff; }
+.person-lv { margin-left: auto; font-weight: 800; color: var(--c-todo); font-variant-numeric: tabular-nums; }
+.person-meta { display: flex; gap: 10px; font-size: 12px; color: var(--ink-2); margin: 3px 0 7px; }
+.mini-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(20, 28, 48, 0.06); gap: 1px; }
+.mini-bar .todo { background: rgba(111, 124, 255, 0.55); }
+.mini-bar .doing { background: var(--c-doing); }
+.mini-bar .done { background: var(--c-done); }
+.feed ul { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.feed li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.feed-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed time { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+.feed .av-text { font-size: 11px !important; }
+
+/* ---------- メンバー詳細 ---------- */
+.person-sheet .panel.char { padding: 4px 0 12px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.person-sheet .panel.char::before, .person-sheet .panel.char::after { display: none; }
+.ps-stats { display: flex; gap: 12px; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
+.ps-stats b { color: var(--ink); }
+.ps-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: rgba(111, 124, 255, 0.12); color: var(--c-todo); }
+.ps-group h3 { font-size: 13px; margin: 16px 0 6px; display: flex; gap: 6px; align-items: center; }
+.ps-group h3 span { font-size: 11px; color: var(--ink-3); }
+.ps-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ps-task { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.6); font-size: 14px; }
+.ps-task .status-dot { width: 16px; height: 16px; }
+.ps-task.s-done span:last-child { color: var(--ink-2); text-decoration: line-through; }
+.ps-empty { margin: 0; color: var(--ink-3); font-size: 13px; }
+
+/* ---------- 報酬演出 ---------- */
+.xp-zone {
+  position: fixed; z-index: 75; left: 0; right: 0; bottom: calc(var(--safe-b) + 150px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+}
+.xp-pop {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 16px; border-radius: 18px; color: #fff;
+  background: linear-gradient(160deg, #7b87ff, #a57bff);
+  box-shadow: 0 10px 24px -8px rgba(111, 100, 255, 0.6);
+}
+.xp-pop b { font-size: 16px; font-weight: 900; }
+.xp-pop span { font-size: 10.5px; opacity: 0.9; }
+.xp-pop.neg { background: rgba(20, 28, 48, 0.55); box-shadow: none; }
+.levelup {
+  position: fixed; z-index: 80; left: 24px; right: 24px; top: 30%;
+  max-width: 320px; margin: 0 auto; border-radius: 30px; padding: 28px 20px 20px; text-align: center;
+  --glass: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.85));
+}
+.lu-label { font-size: 13px; font-weight: 900; letter-spacing: 0.2em; color: #a57bff; }
+.lu-level { font-size: 48px; font-weight: 900; color: var(--c-todo); line-height: 1.1; margin: 4px 0; }
+.lu-sp { font-size: 15px; font-weight: 800; color: var(--c-danger); }
+.lu-actions { display: flex; gap: 8px; margin-top: 18px; }
+.lu-actions .pill-btn { flex: 1; }
+
 @media (prefers-reduced-motion: reduce) {
-  .blob, .skel::after, .pill-btn.ai { animation: none !important; }
+  .skel::after, .pill-btn.ai, .battle-enemy.hit { animation: none !important; }
 }

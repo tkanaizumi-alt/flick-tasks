@@ -23,9 +23,9 @@ export function Toast({ toast, onDone }: { toast: ToastData | null; onDone: () =
             className="toast glass"
             role="status"
             data-testid="toast"
-            initial={{ y: 40, opacity: 0, scale: 0.9, filter: 'blur(6px)' }}
-            animate={{ y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ y: 20, opacity: 0, scale: 0.92, filter: 'blur(4px)' }}
+            initial={{ y: 40, opacity: 0, scale: 0.9 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 20, opacity: 0, scale: 0.92 }}
             transition={{ type: 'spring', stiffness: 460, damping: 32 }}
           >
             <span className="toast-text">{toast.text}</span>

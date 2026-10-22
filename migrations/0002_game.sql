@@ -1,0 +1,34 @@
+-- タスクの重さ (AI 判定)・作成元・付与済み XP・完了時刻
+ALTER TABLE tasks ADD COLUMN weight TEXT;
+ALTER TABLE tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'user';
+ALTER TABLE tasks ADD COLUMN xp_awarded INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN done_at INTEGER;
+CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(user_id, done_at);
+
+CREATE TABLE IF NOT EXISTS players (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  xp INTEGER NOT NULL DEFAULT 0,
+  stat_atk INTEGER NOT NULL DEFAULT 0,
+  stat_hp INTEGER NOT NULL DEFAULT 0,
+  stat_crit INTEGER NOT NULL DEFAULT 0,
+  stat_heal INTEGER NOT NULL DEFAULT 0,
+  stage INTEGER NOT NULL DEFAULT 1,
+  resets INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS player_skills (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  skill_id TEXT NOT NULL,
+  PRIMARY KEY (user_id, skill_id)
+);
+
+-- みんなの画面に流す最近の動き
+CREATE TABLE IF NOT EXISTS activity (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_time ON activity(created_at);

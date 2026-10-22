@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
-import type { Env, Vars } from './env'
+import { isAllowed, type Env, type Vars } from './env'
 
 const SESSION_COOKIE = 'flick_sid'
 const OAUTH_COOKIE = 'flick_oauth'
@@ -50,6 +50,7 @@ export async function resolveUser(c: any) {
     .first()
   const now = Math.floor(Date.now() / 1000)
   if (!row || (row.expires_at as number) < now) return null
+  if (!isAllowed(c.env, row.email as string)) return null
   if ((row.expires_at as number) - now < SESSION_TTL / 2) {
     await c.env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?')
       .bind(now + SESSION_TTL, sid)
@@ -135,6 +136,7 @@ auth.get('/callback', async (c) => {
   if (!validIss || claims.aud !== c.env.GOOGLE_CLIENT_ID || claims.exp * 1000 < Date.now() || !claims.email_verified) {
     return c.redirect('/?login=failed')
   }
+  if (!isAllowed(c.env, claims.email)) return c.redirect('/?login=denied')
 
   const userId = await upsertUser(c.env.DB, {
     sub: claims.sub,
@@ -157,10 +159,12 @@ auth.post('/logout', async (c) => {
 auth.get('/dev', async (c) => {
   const url = new URL(c.req.url)
   if (c.env.DEV_LOGIN !== '1' || !isLocal(url)) return c.notFound()
+  // ?as=2 などで別ユーザーとしてログイン (みんなの画面の確認用)
+  const n = /^\d{1,2}$/.test(url.searchParams.get('as') ?? '') ? url.searchParams.get('as')! : ''
   const userId = await upsertUser(c.env.DB, {
-    sub: 'dev-user',
-    email: 'dev@localhost',
-    name: 'Dev User',
+    sub: `dev-user${n}`,
+    email: `dev${n}@localhost`,
+    name: n ? `Dev User ${n}` : 'Dev User',
     picture: '',
   })
   await createSession(c, userId)

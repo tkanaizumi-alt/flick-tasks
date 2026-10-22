@@ -8,7 +8,7 @@ export function Login({ memos }: { memos: PendingMemo[] }) {
       className="login"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, filter: 'blur(8px)' }}
+      exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
     >
       {memos.length > 0 && (

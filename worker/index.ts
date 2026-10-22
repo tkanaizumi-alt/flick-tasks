@@ -1,8 +1,10 @@
 import { Hono } from 'hono'
-import type { Env, Vars } from './env'
+import { isAllowed, type Env, type Vars } from './env'
 import { auth, resolveUser } from './auth'
 import { aiTasks } from './ai'
-import { STATUSES, type Status, type Task } from '../shared/types'
+import { addStat, applyTaskXp, classifyWeights, fight, getPlayer, learnSkill, resetBuild } from './game'
+import { STATUSES, type Activity, type Person, type Status, type Task } from '../shared/types'
+import { jstDayStart, type StatKey } from '../shared/game'
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>()
 
@@ -34,6 +36,10 @@ const toTask = (r: any): Task => ({
   position: r.position,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  weight: r.weight ?? null,
+  source: r.source ?? 'user',
+  xpAwarded: r.xp_awarded ?? 0,
+  doneAt: r.done_at ?? null,
 })
 
 const cleanTitle = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 500) : '')
@@ -55,6 +61,7 @@ api.post('/tasks', async (c) => {
   if (items.length === 0 || items.length > 50) return c.json({ error: 'invalid' }, 400)
   const now = Date.now()
   const userId = c.get('user').id
+  const source = body.source === 'ai' ? 'ai' : 'user'
   const tasks: Task[] = []
   for (const [i, it] of items.entries()) {
     const title = cleanTitle(it.title)
@@ -67,16 +74,22 @@ api.post('/tasks', async (c) => {
       position: typeof it.position === 'number' ? it.position : now - i,
       createdAt: now,
       updatedAt: now,
+      weight: null,
+      source,
+      xpAwarded: 0,
+      doneAt: null,
     })
   }
   await c.env.DB.batch(
     tasks.map((t) =>
       c.env.DB.prepare(
-        `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
-      ).bind(t.id, userId, t.title, t.note, t.status, t.position, t.createdAt, t.updatedAt),
+        `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      ).bind(t.id, userId, t.title, t.note, t.status, t.position, t.createdAt, t.updatedAt, t.source),
     ),
   )
+  // XP 用の重さ判定はレスポンスを待たせず裏で行う
+  c.executionCtx.waitUntil(classifyWeights(c.env, tasks))
   return c.json({ tasks }, 201)
 })
 
@@ -106,11 +119,15 @@ api.patch('/tasks/:id', async (c) => {
   if (!sets.length) return c.json({ error: 'nothing to update' }, 400)
   sets.push('updated_at = ?')
   vals.push(Date.now())
-  const row = await c.env.DB.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ? AND user_id = ? RETURNING *`)
-    .bind(...vals, c.req.param('id'), c.get('user').id)
-    .first()
-  if (!row) return c.json({ error: 'not found' }, 404)
-  return c.json({ task: toTask(row) })
+  const userId = c.get('user').id
+  const before = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').bind(c.req.param('id'), userId).first()
+  if (!before) return c.json({ error: 'not found' }, 404)
+  await c.env.DB.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`)
+    .bind(...vals, c.req.param('id'), userId)
+    .run()
+  const xp = body.status !== undefined ? await applyTaskXp(c.env.DB, userId, before, body.status) : null
+  const row = await c.env.DB.prepare('SELECT * FROM tasks WHERE id = ?').bind(c.req.param('id')).first()
+  return c.json({ task: toTask(row), xp })
 })
 
 api.delete('/tasks/:id', async (c) => {
@@ -133,6 +150,95 @@ api.post('/ai/:kind', async (c) => {
     console.error('ai failed', e)
     return c.json({ error: 'ai unavailable' }, 503)
   }
+})
+
+// ---------- ゲーム ----------
+const gameResponse = (c: any, r: { error?: string; player?: unknown }) =>
+  r.error ? c.json({ error: r.error }, 400) : c.json({ player: r.player })
+
+api.get('/player', async (c) => c.json({ player: await getPlayer(c.env.DB, c.get('user').id) }))
+
+api.post('/player/stat', async (c) => {
+  const { stat } = await c.req.json<{ stat?: StatKey }>().catch(() => ({ stat: undefined }))
+  return gameResponse(c, await addStat(c.env.DB, c.get('user').id, stat as StatKey))
+})
+
+api.post('/player/skill', async (c) => {
+  const { id } = await c.req.json<{ id?: string }>().catch(() => ({ id: '' }))
+  return gameResponse(c, await learnSkill(c.env.DB, c.get('user').id, id ?? ''))
+})
+
+api.post('/player/reset', async (c) => gameResponse(c, await resetBuild(c.env.DB, c.get('user').id)))
+
+api.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)))
+
+// ---------- みんな ----------
+api.get('/people', async (c) => {
+  const now = Date.now()
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage,
+            SUM(t.status = 'todo') AS todo, SUM(t.status = 'doing') AS doing, SUM(t.status = 'done') AS done,
+            SUM(t.done_at >= ? AND t.xp_awarded > 0) AS today, SUM(t.done_at >= ? AND t.xp_awarded > 0) AS week
+       FROM users u
+       LEFT JOIN players p ON p.user_id = u.id
+       LEFT JOIN tasks t ON t.user_id = u.id
+      GROUP BY u.id`,
+  )
+    .bind(jstDayStart(now), jstDayStart(now) - 6 * 86400000)
+    .all()
+  const me = c.get('user').id
+  const people: Person[] = (results as any[])
+    .filter((r) => isAllowed(c.env, r.email))
+    .map((r) => ({
+      id: r.id,
+      name: r.name || r.email.split('@')[0],
+      picture: r.picture,
+      xp: r.xp,
+      stage: r.stage,
+      todo: r.todo ?? 0,
+      doing: r.doing ?? 0,
+      done: r.done ?? 0,
+      today: r.today ?? 0,
+      week: r.week ?? 0,
+      isMe: r.id === me,
+    }))
+    .sort((a, b) => Number(b.isMe) - Number(a.isMe) || b.xp - a.xp)
+  return c.json({ people })
+})
+
+api.get('/people/:id', async (c) => {
+  const id = c.req.param('id')
+  const user = await c.env.DB.prepare('SELECT id, name, email, picture FROM users WHERE id = ?').bind(id).first<any>()
+  if (!user || !isAllowed(c.env, user.email)) return c.json({ error: 'not found' }, 404)
+  const [player, { results }] = await Promise.all([
+    getPlayer(c.env.DB, id),
+    c.env.DB.prepare('SELECT * FROM tasks WHERE user_id = ? ORDER BY position DESC LIMIT 200').bind(id).all(),
+  ])
+  return c.json({
+    person: { id: user.id, name: user.name || user.email.split('@')[0], picture: user.picture },
+    player,
+    tasks: results.map(toTask),
+  })
+})
+
+api.get('/activity', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT a.id, a.user_id, a.kind, a.text, a.created_at, u.name, u.email, u.picture
+       FROM activity a JOIN users u ON u.id = a.user_id
+      ORDER BY a.created_at DESC LIMIT 40`,
+  ).all()
+  const activity: Activity[] = (results as any[])
+    .filter((r) => isAllowed(c.env, r.email))
+    .map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      name: r.name || r.email.split('@')[0],
+      picture: r.picture,
+      kind: r.kind,
+      text: r.text,
+      createdAt: r.created_at,
+    }))
+  return c.json({ activity })
 })
 
 app.route('/api', api)

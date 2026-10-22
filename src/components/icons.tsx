@@ -76,3 +76,18 @@ export const LogoMark = (p: SVGProps<SVGSVGElement>) => (
     <path d="M44 24l5 0" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" opacity=".55" />
   </svg>
 )
+export const PeopleIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="9" cy="8.5" r="3.2" />
+    <path d="M3.5 19a5.5 5.5 0 0111 0" />
+    <circle cx="16.5" cy="9.5" r="2.6" />
+    <path d="M15.5 14.2A4.6 4.6 0 0121 18.5" />
+  </svg>
+)
+export const SwordIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M14.5 4H20v5.5L10 19.5 4.5 14z" />
+    <path d="M7 16.5L3.5 20" />
+    <path d="M5.5 12.5l6 6" />
+  </svg>
+)

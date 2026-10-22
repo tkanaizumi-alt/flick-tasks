@@ -1,21 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { STATUSES, type Status, type Task, type User } from '../shared/types'
-import { api, HttpError, pending, STATUS_LABEL, type PendingMemo } from './api'
+import { spInfo, type PlayerState } from '../shared/game'
+import { api, HttpError, pending, STATUS_LABEL, type PendingMemo, type XpChange } from './api'
 import { Background } from './components/Background'
 import { Skeleton } from './components/Skeleton'
 import { TaskCard, exitDir } from './components/TaskCard'
-import { TabBar } from './components/TabBar'
+import { Dock, type View } from './components/Dock'
+import { StatusTabs } from './components/StatusTabs'
 import { Sheet } from './components/Sheet'
 import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
+import { LevelUp, XpPops, type XpPopData } from './components/Rewards'
 import { CheckCircleIcon, CircleIcon, PlayIcon } from './components/icons'
+import { People } from './views/People'
+import { Adventure } from './views/Adventure'
 
 export type UITask = Task & { syncing?: boolean; ai?: boolean }
 type Phase = 'loading' | 'guest' | 'ready'
 
 const CACHE_KEY = 'flick.cache'
 const TAB_KEY = 'flick.tab'
+const VIEW_KEY = 'flick.view'
 const ORDER: Status[] = ['todo', 'doing', 'done']
 const EMPTY_ICON = { todo: CircleIcon, doing: PlayIcon, done: CheckCircleIcon }
 
@@ -55,26 +61,42 @@ const newTask = (p: Partial<UITask> & { id: string; title: string }): UITask => 
 export function App() {
   const [phase, setPhase] = useState<Phase>('loading')
   const [user, setUser] = useState<User | null>(null)
+  const [player, setPlayer] = useState<PlayerState | null>(null)
   const [tasks, setTasks] = useState<UITask[]>([])
   const [tab, setTabState] = useState<Status>(() => {
     const t = store.get<Status>(TAB_KEY, 'todo')
     return STATUSES.includes(t) ? t : 'todo'
   })
-  const [tabDir, setTabDir] = useState(0)
+  // 開いた瞬間メモできるよう、起動時は常に「自分」
+  const [view, setViewState] = useState<View>('me')
   const [openId, setOpenId] = useState<string | null>(null)
   const [toast, setToastState] = useState<ToastData | null>(null)
   const [guestMemos, setGuestMemos] = useState<PendingMemo[]>([])
   const [aiBusy, setAiBusy] = useState(0)
+  const [pops, setPops] = useState<XpPopData[]>([])
+  const [levelUp, setLevelUp] = useState<number | null>(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const tabRef = useRef(tab)
   tabRef.current = tab
+  const viewRef = useRef(view)
+  viewRef.current = view
 
   const setTab = useCallback((t: Status) => {
-    setTabDir(ORDER.indexOf(t) - ORDER.indexOf(tabRef.current))
     setTabState(t)
     store.set(TAB_KEY, t)
   }, [])
+
+  const setView = useCallback((v: View) => {
+    setViewState(v)
+    store.set(VIEW_KEY, v)
+    window.scrollTo({ top: 0 })
+  }, [])
+
+  // メモ欄は「自分」の画面でだけ出す (index.html 側の要素なので body の属性で切り替え)
+  useEffect(() => {
+    document.body.dataset.view = phase === 'ready' ? view : 'me'
+  }, [view, phase])
 
   const showToast = useCallback((text: string, undo?: () => void) => setToastState({ id: Date.now(), text, undo }), [])
   const clearToast = useCallback(() => setToastState(null), [])
@@ -88,15 +110,28 @@ export function App() {
   }, [])
   const removeLocal = useCallback((ids: string[]) => setTasks((prev) => prev.filter((t) => !ids.includes(t.id))), [])
 
+  const onXp = useCallback((xp: XpChange | null) => {
+    if (!xp || xp.amount === 0) return
+    const id = Date.now() + Math.random()
+    setPops((p) => [...p.slice(-2), { id, amount: xp.amount, bonuses: xp.bonuses }])
+    setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), 1800)
+    setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount) } : p))
+    if (xp.leveledUp) {
+      navigator.vibrate?.([12, 40, 12])
+      setTimeout(() => setLevelUp(xp.level), 500)
+    }
+  }, [])
+
   // --- 起動: セッション確認とタスク取得 ---
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const [{ user }, { tasks }] = await Promise.all([api.me(), api.list()])
+        const [{ user }, { tasks }, { player }] = await Promise.all([api.me(), api.list(), api.player()])
         if (cancelled) return
         setUser(user)
         setTasks(tasks)
+        setPlayer(player)
         setPhase('ready')
       } catch (e) {
         if (cancelled) return
@@ -113,8 +148,9 @@ export function App() {
       }
     })()
     const params = new URLSearchParams(location.search)
-    if (params.get('login') === 'failed') {
-      showToast('ログインに失敗しました')
+    const login = params.get('login')
+    if (login === 'failed' || login === 'denied') {
+      showToast(login === 'denied' ? 'このアカウントは利用できません' : 'ログインに失敗しました')
       history.replaceState(null, '', '/')
     }
     return () => {
@@ -138,6 +174,7 @@ export function App() {
     for (const p of pending.read()) {
       if (inflight.has(p.id)) continue
       inflight.add(p.id)
+      if (viewRef.current !== 'me') setView('me')
       if (tabRef.current !== 'todo') setTab('todo')
       if (p.ai) {
         upsert([newTask({ id: p.id, title: p.title, position: p.at, ai: true, syncing: true })])
@@ -146,10 +183,10 @@ export function App() {
           const { tasks: titles } = await api.ai('split', p.title)
           const base = Date.now()
           const items = titles.map((title, i) => ({ id: `${p.id}-${i}`, title, status: 'todo' as Status, position: base - i }))
-          const { tasks: created } = await api.create(items)
+          const { tasks: created } = await api.create(items, 'ai')
           removeLocal([p.id])
-          // 少しずつ時間差で降らせる
-          created.forEach((t, i) => setTimeout(() => upsert([t]), i * 90))
+          // 少しずつ時間差で追加
+          created.forEach((t, i) => setTimeout(() => upsert([t]), i * 70))
           pending.remove(p.id)
           if (created.length > 1) showToast(`${created.length}件に整理`)
         } catch (e) {
@@ -178,7 +215,7 @@ export function App() {
         }
       }
     }
-  }, [removeLocal, setTab, showToast, upsert])
+  }, [removeLocal, setTab, setView, showToast, upsert])
 
   useEffect(() => {
     drain()
@@ -200,14 +237,15 @@ export function App() {
     async (task: UITask, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position'>>) => {
       upsert([{ ...task, ...patch, updatedAt: Date.now() }])
       try {
-        const { task: saved } = await api.update(task.id, patch)
+        const { task: saved, xp } = await api.update(task.id, patch)
         upsert([saved])
+        onXp(xp)
       } catch {
         upsert([task])
         showToast('保存できませんでした')
       }
     },
-    [showToast, upsert],
+    [onXp, showToast, upsert],
   )
 
   const deleteTask = useCallback(
@@ -217,7 +255,7 @@ export function App() {
         exitDir.delete(task.id)
         upsert([task])
         try {
-          await api.create([task])
+          await api.create([task], task.source ?? 'user')
         } catch {
           showToast('復元できませんでした')
         }
@@ -263,10 +301,11 @@ export function App() {
         const base = Date.now()
         const { tasks: created } = await api.create(
           titles.map((t, i) => ({ id: crypto.randomUUID(), title: t, status: 'todo' as Status, position: base - i })),
+          'ai',
         )
         setOpenId(null)
         if (tabRef.current !== 'todo') setTab('todo')
-        created.forEach((t, i) => setTimeout(() => upsert([t]), 220 + i * 90))
+        created.forEach((t, i) => setTimeout(() => upsert([t]), 200 + i * 70))
         showToast(`${created.length}件に分解`)
       } catch {
         showToast('AIを利用できませんでした')
@@ -283,9 +322,11 @@ export function App() {
     store.del('flick.user')
     setTasks([])
     setUser(null)
+    setPlayer(null)
+    setView('me')
     setGuestMemos(pending.read())
     setPhase('guest')
-  }, [])
+  }, [setView])
 
   const counts = useMemo(() => {
     const c = { todo: 0, doing: 0, done: 0 }
@@ -296,63 +337,56 @@ export function App() {
   const visible = useMemo(() => tasks.filter((t) => t.status === tab).sort((a, b) => b.position - a.position), [tasks, tab])
   const openTask = tasks.find((t) => t.id === openId) ?? null
   const EmptyIcon = EMPTY_ICON[tab]
+  const freeSp = player ? Math.max(0, spInfo(player).free) : 0
 
   return (
     <>
       <Background />
-      <AnimatePresence mode="wait">
+      {/* スケルトン (position: fixed) の退場と本体の表示を同時に行い、待ち時間を作らない */}
+      <AnimatePresence>
         {phase === 'loading' && <Skeleton key="skel" />}
 
         {phase === 'guest' && <Login key="login" memos={guestMemos} />}
 
         {phase === 'ready' && (
-          <motion.div key="app" className="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
-            <main className="list-zone">
-              <AnimatePresence mode="popLayout" initial={false} custom={tabDir}>
-                <motion.section
-                  key={tab}
-                  className="list-page"
-                  custom={tabDir}
-                  variants={{
-                    enter: (d: number) => ({ x: d * 60, opacity: 0, filter: 'blur(6px)' }),
-                    center: { x: 0, opacity: 1, filter: 'blur(0px)' },
-                    leave: (d: number) => ({ x: d * -60, opacity: 0, filter: 'blur(6px)' }),
-                  }}
-                  initial="enter"
-                  animate="center"
-                  exit="leave"
-                  transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-                >
-                  <LayoutGroup>
-                    <ul className="list" data-testid={`list-${tab}`}>
-                      <AnimatePresence mode="popLayout">
-                        {visible.map((t, i) => (
-                          <TaskCard key={t.id} task={t} index={i} onSwipe={onSwipe} onOpen={(x) => setOpenId(x.id)} />
-                        ))}
-                      </AnimatePresence>
-                    </ul>
-                  </LayoutGroup>
-                  <AnimatePresence>
-                    {visible.length === 0 && (
-                      <motion.div
-                        className={`empty t-${tab}`}
-                        data-testid="empty"
-                        initial={{ opacity: 0, scale: 0.7 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.7 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.15 }}
-                      >
-                        <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}>
+          <motion.div key="app" className="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+            {/* 画面切り替えは退場アニメーションを待たず即座に描画する (フェードインのみ) */}
+            <motion.main key={view} className={`view view-${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
+                {view === 'me' && (
+                  <>
+                    <StatusTabs tab={tab} counts={counts} onChange={setTab} />
+                    <section className="list-page">
+                      <LayoutGroup>
+                        <ul className="list" data-testid={`list-${tab}`}>
+                          <AnimatePresence mode="popLayout">
+                            {visible.map((t, i) => (
+                              <TaskCard key={t.id} task={t} index={i} onSwipe={onSwipe} onOpen={(x) => setOpenId(x.id)} />
+                            ))}
+                          </AnimatePresence>
+                        </ul>
+                      </LayoutGroup>
+                      {visible.length === 0 && (
+                        <div className={`empty t-${tab}`} data-testid="empty">
                           <EmptyIcon />
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.section>
-              </AnimatePresence>
-            </main>
+                        </div>
+                      )}
+                    </section>
+                  </>
+                )}
 
-            <TabBar tab={tab} counts={counts} onChange={setTab} user={user} onLogout={logout} />
+                {view === 'people' && <People />}
+
+                {view === 'game' &&
+                  (player ? (
+                    <Adventure player={player} name={user?.name || user?.email || ''} picture={user?.picture} onPlayer={setPlayer} toast={showToast} />
+                  ) : (
+                    <div className="skel-list">
+                      <div className="skel skel-card tall" />
+                    </div>
+                  ))}
+            </motion.main>
+
+            <Dock view={view} onChange={setView} user={user} onLogout={logout} badge={freeSp} />
 
             <AnimatePresence>
               {openTask && (
@@ -377,9 +411,23 @@ export function App() {
                 />
               )}
             </AnimatePresence>
+
+            <AnimatePresence>
+              {levelUp && (
+                <LevelUp
+                  level={levelUp}
+                  onClose={() => setLevelUp(null)}
+                  onGo={() => {
+                    setLevelUp(null)
+                    setView('game')
+                  }}
+                />
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
+      <XpPops pops={pops} />
       <Toast toast={toast} onDone={clearToast} />
     </>
   )
