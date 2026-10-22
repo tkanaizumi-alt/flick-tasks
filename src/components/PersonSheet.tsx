@@ -79,11 +79,21 @@ export function PersonSheet({ id, onClose }: { id: string; onClose: () => void }
             )}
             {data.player.skills.length > 0 && (
               <div className="ps-skills">
-                {data.player.skills.map((sid) => (
-                  <span key={sid} className="chip">
-                    {SKILL_MAP[sid]?.name ?? sid}
-                  </span>
-                ))}
+                {data.player.skills
+                  .filter((sid) => SKILL_MAP[sid])
+                  .map((sid) => (
+                    <span key={sid} className="chip">
+                      {SKILL_MAP[sid].name}
+                    </span>
+                  ))}
+                {/* 隠しスキルの名前はサーバーから届いた解放済みの一覧から引く (内部 ID は出さない) */}
+                {data.player.secretSkills
+                  .filter((s) => s.owned)
+                  .map((s) => (
+                    <span key={s.id} className="chip secret" data-testid="ps-secret">
+                      ✦ {s.name}
+                    </span>
+                  ))}
               </div>
             )}
             {(['doing', 'todo', 'done'] as const).map((s) => {

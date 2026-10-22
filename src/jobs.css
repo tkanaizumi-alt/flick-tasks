@@ -50,6 +50,7 @@
 .secret-skill .skill-cost { color: #b7791f; }
 .secret-skill.owned .skill-cost, .secret-skill.owned .skill-combo { color: rgba(255, 255, 255, 0.9); }
 .skill-combo { font-size: 10.5px; font-weight: 800; color: #b7791f; }
+.chip.secret { color: #fff; background: linear-gradient(135deg, #f7b733, #fc4a1a); }
 
 /* ---------- 30 ステージの地図 ---------- */
 .stage-map-wrap { display: flex; flex-direction: column; gap: 12px; }
