@@ -508,7 +508,7 @@ export function App() {
 
                 {view === 'game' &&
                   (player ? (
-                    <Adventure player={player} name={user?.name || user?.email || ''} picture={user?.picture} onPlayer={setPlayer} toast={showToast} />
+                    <Adventure player={player} name={user?.name || user?.email || ''} picture={user?.picture} onPlayer={setPlayer} toast={showToast} onCelebrate={setLevelUp} />
                   ) : (
                     <div className="skel-list">
                       <div className="skel skel-card tall" />

@@ -23,6 +23,7 @@ import { CharacterHeader } from '../components/CharacterHeader'
 import { ChestReveal, ItemCard, ItemSheet } from '../components/Loot'
 import { StageMap } from '../components/StageMap'
 import { GearIcon } from '../components/GearIcon'
+import type { Celebration } from '../components/Rewards'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train'
 
@@ -32,9 +33,10 @@ interface Props {
   picture?: string
   onPlayer: (p: PlayerState) => void
   toast: (text: string) => void
+  onCelebrate?: (c: Celebration) => void
 }
 
-export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
+export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate }: Props) {
   const [tab, setTab] = useState<Tab>('battle')
   const [busy, setBusy] = useState(false)
   const [battle, setBattle] = useState<{ result: BattleResult; reward: { gold: number; item: Item | null } | null } | null>(null)
@@ -262,7 +264,7 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
                       </span>
                       <span className="job-desc">{j.desc}</span>
                       <span className="job-lv">
-                        職業Lv {j.level}
+                        職業Lv {j.max ? 'MAX' : j.level}
                         <span className="job-bar">
                           <span style={{ transform: `scaleX(${j.current / j.next})` }} />
                         </span>
@@ -340,7 +342,12 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
                         className={`skill ${owned ? 'owned' : locked ? 'locked' : reason ? 'short' : 'ready'}`}
                         data-testid={`skill-${s.id}`}
                         disabled={owned || !!reason || busy}
-                        onClick={() => run(() => api.learn(s.id))}
+                        onClick={async () => {
+                          const r = await run(() => api.learn(s.id))
+                          // 知恵 × 攻撃/守護 の組み合わせで隠しスキルが現れたらお祝い
+                          const found = r?.revealed?.[0]
+                          if (found) onCelebrate?.({ label: 'SECRET SKILL', title: `✦ ${found.name}`, sub: `${found.combo} で隠しスキルが現れた` })
+                        }}
                         title={reason ?? ''}
                       >
                         <span className="skill-name">{s.name}</span>
@@ -352,6 +359,30 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
                 </div>
               </div>
             ))}
+            {player.secretSkills.length > 0 && (
+              <div className="branch secret" data-testid="secret-skills">
+                <div className="branch-head">✦ 隠しスキル</div>
+                <div className="skill-row">
+                  {player.secretSkills.map((s) => {
+                    const short = !s.owned && sp.free < s.cost
+                    return (
+                      <button
+                        key={s.id}
+                        className={`skill secret-skill ${s.owned ? 'owned' : short ? 'short' : 'ready'}`}
+                        data-testid={`secret-${s.id}`}
+                        disabled={s.owned || short || busy}
+                        onClick={() => run(() => api.learn(s.id))}
+                      >
+                        <span className="skill-name">{s.name}</span>
+                        <span className="skill-combo">{s.combo}</span>
+                        <span className="skill-desc">{s.desc}</span>
+                        <span className="skill-cost">{s.owned ? '習得済み' : `${s.cost} SP`}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </section>
         </>
       )}

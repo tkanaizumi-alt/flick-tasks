@@ -42,6 +42,15 @@
 .char-lv { white-space: nowrap; }
 .person-job { font-size: 12px; font-weight: 700; color: var(--ink-2); white-space: nowrap; margin-left: 2px; }
 
+/* ---------- 隠しスキル ---------- */
+.branch.secret .branch-head { color: #b7791f; }
+.secret-skill { background: linear-gradient(160deg, #fffaf0, #fff); box-shadow: inset 0 0 0 1.5px rgba(240, 164, 0, 0.6); }
+.secret-skill.ready { box-shadow: inset 0 0 0 2px #f0a400, 0 6px 16px -8px rgba(240, 164, 0, 0.6); }
+.secret-skill.owned { background: linear-gradient(135deg, #f7b733, #fc4a1a); color: #fff; }
+.secret-skill .skill-cost { color: #b7791f; }
+.secret-skill.owned .skill-cost, .secret-skill.owned .skill-combo { color: rgba(255, 255, 255, 0.9); }
+.skill-combo { font-size: 10.5px; font-weight: 800; color: #b7791f; }
+
 /* ---------- 30 ステージの地図 ---------- */
 .stage-map-wrap { display: flex; flex-direction: column; gap: 12px; }
 .chapter-head { font-size: 13px; font-weight: 800; margin-bottom: 6px; display: flex; gap: 8px; align-items: baseline; }

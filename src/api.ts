@@ -42,7 +42,8 @@ export const api = {
     req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}`, { method: 'PATCH', json: patch }),
   player: () => req<{ player: PlayerState }>('/api/player'),
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),
-  learn: (id: string) => req<{ player: PlayerState }>('/api/player/skill', { method: 'POST', json: { id } }),
+  learn: (id: string) =>
+    req<{ player: PlayerState; revealed?: { name: string; combo: string }[] }>('/api/player/skill', { method: 'POST', json: { id } }),
   resetBuild: () => req<{ player: PlayerState }>('/api/player/reset', { method: 'POST', json: {} }),
   setJob: (job: string) => req<{ player: PlayerState }>('/api/player/job', { method: 'POST', json: { job } }),
   battle: () =>

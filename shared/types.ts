@@ -45,7 +45,7 @@ export interface Activity {
   userId: string
   name: string
   picture: string
-  kind: 'done' | 'levelup' | 'boss' | 'item' | 'job'
+  kind: 'done' | 'levelup' | 'boss' | 'item' | 'job' | 'skill'
   text: string
   createdAt: number
 }

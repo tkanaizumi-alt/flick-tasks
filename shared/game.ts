@@ -46,6 +46,7 @@ export interface JobProgress {
   level: number
   current: number
   next: number
+  max: boolean
 }
 
 export interface PlayerState {
@@ -59,9 +60,35 @@ export interface PlayerState {
   job: JobDef
   jobLevel: number
   jobs: JobProgress[] // 選べる職業 (未解放の上位職は含まない)
+  secretSkills: SecretSkillView[] // 解放済みの隠しスキル (条件を満たしたものだけ)
+  bonus: Bonus // 習得済みの隠しスキルの効果の合計
 }
 
-type BattleStats = Pick<PlayerState, 'stats' | 'skills'> & Partial<Pick<PlayerState, 'items' | 'equipped' | 'job' | 'jobLevel'>>
+/** 隠しスキルの効果。中身 (名前・条件) はサーバーだけが知っていて、フロントには数値だけが届く */
+export interface Bonus {
+  atk: number // 攻撃の倍率
+  hp: number // 体力の倍率
+  crit: number // 会心率 (加算)
+  critDmg: number // 会心ダメージ (加算)
+  heal: number // 毎ターン回復 (加算)
+  guard: number // 受けるダメージの倍率
+  xp: number // タスク XP (加算倍率)
+  gold: number // タスクのゴールド (加算倍率)
+  effects: string[] // 戦闘効果 (装備の効果と同じ ID)
+}
+export const NO_BONUS: Bonus = { atk: 1, hp: 1, crit: 0, critDmg: 0, heal: 0, guard: 1, xp: 0, gold: 0, effects: [] }
+
+export interface SecretSkillView {
+  id: string
+  name: string
+  desc: string
+  cost: number
+  combo: string // 例: 「集中 × 結界」
+  owned: boolean
+}
+
+type BattleStats = Pick<PlayerState, 'stats' | 'skills'> &
+  Partial<Pick<PlayerState, 'items' | 'equipped' | 'job' | 'jobLevel' | 'bonus'>>
 
 // ---------- 冒険職 (基本職) ----------
 export const BASE_JOBS: JobDef[] = [
@@ -75,17 +102,20 @@ export const DEFAULT_JOB = BASE_JOBS[0]
 
 /** 職業レベル: その職業で獲得した XP で上がる */
 export const jobXpForNext = (level: number) => 30 + (level - 1) * 15
+export const JOB_LEVEL_MAX = 30
 export function jobLevelInfo(xp: number) {
   let level = 1
   let rest = Math.max(0, xp)
-  while (rest >= jobXpForNext(level)) {
+  while (level < JOB_LEVEL_MAX && rest >= jobXpForNext(level)) {
     rest -= jobXpForNext(level)
     level++
   }
-  return { level, current: rest, next: jobXpForNext(level) }
+  // 上限ではバーを満タンにする
+  if (level >= JOB_LEVEL_MAX) return { level, current: 1, next: 1, max: true }
+  return { level, current: rest, next: jobXpForNext(level), max: false }
 }
-/** 熟練度: 今の職業のレベル 1 ごとに攻撃・体力 +1% (最大 +30%) */
-export const masteryBonus = (jobLevel: number) => Math.min(30, Math.max(0, jobLevel - 1)) / 100
+/** 熟練度: 今の職業のレベル 1 ごとに攻撃・体力 +1%。MAX (Lv30) で +30% */
+export const masteryBonus = (jobLevel: number) => (jobLevel >= JOB_LEVEL_MAX ? 30 : Math.max(0, jobLevel - 1)) / 100
 
 // ---------- レベル ----------
 export const SP_PER_LEVEL = 3
@@ -102,11 +132,12 @@ export function levelInfo(xp: number) {
   return { level, current: rest, next: xpForNext(level) }
 }
 
-export function spInfo(p: Pick<PlayerState, 'xp' | 'stats' | 'skills'>) {
+export function spInfo(p: Pick<PlayerState, 'xp' | 'stats' | 'skills'> & Partial<Pick<PlayerState, 'secretSkills'>>) {
   const { level } = levelInfo(p.xp)
   const total = (level - 1) * SP_PER_LEVEL
   const spentStats = Object.values(p.stats).reduce((a, b) => a + b, 0)
-  const spentSkills = p.skills.reduce((a, id) => a + (SKILL_MAP[id]?.cost ?? 0), 0)
+  const secretCost = (id: string) => p.secretSkills?.find((s) => s.id === id)?.cost ?? 0
+  const spentSkills = p.skills.reduce((a, id) => a + (SKILL_MAP[id]?.cost ?? secretCost(id)), 0)
   return { total, spent: spentStats + spentSkills, free: total - spentStats - spentSkills }
 }
 
@@ -125,7 +156,7 @@ export function equippedItems(p: Partial<Pick<PlayerState, 'items' | 'equipped'>
 
 /** スキルと装備の効果をまとめて判定 */
 export function hasEffect(p: BattleStats, id: string) {
-  return p.skills.includes(id) || equippedItems(p).some((i) => i.effect === id)
+  return p.skills.includes(id) || equippedItems(p).some((i) => i.effect === id) || !!p.bonus?.effects.includes(id)
 }
 
 export const CRIT_CAP = 75
@@ -138,11 +169,12 @@ export function effectiveStats(p: BattleStats) {
     const s = STATS.find((x) => x.key === k)!
     return s.base + s.per * (p.stats[k] ?? 0) + gear.reduce((a, i) => a + i[k], 0)
   }
+  const b = p.bonus ?? NO_BONUS
   return {
-    atk: Math.round(raw('atk') * job.atk * m),
-    hp: Math.round(raw('hp') * job.hp * m),
-    crit: Math.min(CRIT_CAP, raw('crit') + job.crit),
-    heal: Math.round(raw('heal') * job.heal + job.healAdd),
+    atk: Math.round(raw('atk') * job.atk * m * b.atk),
+    hp: Math.round(raw('hp') * job.hp * m * b.hp),
+    crit: Math.min(CRIT_CAP, raw('crit') + job.crit + b.crit),
+    heal: Math.round(raw('heal') * job.heal + job.healAdd + b.heal),
   }
 }
 
@@ -271,7 +303,8 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
   const s = effectiveStats(p)
   const job = p.job ?? DEFAULT_JOB
   const has = (id: string) => hasEffect(p, id)
-  const critMult = 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg
+  const bonus = p.bonus ?? NO_BONUS
+  const critMult = 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg
   let hp = s.hp
   let enemyHp = enemy.hp
   let gutsUsed = false
@@ -315,7 +348,7 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
       if (has('dodge') && r() < 0.15) {
         log.dodged = true
       } else {
-        let taken = enemy.atk * (0.9 + r() * 0.2) * job.guard
+        let taken = enemy.atk * (0.9 + r() * 0.2) * job.guard * bonus.guard
         if (has('wall')) taken *= 0.8
         if (has('barrier') && turn <= 3) taken *= 0.5
         log.taken = Math.max(1, Math.round(taken))
@@ -381,6 +414,7 @@ export interface XpInput {
   source: string
   skills: string[]
   effects?: string[] // 装備の効果
+  bonus?: Pick<Bonus, 'xp' | 'gold'> // 隠しスキルの効果
 }
 
 export function computeXp(x: XpInput) {
@@ -405,12 +439,13 @@ export function computeXp(x: XpInput) {
   add(has('streak') && x.doneYesterday, 0.15, '継続 +15%')
   add(has('scholar'), 0.15, '博識 +15%')
   add(fx.includes('xpup'), 0.1, '装備 XP+10%')
+  add((x.bonus?.xp ?? 0) > 0, x.bonus?.xp ?? 0, `隠しスキル XP+${Math.round((x.bonus?.xp ?? 0) * 100)}%`)
   amount = Math.round(amount * mult)
   if (x.doneToday === 0) {
     amount += 5
     bonuses.push('今日の初完了 +5')
   }
-  const goldMult = 1 + (fx.includes('goldup') ? 0.2 : 0) + (has('goldsmith') ? 0.3 : 0)
+  const goldMult = 1 + (fx.includes('goldup') ? 0.2 : 0) + (has('goldsmith') ? 0.3 : 0) + (x.bonus?.gold ?? 0)
   const gold = Math.ceil((amount / 2) * goldMult)
   return { amount, gold, bonuses }
 }

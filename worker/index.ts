@@ -219,7 +219,8 @@ api.post('/player/stat', async (c) => {
 
 api.post('/player/skill', async (c) => {
   const { id } = await c.req.json<{ id?: string }>().catch(() => ({ id: '' }))
-  return gameResponse(c, await learnSkill(c.env.DB, c.get('user').id, id ?? ''))
+  const r = await learnSkill(c.env.DB, c.get('user').id, id ?? '')
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
 })
 
 api.post('/player/reset', async (c) => gameResponse(c, await resetBuild(c.env.DB, c.get('user').id)))

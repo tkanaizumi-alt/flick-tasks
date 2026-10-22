@@ -1,5 +1,6 @@
 import type { Env } from './env'
 import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
+import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
 import {
   DEFAULT_JOB,
   EARLY_HOUR,
@@ -63,10 +64,11 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
   const choices = unlockedJobs(levels)
   // 選べない職業 (データ不整合など) なら初期職業として扱う
   const job = choices.find((j) => j.id === r.job) ?? DEFAULT_JOB
+  const ownedSkills = (skills.results as any[]).map((s) => s.skill_id as string)
   return {
     xp: r.xp,
     stats: { atk: r.stat_atk, hp: r.stat_hp, crit: r.stat_crit, heal: r.stat_heal },
-    skills: (skills.results as any[]).map((s) => s.skill_id),
+    skills: ownedSkills,
     stage: r.stage,
     gold: r.gold ?? 0,
     items: (items.results as any[]).map(toItem),
@@ -82,6 +84,8 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
       xp: jobXp[j.id] ?? 0,
       ...jobLevelInfo(jobXp[j.id] ?? 0),
     })),
+    secretSkills: visibleSecrets(ownedSkills),
+    bonus: bonusOf(ownedSkills),
   }
 }
 
@@ -124,6 +128,7 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       source: before.source,
       skills: player.skills,
       effects: effectsOf(player),
+      bonus: player.bonus,
     })
     const level = levelInfo(player.xp + amount).level
     // 今の職業にも同じだけ職業 XP が入る。基本職が規定レベルに届いたら上位職が解放される
@@ -169,12 +174,29 @@ export async function addStat(db: D1Database, userId: string, stat: StatKey) {
   return { player: await getPlayer(db, userId) }
 }
 
+/** スキル習得。隠しスキルは条件 (知恵 × 攻撃/守護) を満たして見えているものだけ覚えられる */
 export async function learnSkill(db: D1Database, userId: string, skillId: string) {
   const p = await getPlayer(db, userId)
+  const secret = SECRET_MAP[skillId]
+  if (secret) {
+    const view = p.secretSkills.find((s) => s.id === skillId)
+    if (!view) return { error: '存在しないスキル' }
+    if (view.owned) return { error: '習得済み' }
+    if (spInfo(p).free < secret.cost) return { error: 'SPが足りません' }
+    await db.batch([
+      db.prepare('INSERT INTO player_skills (user_id, skill_id) VALUES (?, ?)').bind(userId, skillId),
+      logActivity(db, userId, 'skill', secret.name),
+    ])
+    return { player: await getPlayer(db, userId), revealed: [] }
+  }
   const err = canLearn(p, skillId)
   if (err) return { error: err }
   await db.prepare('INSERT INTO player_skills (user_id, skill_id) VALUES (?, ?)').bind(userId, skillId).run()
-  return { player: await getPlayer(db, userId) }
+  const next = await getPlayer(db, userId)
+  // この習得で新しく現れた隠しスキル
+  const before = new Set(p.secretSkills.map((s) => s.id))
+  const revealed = next.secretSkills.filter((s) => !before.has(s.id)).map((s) => ({ name: s.name, combo: s.combo }))
+  return { player: next, revealed }
 }
 
 /** SP の振り直し (何度でも無料) */

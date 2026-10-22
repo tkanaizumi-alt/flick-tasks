@@ -99,7 +99,9 @@ export function People() {
                             ? ` が ${a.text} を入手`
                             : a.kind === 'job'
                               ? ` が上位職 ${a.text} を解放`
-                              : ` が ${a.text} を撃破`}
+                              : a.kind === 'skill'
+                                ? ` が隠しスキル ✦${a.text} を習得`
+                                : ` が ${a.text} を撃破`}
                     </span>
                     <time>{ago(a.createdAt)}</time>
                   </li>

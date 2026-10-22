@@ -17,7 +17,7 @@ export function CharacterHeader({ name, picture, player, gold }: { name: string;
         </div>
         <div className="char-sub">
           <span className="char-job" data-testid="current-job">
-            {player.job.icon} {player.job.name} <small>職業Lv{player.jobLevel}</small>
+            {player.job.icon} {player.job.name} <small>職業Lv{player.jobLevel >= 30 ? 'MAX' : player.jobLevel}</small>
           </span>
           {gold && (
             <span className="char-gold" data-testid="gold">
