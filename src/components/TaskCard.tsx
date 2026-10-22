@@ -1,0 +1,163 @@
+import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react'
+import { animate, motion, useMotionValue, useMotionValueEvent, useTransform, type Variants } from 'motion/react'
+import type { Status } from '../../shared/types'
+import type { UITask } from '../App'
+import { CheckIcon, PlayIcon, SparkIcon, TrashIcon, UndoIcon, CloudIcon } from './icons'
+
+/** フリックで確定したカードの飛ばす方向 (exit アニメーション用) */
+export const exitDir = new Map<string, number>()
+
+interface Action {
+  label: string
+  color: string
+  icon: ReactNode
+}
+
+const ORDER: Status[] = ['todo', 'doing', 'done']
+const DELETE: Action = { label: '削除', color: 'linear-gradient(135deg,#ff7a8a,#ff4d6a)', icon: <TrashIcon /> }
+const TO: Record<Status, Action> = {
+  todo: { label: '未着手', color: 'linear-gradient(135deg,#9aa6c4,#7381a6)', icon: <UndoIcon /> },
+  doing: { label: '進行中', color: 'linear-gradient(135deg,#ffc35c,#ff9f2e)', icon: <PlayIcon /> },
+  done: { label: '完了', color: 'linear-gradient(135deg,#4ee3a5,#16c784)', icon: <CheckIcon /> },
+}
+
+export function actionFor(status: Status, dir: 1 | -1): Action {
+  const next = ORDER.indexOf(status) + dir
+  return next < 0 || next >= ORDER.length ? DELETE : TO[ORDER[next]]
+}
+
+const variants: Variants = {
+  initial: { opacity: 0, y: -16, scale: 0.94, filter: 'blur(6px)' },
+  animate: ({ i }: { i: number }) => ({
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: 'blur(0px)',
+    transition: { type: 'spring', stiffness: 420, damping: 30, delay: Math.min(i, 10) * 0.04 },
+  }),
+  exit: ({ id }: { id: string }) =>
+    exitDir.has(id)
+      ? { opacity: 0, transition: { duration: 0.32, ease: 'easeIn' } }
+      : { opacity: 0, scale: 0.86, filter: 'blur(6px)', transition: { duration: 0.24 } },
+}
+
+interface Props {
+  task: UITask
+  index: number
+  onSwipe: (task: UITask, dir: 1 | -1) => void
+  onOpen: (task: UITask) => void
+  ref?: Ref<HTMLLIElement>
+}
+
+export function TaskCard({ task, index, onSwipe, onOpen, ref }: Props) {
+  const x = useMotionValue(0)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(360)
+  const [armed, setArmed] = useState<0 | 1 | -1>(0)
+  const dragged = useRef(false)
+  const locked = task.ai || task.syncing
+
+  useLayoutEffect(() => {
+    if (cardRef.current) setWidth(cardRef.current.offsetWidth)
+  }, [])
+
+  const threshold = Math.min(width * 0.3, 140)
+  const right = actionFor(task.status, 1)
+  const left = actionFor(task.status, -1)
+
+  const rightOpacity = useTransform(x, [8, threshold], [0, 1])
+  const leftOpacity = useTransform(x, [-threshold, -8], [1, 0])
+  const rightIcon = useTransform(x, [0, threshold * 0.7, threshold], [0.4, 0.85, 1.12])
+  const leftIcon = useTransform(x, [-threshold, -threshold * 0.7, 0], [1.12, 0.85, 0.4])
+  const rotate = useTransform(x, [-width, 0, width], [-5, 0, 5])
+  const glare = useTransform(x, [-width, 0, width], ['0%', '50%', '100%'])
+
+  useMotionValueEvent(x, 'change', (v) => {
+    const a = v > threshold ? 1 : v < -threshold ? -1 : 0
+    if (a !== armed) {
+      setArmed(a)
+      if (a) navigator.vibrate?.(8)
+    }
+  })
+
+  return (
+    <motion.li
+      ref={ref}
+      layout
+      className="card-wrap"
+      custom={{ i: index, id: task.id }}
+      variants={variants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      data-testid="task"
+      data-status={task.status}
+    >
+      <div className="card-actions" aria-hidden="true">
+        <motion.div className={`act act-r ${armed === 1 ? 'armed' : ''}`} style={{ opacity: rightOpacity, background: right.color }}>
+          <motion.span className="act-icon" style={{ scale: rightIcon }}>
+            {right.icon}
+          </motion.span>
+          <span className="act-label">{right.label}</span>
+        </motion.div>
+        <motion.div className={`act act-l ${armed === -1 ? 'armed' : ''}`} style={{ opacity: leftOpacity, background: left.color }}>
+          <span className="act-label">{left.label}</span>
+          <motion.span className="act-icon" style={{ scale: leftIcon }}>
+            {left.icon}
+          </motion.span>
+        </motion.div>
+      </div>
+
+      <motion.div
+        ref={cardRef}
+        className={`card glass s-${task.status} ${task.ai ? 'is-ai' : ''}`}
+        style={{ x, rotate, ['--glare' as any]: glare }}
+        drag={locked ? false : 'x'}
+        dragDirectionLock
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.92}
+        dragTransition={{ bounceStiffness: 520, bounceDamping: 34 }}
+        whileTap={{ scale: 0.985 }}
+        onDragStart={() => (dragged.current = true)}
+        onDragEnd={(_, info) => {
+          const v = x.get()
+          const vel = info.velocity.x
+          let dir: 0 | 1 | -1 = 0
+          if (v > threshold || (vel > 700 && v > 36)) dir = 1
+          else if (v < -threshold || (vel < -700 && v < -36)) dir = -1
+          setTimeout(() => (dragged.current = false), 0)
+          if (!dir) return
+          exitDir.set(task.id, dir)
+          animate(x, dir * (width + 80), { type: 'spring', stiffness: 260, damping: 30, velocity: vel })
+          onSwipe(task, dir)
+        }}
+        onClick={() => {
+          if (!dragged.current && !locked) onOpen(task)
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={task.title}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onOpen(task)
+        }}
+      >
+        <span className="status-dot" aria-hidden="true">
+          {task.status === 'done' ? <CheckIcon /> : null}
+        </span>
+        <div className="card-body">
+          <div className="card-title">{task.title}</div>
+          {task.note ? <div className="card-note">{task.note}</div> : null}
+        </div>
+        {task.ai ? (
+          <span className="card-badge ai" aria-label="AI処理中">
+            <SparkIcon />
+          </span>
+        ) : task.syncing ? (
+          <span className="card-badge sync" aria-label="同期待ち">
+            <CloudIcon />
+          </span>
+        ) : null}
+      </motion.div>
+    </motion.li>
+  )
+}

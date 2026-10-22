@@ -1,0 +1,5 @@
+# ローカル開発用。.dev.vars にコピーして値を設定
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# localhost でのみ有効なテスト用ログイン (/auth/dev)
+DEV_LOGIN=1
