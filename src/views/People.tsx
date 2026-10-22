@@ -9,7 +9,13 @@ import { StageBoard } from '../components/StageBoard'
 
 const POLL_MS = 30_000
 
-export function People({ isAdmin = false, toast }: { isAdmin?: boolean; toast?: (text: string) => void }) {
+interface Props {
+  isAdmin?: boolean
+  toast?: (text: string) => void
+  onMeRenamed?: (name: string) => void
+}
+
+export function People({ isAdmin = false, toast, onMeRenamed }: Props) {
   const [people, setPeople] = useState<Person[] | null>(null)
   const [activity, setActivity] = useState<Activity[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
@@ -158,8 +164,12 @@ export function People({ isAdmin = false, toast }: { isAdmin?: boolean; toast?: 
             key={openId}
             id={openId}
             onClose={() => setOpenId(null)}
-            canRename={isAdmin && !people?.find((p) => p.id === openId)?.isMe}
-            onRenamed={() => load()}
+            canRename={isAdmin}
+            onRenamed={(id, name) => {
+              load()
+              // 自分の名前を変えたらアプリ全体の表示も更新
+              if (people?.find((p) => p.id === id)?.isMe) onMeRenamed?.(name)
+            }}
             toast={toast}
           />
         )}

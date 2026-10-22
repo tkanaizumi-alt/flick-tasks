@@ -307,6 +307,7 @@ api.get('/activity', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT a.id, a.user_id, a.kind, a.text, a.created_at, u.name, u.display_name, u.email, u.picture
        FROM activity a JOIN users u ON u.id = a.user_id
+      WHERE a.kind = 'done' -- 最近の動きはタスクの完了だけ (撃破・レベルアップなどは出さない)
       ORDER BY a.created_at DESC LIMIT 40`,
   ).all()
   const activity: Activity[] = (results as any[])
@@ -330,10 +331,9 @@ admin.use('*', async (c, next) => {
   await next()
 })
 
-/** 他の人の表示名を変更 (空にすると Google の名前に戻る) */
+/** 表示名を変更 (自分も含む。空にすると Google の名前に戻る) */
 admin.patch('/people/:id/name', async (c) => {
   const id = c.req.param('id')
-  if (id === c.get('user').id) return c.json({ error: '自分の名前は変更できません' }, 400)
   const { name } = await c.req.json<{ name?: unknown }>().catch(() => ({ name: '' }))
   const value = typeof name === 'string' ? name.trim().slice(0, 30) : ''
   const r = await c.env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?').bind(value || null, id).run()

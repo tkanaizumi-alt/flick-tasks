@@ -504,7 +504,7 @@ export function App() {
                   </>
                 )}
 
-                {view === 'people' && <People isAdmin={!!user?.isAdmin} toast={showToast} />}
+                {view === 'people' && <People isAdmin={!!user?.isAdmin} toast={showToast} onMeRenamed={(name) => setUser((u) => (u ? { ...u, name } : u))} />}
 
                 {view === 'game' &&
                   (player ? (

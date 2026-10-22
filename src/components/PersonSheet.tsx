@@ -15,9 +15,9 @@ interface Data {
 interface Props {
   id: string
   onClose: () => void
-  /** 管理者が他の人を見ているときだけ名前を変更できる */
+  /** 管理者だけ名前を変更できる (自分も含む) */
   canRename?: boolean
-  onRenamed?: () => void
+  onRenamed?: (id: string, name: string) => void
   toast?: (text: string) => void
 }
 
@@ -35,7 +35,7 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props)
       const { name } = await api.renamePerson(data.person.id, editing)
       setData({ ...data, person: { ...data.person, name } })
       setEditing(null)
-      onRenamed?.()
+      onRenamed?.(data.person.id, name)
       toast?.(`名前を「${name}」に変更しました`)
     } catch {
       toast?.('変更できませんでした')
