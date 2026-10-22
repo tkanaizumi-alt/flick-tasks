@@ -66,6 +66,10 @@ export const api = {
   person: (id: string) =>
     req<{ person: Pick<Person, 'id' | 'name' | 'picture'>; player: PlayerState; tasks: Task[] }>(`/api/people/${id}`),
   activity: () => req<{ activity: Activity[] }>('/api/activity'),
+  // 管理者のみ
+  renamePerson: (id: string, name: string) => req<{ name: string }>(`/api/admin/people/${id}/name`, { method: 'PATCH', json: { name } }),
+  deleteActivity: (id: number) => req<{ ok: true }>(`/api/admin/activity/${id}`, { method: 'DELETE' }),
+  clearActivity: () => req<{ ok: true; deleted: number }>('/api/admin/activity', { method: 'DELETE' }),
   remove: (id: string) => req<{ ok: true }>(`/api/tasks/${id}`, { method: 'DELETE' }),
   ai: (kind: 'split' | 'breakdown', text: string) =>
     req<{ tasks: string[] }>(`/api/ai/${kind}`, { method: 'POST', json: { text } }),

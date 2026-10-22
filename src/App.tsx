@@ -504,7 +504,7 @@ export function App() {
                   </>
                 )}
 
-                {view === 'people' && <People />}
+                {view === 'people' && <People isAdmin={!!user?.isAdmin} toast={showToast} />}
 
                 {view === 'game' &&
                   (player ? (

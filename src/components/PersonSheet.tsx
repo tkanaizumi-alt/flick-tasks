@@ -12,10 +12,37 @@ interface Data {
   tasks: Task[]
 }
 
-/** 他の人のタスクとキャラクター (閲覧のみ) */
-export function PersonSheet({ id, onClose }: { id: string; onClose: () => void }) {
+interface Props {
+  id: string
+  onClose: () => void
+  /** 管理者が他の人を見ているときだけ名前を変更できる */
+  canRename?: boolean
+  onRenamed?: () => void
+  toast?: (text: string) => void
+}
+
+/** 他の人のタスクとキャラクター (閲覧のみ。管理者は名前の変更も可) */
+export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props) {
   const [data, setData] = useState<Data | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const controls = useDragControls()
+
+  const saveName = async () => {
+    if (editing === null || !data) return
+    setSaving(true)
+    try {
+      const { name } = await api.renamePerson(data.person.id, editing)
+      setData({ ...data, person: { ...data.person, name } })
+      setEditing(null)
+      onRenamed?.()
+      toast?.(`名前を「${name}」に変更しました`)
+    } catch {
+      toast?.('変更できませんでした')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     api.person(id).then(setData, () => onClose())
@@ -61,6 +88,36 @@ export function PersonSheet({ id, onClose }: { id: string; onClose: () => void }
         ) : (
           <>
             <CharacterHeader name={data.person.name} picture={data.person.picture} player={data.player} />
+            {canRename &&
+              (editing === null ? (
+                <button className="rename-btn" onClick={() => setEditing(data.person.name)} data-testid="rename-start">
+                  ✎ 名前を変更
+                </button>
+              ) : (
+                <form
+                  className="rename-form"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    saveName()
+                  }}
+                >
+                  <input
+                    value={editing}
+                    onChange={(e) => setEditing(e.target.value)}
+                    maxLength={30}
+                    autoFocus
+                    aria-label="新しい名前"
+                    placeholder="空にすると Google の名前に戻ります"
+                    data-testid="rename-input"
+                  />
+                  <button type="submit" className="pill-btn primary small" disabled={saving} data-testid="rename-save">
+                    保存
+                  </button>
+                  <button type="button" className="pill-btn ghost small" onClick={() => setEditing(null)}>
+                    やめる
+                  </button>
+                </form>
+              ))}
             <div className="ps-stats">
               {STATS.map((s) => (
                 <span key={s.key}>

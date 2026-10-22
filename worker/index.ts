@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { isAllowed, type Env, type Vars } from './env'
+import { displayName, isAllowed, type Env, type Vars } from './env'
 import { auth, resolveUser } from './auth'
 import { aiTasks } from './ai'
 import {
@@ -255,7 +255,7 @@ api.post('/missions/:id/claim', async (c) => {
 api.get('/people', async (c) => {
   const now = Date.now()
   const { results } = await c.env.DB.prepare(
-    `SELECT u.id, u.name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage, p.job AS job,
+    `SELECT u.id, u.name, u.display_name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage, p.job AS job,
             SUM(t.status = 'todo') AS todo, SUM(t.status = 'doing') AS doing,
             SUM(t.status = 'done' AND COALESCE(t.done_at, t.updated_at) >= ?) AS done,
             SUM(t.done_at >= ? AND t.xp_awarded > 0) AS today, SUM(t.done_at >= ? AND t.xp_awarded > 0) AS week
@@ -271,7 +271,7 @@ api.get('/people', async (c) => {
     .filter((r) => isAllowed(c.env, r.email))
     .map((r) => ({
       id: r.id,
-      name: r.name || r.email.split('@')[0],
+      name: displayName(r),
       picture: r.picture,
       xp: r.xp,
       stage: r.stage,
@@ -290,14 +290,14 @@ api.get('/people', async (c) => {
 
 api.get('/people/:id', async (c) => {
   const id = c.req.param('id')
-  const user = await c.env.DB.prepare('SELECT id, name, email, picture FROM users WHERE id = ?').bind(id).first<any>()
+  const user = await c.env.DB.prepare('SELECT id, name, display_name, email, picture FROM users WHERE id = ?').bind(id).first<any>()
   if (!user || !isAllowed(c.env, user.email)) return c.json({ error: 'not found' }, 404)
   const [player, { results }] = await Promise.all([
     getPlayer(c.env.DB, id),
     c.env.DB.prepare(`SELECT * FROM tasks WHERE user_id = ? AND ${VISIBLE} ORDER BY position DESC LIMIT 200`).bind(id, doneCutoff()).all(),
   ])
   return c.json({
-    person: { id: user.id, name: user.name || user.email.split('@')[0], picture: user.picture },
+    person: { id: user.id, name: displayName(user), picture: user.picture },
     player,
     tasks: results.map(toTask),
   })
@@ -305,7 +305,7 @@ api.get('/people/:id', async (c) => {
 
 api.get('/activity', async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT a.id, a.user_id, a.kind, a.text, a.created_at, u.name, u.email, u.picture
+    `SELECT a.id, a.user_id, a.kind, a.text, a.created_at, u.name, u.display_name, u.email, u.picture
        FROM activity a JOIN users u ON u.id = a.user_id
       ORDER BY a.created_at DESC LIMIT 40`,
   ).all()
@@ -314,7 +314,7 @@ api.get('/activity', async (c) => {
     .map((r) => ({
       id: r.id,
       userId: r.user_id,
-      name: r.name || r.email.split('@')[0],
+      name: displayName(r),
       picture: r.picture,
       kind: r.kind,
       text: r.text,
@@ -322,6 +322,39 @@ api.get('/activity', async (c) => {
     }))
   return c.json({ activity })
 })
+
+// ---------- 管理者のみ ----------
+const admin = new Hono<{ Bindings: Env; Variables: Vars }>()
+admin.use('*', async (c, next) => {
+  if (!c.get('user').isAdmin) return c.json({ error: 'forbidden' }, 403)
+  await next()
+})
+
+/** 他の人の表示名を変更 (空にすると Google の名前に戻る) */
+admin.patch('/people/:id/name', async (c) => {
+  const id = c.req.param('id')
+  if (id === c.get('user').id) return c.json({ error: '自分の名前は変更できません' }, 400)
+  const { name } = await c.req.json<{ name?: unknown }>().catch(() => ({ name: '' }))
+  const value = typeof name === 'string' ? name.trim().slice(0, 30) : ''
+  const r = await c.env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?').bind(value || null, id).run()
+  if (!r.meta.changes) return c.json({ error: 'not found' }, 404)
+  const user = await c.env.DB.prepare('SELECT name, display_name, email FROM users WHERE id = ?').bind(id).first<any>()
+  return c.json({ name: displayName(user) })
+})
+
+/** 最近の動きのログを 1 件削除 */
+admin.delete('/activity/:id', async (c) => {
+  await c.env.DB.prepare('DELETE FROM activity WHERE id = ?').bind(Number(c.req.param('id'))).run()
+  return c.json({ ok: true })
+})
+
+/** 最近の動きのログをすべて削除 */
+admin.delete('/activity', async (c) => {
+  const r = await c.env.DB.prepare('DELETE FROM activity').run()
+  return c.json({ ok: true, deleted: r.meta.changes ?? 0 })
+})
+
+api.route('/admin', admin)
 
 app.route('/api', api)
 

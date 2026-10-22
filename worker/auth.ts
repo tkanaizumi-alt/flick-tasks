@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
-import { isAllowed, type Env, type Vars } from './env'
+import { displayName, isAdmin, isAllowed, type Env, type Vars } from './env'
 
 const SESSION_COOKIE = 'flick_sid'
 const OAUTH_COOKIE = 'flick_oauth'
@@ -42,7 +42,7 @@ export async function resolveUser(c: any) {
   if (!token) return null
   const sid = await sha256(token)
   const row = await c.env.DB.prepare(
-    `SELECT s.expires_at, u.id, u.email, u.name, u.picture
+    `SELECT s.expires_at, u.id, u.email, u.name, u.display_name, u.picture
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ?`,
   )
@@ -57,7 +57,13 @@ export async function resolveUser(c: any) {
       .run()
     setCookie(c, SESSION_COOKIE, token, cookieOpts(new URL(c.req.url), SESSION_TTL))
   }
-  return { id: row.id, email: row.email, name: row.name, picture: row.picture } as Vars['user']
+  return {
+    id: row.id,
+    email: row.email,
+    name: displayName(row as any),
+    picture: row.picture,
+    isAdmin: isAdmin(c.env, row.email as string),
+  } as Vars['user']
 }
 
 async function upsertUser(

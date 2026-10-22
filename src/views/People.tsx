@@ -9,10 +9,33 @@ import { StageBoard } from '../components/StageBoard'
 
 const POLL_MS = 30_000
 
-export function People() {
+export function People({ isAdmin = false, toast }: { isAdmin?: boolean; toast?: (text: string) => void }) {
   const [people, setPeople] = useState<Person[] | null>(null)
   const [activity, setActivity] = useState<Activity[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
+
+  const removeLog = async (id: number) => {
+    setActivity((a) => a.filter((x) => x.id !== id))
+    try {
+      await api.deleteActivity(id)
+    } catch {
+      toast?.('削除できませんでした')
+      load()
+    }
+  }
+  const clearLogs = async () => {
+    setConfirmClear(false)
+    const before = activity
+    setActivity([])
+    try {
+      const r = await api.clearActivity()
+      toast?.(`${r.deleted}件のログを削除しました`)
+    } catch {
+      setActivity(before)
+      toast?.('削除できませんでした')
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -84,10 +107,22 @@ export function People() {
 
           {activity.length > 0 && (
             <section className="panel glass feed" data-testid="feed">
-              <h2>最近の動き</h2>
+              <div className="panel-head">
+                <h2>最近の動き</h2>
+                {isAdmin && (
+                  <button
+                    className={`reset-btn ${confirmClear ? 'confirm' : ''}`}
+                    onClick={() => (confirmClear ? clearLogs() : setConfirmClear(true))}
+                    onBlur={() => setConfirmClear(false)}
+                    data-testid="clear-logs"
+                  >
+                    {confirmClear ? '本当に全部消す？' : 'すべて消す'}
+                  </button>
+                )}
+              </div>
               <ul>
                 {activity.slice(0, 15).map((a) => (
-                  <li key={a.id}>
+                  <li key={a.id} data-testid="feed-item">
                     <Avatar name={a.name} picture={a.picture} size={26} />
                     <span className="feed-text">
                       <b>{a.name}</b>
@@ -104,6 +139,11 @@ export function People() {
                                 : ` が ${a.text} を撃破`}
                     </span>
                     <time>{ago(a.createdAt)}</time>
+                    {isAdmin && (
+                      <button className="feed-del" onClick={() => removeLog(a.id)} aria-label="このログを削除" data-testid="feed-del">
+                        ×
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -112,7 +152,18 @@ export function People() {
         </>
       )}
 
-      <AnimatePresence>{openId && <PersonSheet key={openId} id={openId} onClose={() => setOpenId(null)} />}</AnimatePresence>
+      <AnimatePresence>
+        {openId && (
+          <PersonSheet
+            key={openId}
+            id={openId}
+            onClose={() => setOpenId(null)}
+            canRename={isAdmin && !people?.find((p) => p.id === openId)?.isMe}
+            onRenamed={() => load()}
+            toast={toast}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

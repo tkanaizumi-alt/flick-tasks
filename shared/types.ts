@@ -21,6 +21,8 @@ export interface User {
   email: string
   name: string
   picture: string
+  /** 他の人の名前変更・ログ削除ができる */
+  isAdmin?: boolean
 }
 
 /** みんなの画面の 1 人分 */
