@@ -30,6 +30,8 @@ export interface Person {
   picture: string
   xp: number
   stage: number
+  jobName: string
+  jobIcon: string
   todo: number
   doing: number
   done: number
@@ -43,7 +45,7 @@ export interface Activity {
   userId: string
   name: string
   picture: string
-  kind: 'done' | 'levelup' | 'boss' | 'item'
+  kind: 'done' | 'levelup' | 'boss' | 'item' | 'job'
   text: string
   createdAt: number
 }

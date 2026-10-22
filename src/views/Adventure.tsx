@@ -22,6 +22,7 @@ import { BattleModal } from '../components/BattleModal'
 import { CharacterHeader } from '../components/CharacterHeader'
 import { ChestReveal, ItemCard, ItemSheet } from '../components/Loot'
 import { StageMap } from '../components/StageMap'
+import { GearIcon } from '../components/GearIcon'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train'
 
@@ -167,9 +168,10 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
               {SLOTS.map((s) => {
                 const item = player.items.find((i) => i.id === player.equipped[s.key])
                 return (
-                  <button key={s.key} className={`equip-slot ${item ? `r-${item.rarity}` : 'empty'}`} onClick={() => item && setOpenItem(item)} data-testid={`slot-${s.key}`}>
-                    <span className="slot-icon">{item?.icon ?? '＋'}</span>
-                    <span className="slot-label">{item?.name ?? s.label}</span>
+                  <button key={s.key} className={`equip-slot ${item ? `r-${item.rarity}` : 'vacant'}`} onClick={() => item && setOpenItem(item)} data-testid={`slot-${s.key}`}>
+                    <span className="slot-part">{s.label}</span>
+                    <GearIcon slot={s.key} rarity={item?.rarity} />
+                    <span className="slot-label">{item?.name ?? 'なし'}</span>
                   </button>
                 )
               })}
@@ -236,6 +238,44 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
 
       {tab === 'train' && (
         <>
+          <section className="panel glass" data-testid="jobs">
+            <div className="panel-head">
+              <h2>冒険職</h2>
+              <span className="muted">いつでも変更できます</span>
+            </div>
+            <div className="job-list">
+              {player.jobs.map((j) => {
+                const on = j.id === player.job.id
+                return (
+                  <button
+                    key={j.id}
+                    className={`job ${on ? 'on' : ''} ${j.tier === 2 ? 'adv' : ''}`}
+                    disabled={busy || on}
+                    onClick={() => run(() => api.setJob(j.id))}
+                    data-testid={`job-${j.id}`}
+                  >
+                    <span className="job-icon">{j.icon}</span>
+                    <span className="job-body">
+                      <span className="job-name">
+                        {j.name}
+                        {j.tier === 2 && <em>上位職</em>}
+                      </span>
+                      <span className="job-desc">{j.desc}</span>
+                      <span className="job-lv">
+                        職業Lv {j.level}
+                        <span className="job-bar">
+                          <span style={{ transform: `scaleX(${j.current / j.next})` }} />
+                        </span>
+                      </span>
+                    </span>
+                    {on && <span className="job-on">選択中</span>}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="muted job-note">今の職業の職業Lvが1上がるごとに攻撃・体力+1%（最大+30%）</p>
+          </section>
+
           <section className="panel glass">
             <div className="panel-head">
               <h2>ステータス</h2>
@@ -269,7 +309,7 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
           <section className="panel glass">
             <div className="panel-head">
               <h2>スキル</h2>
-              {player.resets > 0 && (
+              {sp.spent > 0 && (
                 <button
                   className={`reset-btn ${confirmReset ? 'confirm' : ''}`}
                   data-testid="reset"
@@ -280,7 +320,7 @@ export function Adventure({ player, name, picture, onPlayer, toast }: Props) {
                   }}
                   onBlur={() => setConfirmReset(false)}
                 >
-                  {confirmReset ? '振り直す？' : `📕 リセットの書 ×${player.resets}`}
+                  {confirmReset ? '本当に振り直す？' : '↺ SPを振り直す'}
                 </button>
               )}
             </div>

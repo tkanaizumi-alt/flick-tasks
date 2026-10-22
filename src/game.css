@@ -37,7 +37,7 @@
 /* ---------- 冒険のサブタブ ---------- */
 .muted { font-size: 12px; color: var(--ink-3); margin: 0; }
 .char-gold { margin-left: auto; font-size: 13px; font-weight: 800; color: #b7791f; font-variant-numeric: tabular-nums; }
-.char-gold + .char-lv { margin-left: 8px; }
+
 .sub-tabs { display: flex; padding: 4px; border-radius: 18px; margin-bottom: 12px; }
 .sub-tab {
   position: relative; flex: 1; height: 38px; border: 0; background: none; border-radius: 14px;
@@ -70,13 +70,13 @@
 .chest-icon { font-size: 40px; }
 .chest-body { flex: 1; }
 .chest-title { font-weight: 750; font-size: 16px; }
-.equip-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.equip-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .equip-slot {
   border: 0; font: inherit; cursor: pointer; border-radius: 16px; padding: 12px 6px;
   display: flex; flex-direction: column; align-items: center; gap: 4px; background: rgba(255, 255, 255, 0.65);
   box-shadow: inset 0 0 0 1.5px var(--rc, rgba(20, 28, 48, 0.08));
 }
-.equip-slot.empty { color: var(--ink-3); cursor: default; }
+.equip-slot.vacant { color: var(--ink-3); cursor: default; }
 .slot-icon { font-size: 26px; }
 .slot-label { font-size: 11.5px; font-weight: 700; text-align: center; }
 .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }

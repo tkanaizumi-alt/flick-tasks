@@ -7,6 +7,7 @@ export interface XpChange {
   bonuses: string[]
   level: number
   leveledUp: boolean
+  unlocked?: { name: string; icon: string } | null
 }
 
 export class HttpError extends Error {
@@ -43,6 +44,7 @@ export const api = {
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),
   learn: (id: string) => req<{ player: PlayerState }>('/api/player/skill', { method: 'POST', json: { id } }),
   resetBuild: () => req<{ player: PlayerState }>('/api/player/reset', { method: 'POST', json: {} }),
+  setJob: (job: string) => req<{ player: PlayerState }>('/api/player/job', { method: 'POST', json: { job } }),
   battle: () =>
     req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState }>('/api/battle', {
       method: 'POST',

@@ -56,6 +56,8 @@ export function BattleModal({ result, reward, onClose }: Props) {
               {turn.taken > 0 && <span className="dmg taken">-{turn.taken}</span>}
               {turn.healed > 0 && <span className="dmg heal">+{turn.healed}</span>}
               {turn.guts && <span className="dmg crit guts">不屈!</span>}
+              {turn.revive && <span className="dmg crit guts">復活!</span>}
+              {turn.dodged && <span className="dmg heal">回避!</span>}
             </div>
           )}
         </div>
@@ -79,7 +81,6 @@ export function BattleModal({ result, reward, onClose }: Props) {
             {result.win && reward ? (
               <div className="result-rewards">
                 <span>💰 +{reward.gold}</span>
-                <span>📕 +1</span>
                 <span>ステージ {result.enemy.stage + 1} へ</span>
                 {reward.item && (
                   <div className="result-item">

@@ -1,5 +1,9 @@
 import type { Env } from './env'
+import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
 import {
+  DEFAULT_JOB,
+  EARLY_HOUR,
+  jobLevelInfo,
   CHEST_COST,
   DONE_KEEP_DAYS,
   INVENTORY_MAX,
@@ -28,7 +32,7 @@ import {
 } from '../shared/game'
 
 const STAT_COL: Record<StatKey, string> = { atk: 'stat_atk', hp: 'stat_hp', crit: 'stat_crit', heal: 'stat_heal' }
-const SLOT_COL: Record<Slot, string> = { weapon: 'eq_weapon', armor: 'eq_armor', charm: 'eq_charm' }
+const SLOT_COL: Record<Slot, string> = { head: 'eq_head', body: 'eq_body', feet: 'eq_feet', weapon: 'eq_weapon' }
 
 const toItem = (r: any): Item => ({
   id: r.id,
@@ -45,23 +49,39 @@ const toItem = (r: any): Item => ({
 
 export async function getPlayer(db: D1Database, userId: string): Promise<PlayerState> {
   await db.prepare('INSERT OR IGNORE INTO players (user_id, updated_at) VALUES (?, ?)').bind(userId, Date.now()).run()
-  const [row, skills, items] = await db.batch([
+  const [row, skills, items, jobRows] = await db.batch([
     db.prepare('SELECT * FROM players WHERE user_id = ?').bind(userId),
     db.prepare('SELECT skill_id FROM player_skills WHERE user_id = ?').bind(userId),
     db.prepare('SELECT * FROM items WHERE user_id = ? ORDER BY created_at DESC').bind(userId),
+    db.prepare('SELECT job_id, xp FROM player_jobs WHERE user_id = ?').bind(userId),
   ])
   const r = row.results[0] as any
   const equipped: PlayerState['equipped'] = {}
   for (const s of SLOTS) if (r[SLOT_COL[s.key]]) equipped[s.key] = r[SLOT_COL[s.key]]
+  const jobXp: Record<string, number> = Object.fromEntries((jobRows.results as any[]).map((j) => [j.job_id, j.xp]))
+  const levels = Object.fromEntries(Object.keys(JOB_MAP).map((id) => [id, jobLevelInfo(jobXp[id] ?? 0).level]))
+  const choices = unlockedJobs(levels)
+  // 選べない職業 (データ不整合など) なら初期職業として扱う
+  const job = choices.find((j) => j.id === r.job) ?? DEFAULT_JOB
   return {
     xp: r.xp,
     stats: { atk: r.stat_atk, hp: r.stat_hp, crit: r.stat_crit, heal: r.stat_heal },
     skills: (skills.results as any[]).map((s) => s.skill_id),
     stage: r.stage,
-    resets: r.resets,
     gold: r.gold ?? 0,
     items: (items.results as any[]).map(toItem),
     equipped,
+    job,
+    jobLevel: levels[job.id],
+    jobs: choices.map((j) => ({
+      id: j.id,
+      name: j.name,
+      icon: j.icon,
+      desc: j.desc,
+      tier: j.tier,
+      xp: jobXp[j.id] ?? 0,
+      ...jobLevelInfo(jobXp[j.id] ?? 0),
+    })),
   }
 }
 
@@ -74,6 +94,8 @@ export interface XpChange {
   bonuses: string[]
   level: number
   leveledUp: boolean
+  /** この完了で上位職が解放された */
+  unlocked?: { name: string; icon: string } | null
 }
 
 const effectsOf = (p: PlayerState) => equippedItems(p).map((i) => i.effect).filter((e): e is string => !!e)
@@ -88,36 +110,53 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
   const now = Date.now()
 
   if (isDone) {
-    const today = await db
-      .prepare('SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND done_at >= ? AND xp_awarded > 0')
-      .bind(userId, jstDayStart(now))
-      .first<{ n: number }>()
+    const day = jstDayStart(now)
+    const counts = await db
+      .prepare('SELECT SUM(done_at >= ?) AS today, SUM(done_at >= ? AND done_at < ?) AS yesterday FROM tasks WHERE user_id = ? AND xp_awarded > 0')
+      .bind(day, day - 86400000, day, userId)
+      .first<{ today: number | null; yesterday: number | null }>()
     const { amount, gold, bonuses } = computeXp({
       weight: before.weight as Weight | null,
       createdAt: before.created_at,
       now,
-      doneToday: today?.n ?? 0,
+      doneToday: counts?.today ?? 0,
+      doneYesterday: (counts?.yesterday ?? 0) > 0,
       source: before.source,
       skills: player.skills,
       effects: effectsOf(player),
     })
     const level = levelInfo(player.xp + amount).level
+    // 今の職業にも同じだけ職業 XP が入る。基本職が規定レベルに届いたら上位職が解放される
+    const jobId = player.job.id
+    const jobXp = player.jobs.find((j) => j.id === jobId)?.xp ?? 0
+    const adv = player.job.tier === 1 ? advancedOf(jobId) : undefined
+    const unlocked =
+      adv && jobLevelInfo(jobXp).level < JOB_UNLOCK_LEVEL && jobLevelInfo(jobXp + amount).level >= JOB_UNLOCK_LEVEL
+        ? { name: adv.name, icon: adv.icon }
+        : null
     const stmts = [
       db.prepare('UPDATE players SET xp = xp + ?, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(amount, gold, now, userId),
-      db.prepare('UPDATE tasks SET xp_awarded = ?, done_at = ? WHERE id = ?').bind(amount, now, before.id),
+      db
+        .prepare('INSERT INTO player_jobs (user_id, job_id, xp) VALUES (?, ?, ?) ON CONFLICT(user_id, job_id) DO UPDATE SET xp = xp + excluded.xp')
+        .bind(userId, jobId, amount),
+      db
+        .prepare('UPDATE tasks SET xp_awarded = ?, gold_awarded = ?, xp_job = ?, done_at = ? WHERE id = ?')
+        .bind(amount, gold, jobId, now, before.id),
       logActivity(db, userId, 'done', before.title),
     ]
     if (level > prevLevel) stmts.push(logActivity(db, userId, 'levelup', `Lv${level}`))
+    if (unlocked) stmts.push(logActivity(db, userId, 'job', `${unlocked.icon} ${unlocked.name}`))
     await db.batch(stmts)
-    return { amount, gold, bonuses, level, leveledUp: level > prevLevel }
+    return { amount, gold, bonuses, level, leveledUp: level > prevLevel, unlocked }
   }
 
-  // 完了から戻した: 付与済み XP とゴールドを取り消す
+  // 完了から戻した: 付与済み XP・ゴールド・職業 XP を取り消す
   const amount = before.xp_awarded ?? 0
-  const gold = Math.ceil(amount / 2)
+  const gold = before.gold_awarded ?? Math.ceil(amount / 2)
   await db.batch([
     db.prepare('UPDATE players SET xp = MAX(0, xp - ?), gold = MAX(0, gold - ?), updated_at = ? WHERE user_id = ?').bind(amount, gold, now, userId),
-    db.prepare('UPDATE tasks SET xp_awarded = 0, done_at = NULL WHERE id = ?').bind(before.id),
+    db.prepare('UPDATE player_jobs SET xp = MAX(0, xp - ?) WHERE user_id = ? AND job_id = ?').bind(amount, userId, before.xp_job ?? player.job.id),
+    db.prepare('UPDATE tasks SET xp_awarded = 0, gold_awarded = 0, xp_job = NULL, done_at = NULL WHERE id = ?').bind(before.id),
   ])
   return { amount: -amount, gold: -gold, bonuses: [], level: levelInfo(Math.max(0, player.xp - amount)).level, leveledUp: false }
 }
@@ -138,15 +177,20 @@ export async function learnSkill(db: D1Database, userId: string, skillId: string
   return { player: await getPlayer(db, userId) }
 }
 
+/** SP の振り直し (何度でも無料) */
 export async function resetBuild(db: D1Database, userId: string) {
-  const p = await getPlayer(db, userId)
-  if (p.resets < 1) return { error: 'リセットの書がありません' }
   await db.batch([
-    db.prepare(
-      'UPDATE players SET stat_atk = 0, stat_hp = 0, stat_crit = 0, stat_heal = 0, resets = resets - 1, updated_at = ? WHERE user_id = ?',
-    ).bind(Date.now(), userId),
+    db.prepare('UPDATE players SET stat_atk = 0, stat_hp = 0, stat_crit = 0, stat_heal = 0, updated_at = ? WHERE user_id = ?').bind(Date.now(), userId),
     db.prepare('DELETE FROM player_skills WHERE user_id = ?').bind(userId),
   ])
+  return { player: await getPlayer(db, userId) }
+}
+
+/** 冒険職の変更 (いつでも自由。解放済みの職業のみ) */
+export async function setJob(db: D1Database, userId: string, jobId: string) {
+  const p = await getPlayer(db, userId)
+  if (!p.jobs.some((j) => j.id === jobId)) return { error: 'その職業は選べません' }
+  await db.prepare('UPDATE players SET job = ?, updated_at = ? WHERE user_id = ?').bind(jobId, Date.now(), userId).run()
   return { player: await getPlayer(db, userId) }
 }
 
@@ -166,13 +210,13 @@ function insertItem(db: D1Database, userId: string, item: Omit<Item, 'id'>) {
 
 /** SR 以上を引いたらみんなの「最近の動き」に流す */
 const itemActivity = (db: D1Database, userId: string, item: Item) =>
-  item.rarity === 'SSR' || item.rarity === 'SR' ? [logActivity(db, userId, 'item', `${item.rarity} ${item.icon} ${item.name}`)] : []
+  item.rarity === 'SSR' || item.rarity === 'SR' ? [logActivity(db, userId, 'item', `${item.rarity} ${item.name}`)] : []
 
 async function ensureDaily(db: D1Database, userId: string, day: number) {
   await db.prepare('INSERT OR IGNORE INTO daily (user_id, day) VALUES (?, ?)').bind(userId, day).run()
 }
 
-/** 現在のステージのボスに挑む。勝てば次のステージ・ゴールド・宝箱 (装備 1 つ)・リセットの書 */
+/** 現在のステージのボスに挑む。勝てば次のステージ・ゴールド・宝箱 (装備 1 つ) */
 export async function fight(db: D1Database, userId: string) {
   const p = await getPlayer(db, userId)
   const enemy = enemyForStage(p.stage)
@@ -192,7 +236,7 @@ export async function fight(db: D1Database, userId: string) {
       stmts.push(ins.stmt, ...itemActivity(db, userId, item))
     }
     stmts.push(
-      db.prepare('UPDATE players SET stage = stage + 1, resets = resets + 1, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), userId),
+      db.prepare('UPDATE players SET stage = stage + 1, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), userId),
       logActivity(db, userId, 'boss', `${enemy.icon} ${enemy.name}`),
     )
     reward = { gold, item }
@@ -249,7 +293,7 @@ async function dailyState(db: D1Database, userId: string) {
                 SUM(done_at < ?) AS early
            FROM tasks WHERE user_id = ? AND done_at >= ? AND xp_awarded > 0`,
       )
-      .bind(day + 9 * 3600000, userId, day),
+      .bind(day + EARLY_HOUR * 3600000, userId, day),
     db.prepare('SELECT battles, claimed FROM daily WHERE user_id = ? AND day = ?').bind(userId, day),
   ])
   const c = counts.results[0] as any

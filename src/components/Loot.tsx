@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { EFFECTS, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
+import { GearIcon } from './GearIcon'
 
+const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
 const statText = (i: Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>) =>
   [i.atk && `攻撃+${i.atk}`, i.hp && `体力+${i.hp}`, i.crit && `会心+${i.crit}%`, i.heal && `回復+${i.heal}`].filter(Boolean).join(' ')
 
 export function ItemCard({ item, equipped, onClick }: { item: Item; equipped?: boolean; onClick?: () => void }) {
   return (
-    <button className={`item-card r-${item.rarity} ${equipped ? 'eq' : ''}`} onClick={onClick} data-testid="item">
+    <button className={`item-card r-${item.rarity} ${equipped ? 'eq' : ''}`} onClick={onClick} data-testid="item" aria-label={`${item.rarity} ${item.name}`}>
       <span className="item-rarity">{item.rarity}</span>
-      <span className="item-icon">{item.icon}</span>
+      <GearIcon slot={item.slot} rarity={item.rarity} />
       <span className="item-name">{item.name}</span>
       {item.effect && <span className="item-fx">✦</span>}
       {equipped && <span className="item-eq">E</span>}
@@ -36,9 +38,11 @@ export function ChestReveal({ item, onClose }: { item: Item; onClose: () => void
           <div className={`reveal-card glass r-${item.rarity}`} data-testid="reveal-card">
             <div className="rays" aria-hidden="true" />
             <div className="reveal-rarity">{item.rarity}</div>
-            <div className="reveal-icon">{item.icon}</div>
+            <div className="reveal-icon">
+              <GearIcon slot={item.slot} rarity={item.rarity} size={64} />
+            </div>
             <div className="reveal-name">{item.name}</div>
-            <div className="reveal-slot">{SLOTS.find((s) => s.key === item.slot)?.label}</div>
+            <div className="reveal-slot">{slotLabel(item)}</div>
             <div className="reveal-stats">{statText(item)}</div>
             {item.effect && <div className="reveal-fx">✦ {EFFECTS[item.effect]}</div>}
             <button className="pill-btn primary" onClick={onClose} data-testid="reveal-close">
@@ -79,12 +83,14 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
           <div className="grabber" />
         </div>
         <div className={`is-head r-${item.rarity}`}>
-          <span className="is-icon">{item.icon}</span>
+          <span className="is-icon">
+            <GearIcon slot={item.slot} rarity={item.rarity} size={40} />
+          </span>
           <div>
             <div className="is-name">
               <span className="item-rarity inline">{item.rarity}</span> {item.name}
             </div>
-            <div className="muted">{SLOTS.find((s) => s.key === item.slot)?.label}</div>
+            <div className="muted">{slotLabel(item)}</div>
           </div>
         </div>
         <ul className="is-stats">
@@ -104,7 +110,7 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
         {item.effect && <p className="is-fx">✦ {EFFECTS[item.effect]}</p>}
         <div className="sheet-actions">
           <button className="pill-btn primary grow" disabled={busy} onClick={() => onEquip(!equipped)} data-testid="equip-toggle">
-            {equipped ? '外す' : '装備する'}
+            {equipped ? '外す' : `${slotLabel(item)}に装備`}
           </button>
           <button className="pill-btn ghost" disabled={busy || equipped} onClick={onSell} data-testid="sell">
             売る 💰{RARITY_SELL[item.rarity]}

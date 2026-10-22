@@ -17,7 +17,9 @@ import {
   purgeOldDone,
   resetBuild,
   sellItem,
+  setJob,
 } from './game'
+import { JOB_MAP } from './jobs'
 import { STATUSES, type Activity, type Person, type Status, type Task } from '../shared/types'
 import { jstDayStart, type StatKey } from '../shared/game'
 
@@ -222,6 +224,11 @@ api.post('/player/skill', async (c) => {
 
 api.post('/player/reset', async (c) => gameResponse(c, await resetBuild(c.env.DB, c.get('user').id)))
 
+api.post('/player/job', async (c) => {
+  const { job } = await c.req.json<{ job?: string }>().catch(() => ({ job: '' }))
+  return gameResponse(c, await setJob(c.env.DB, c.get('user').id, job ?? ''))
+})
+
 api.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)))
 
 api.post('/chest', async (c) => {
@@ -247,7 +254,7 @@ api.post('/missions/:id/claim', async (c) => {
 api.get('/people', async (c) => {
   const now = Date.now()
   const { results } = await c.env.DB.prepare(
-    `SELECT u.id, u.name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage,
+    `SELECT u.id, u.name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage, p.job AS job,
             SUM(t.status = 'todo') AS todo, SUM(t.status = 'doing') AS doing,
             SUM(t.status = 'done' AND COALESCE(t.done_at, t.updated_at) >= ?) AS done,
             SUM(t.done_at >= ? AND t.xp_awarded > 0) AS today, SUM(t.done_at >= ? AND t.xp_awarded > 0) AS week
@@ -267,6 +274,8 @@ api.get('/people', async (c) => {
       picture: r.picture,
       xp: r.xp,
       stage: r.stage,
+      jobName: (JOB_MAP[r.job] ?? JOB_MAP.warrior).name,
+      jobIcon: (JOB_MAP[r.job] ?? JOB_MAP.warrior).icon,
       todo: r.todo ?? 0,
       doing: r.doing ?? 0,
       done: r.done ?? 0,

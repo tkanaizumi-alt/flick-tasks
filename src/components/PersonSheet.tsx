@@ -4,6 +4,7 @@ import type { Task } from '../../shared/types'
 import { SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } from '../../shared/game'
 import { api, STATUS_LABEL } from '../api'
 import { CharacterHeader } from './CharacterHeader'
+import { GearIcon } from './GearIcon'
 
 interface Data {
   person: { id: string; name: string; picture: string }
@@ -71,7 +72,7 @@ export function PersonSheet({ id, onClose }: { id: string; onClose: () => void }
               <div className="ps-skills">
                 {equippedItems(data.player).map((i) => (
                   <span key={i.id} className={`chip gear r-${i.rarity}`}>
-                    {i.icon} {i.name}
+                    <GearIcon slot={i.slot} rarity={i.rarity} size={14} /> {i.name}
                   </span>
                 ))}
               </div>

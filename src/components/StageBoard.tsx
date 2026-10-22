@@ -1,42 +1,41 @@
 import type { Person } from '../../shared/types'
-import { enemyForStage } from '../../shared/game'
+import { MAIN_STAGES, enemyForStage } from '../../shared/game'
 import { Avatar } from './Dock'
 
-const MAIN = 10
-
-/** 誰がどのステージにいるかを一目で: 列 = ボス、行 = 人、現在地にアバター */
+/** 誰がどのステージにいるかを一目で: 30 ステージの道に各自のアイコンを置く */
 export function StageBoard({ people, onOpen }: { people: Person[]; onOpen: (id: string) => void }) {
+  const pos = (stage: number) => `${(Math.min(stage, MAIN_STAGES) - 1) / (MAIN_STAGES - 1) * 100}%`
   return (
     <section className="panel glass board" data-testid="stage-board">
       <div className="panel-head">
         <h2>冒険の進み具合</h2>
       </div>
-      <div className="board-grid">
-        <div className="board-row head" aria-hidden="true">
-          <span className="board-who" />
-          {Array.from({ length: MAIN }, (_, i) => (
-            <span key={i} className="board-cell">
-              {enemyForStage(i + 1).icon}
-            </span>
-          ))}
-        </div>
+      <div className="track-head" aria-hidden="true">
+        {[1, 10, 20, 30].map((n) => (
+          <span key={n} style={{ left: pos(n) }}>
+            {enemyForStage(n).icon}
+            <small>{n}</small>
+          </span>
+        ))}
+      </div>
+      <div className="tracks">
         {people.map((p) => {
-          const tower = p.stage > MAIN
+          const boss = enemyForStage(p.stage)
           return (
-            <button key={p.id} className={`board-row ${p.isMe ? 'me' : ''}`} onClick={() => onOpen(p.id)} data-testid="board-row">
-              <span className="board-who">
-                <Avatar name={p.name} picture={p.picture} size={24} />
+            <button key={p.id} className={`track-row ${p.isMe ? 'me' : ''}`} onClick={() => onOpen(p.id)} data-testid="board-row">
+              <span className="track-name">{p.name}</span>
+              <span className="track">
+                <span className="track-fill" style={{ width: pos(p.stage) }} />
+                {[10, 20].map((n) => (
+                  <i key={n} className="track-tick" style={{ left: pos(n) }} />
+                ))}
+                <span className="track-me" style={{ left: pos(p.stage) }}>
+                  <Avatar name={p.name} picture={p.picture} size={24} />
+                </span>
               </span>
-              {Array.from({ length: MAIN }, (_, i) => {
-                const n = i + 1
-                const state = n < p.stage ? 'cleared' : n === p.stage ? 'here' : 'ahead'
-                return (
-                  <span key={n} className={`board-cell ${state}`}>
-                    {state === 'here' ? <Avatar name={p.name} picture={p.picture} size={22} /> : <i />}
-                  </span>
-                )
-              })}
-              {tower && <span className="board-tower">🗼{p.stage - MAIN}F</span>}
+              <span className="track-stage">
+                {p.stage > MAIN_STAGES ? `🗼${p.stage - MAIN_STAGES}F` : `${boss.icon}${p.stage}`}
+              </span>
             </button>
           )
         })}

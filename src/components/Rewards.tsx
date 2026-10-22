@@ -41,7 +41,14 @@ export function XpPops({ pops }: { pops: XpPopData[] }) {
   )
 }
 
-export function LevelUp({ level, onClose, onGo }: { level: number; onClose: () => void; onGo: () => void }) {
+export interface Celebration {
+  label: string
+  title: string
+  sub: string
+}
+
+/** レベルアップ・上位職解放などのお祝い */
+export function LevelUp({ data, onClose, onGo }: { data: Celebration; onClose: () => void; onGo: () => void }) {
   return (
     <>
       <motion.div className="scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
@@ -54,9 +61,9 @@ export function LevelUp({ level, onClose, onGo }: { level: number; onClose: () =
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ type: 'spring', stiffness: 420, damping: 24 }}
       >
-        <div className="lu-label">LEVEL UP</div>
-        <div className="lu-level">Lv {level}</div>
-        <div className="lu-sp">SP +3</div>
+        <div className="lu-label">{data.label}</div>
+        <div className="lu-level">{data.title}</div>
+        <div className="lu-sp">{data.sub}</div>
         <div className="lu-actions">
           <button className="pill-btn ghost" onClick={onClose}>
             閉じる

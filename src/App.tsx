@@ -12,7 +12,7 @@ import { SelectBar } from './components/SelectBar'
 import { Sheet } from './components/Sheet'
 import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
-import { LevelUp, XpPops, type XpPopData } from './components/Rewards'
+import { LevelUp, XpPops, type Celebration, type XpPopData } from './components/Rewards'
 import { CheckCircleIcon, CircleIcon, PlayIcon } from './components/icons'
 import { People } from './views/People'
 import { Adventure } from './views/Adventure'
@@ -75,7 +75,7 @@ export function App() {
   const [guestMemos, setGuestMemos] = useState<PendingMemo[]>([])
   const [aiBusy, setAiBusy] = useState(0)
   const [pops, setPops] = useState<XpPopData[]>([])
-  const [levelUp, setLevelUp] = useState<number | null>(null)
+  const [levelUp, setLevelUp] = useState<Celebration | null>(null)
   const [selected, setSelected] = useState<Set<string> | null>(null) // null = 選択モードでない
   const [query, setQuery] = useState<string | null>(null) // null = 検索を閉じている
   const phaseRef = useRef(phase)
@@ -121,9 +121,15 @@ export function App() {
     setPops((p) => [...p.slice(-2), { id, amount: xp.amount, gold: xp.gold, bonuses: xp.bonuses }])
     setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), 1800)
     setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount), gold: Math.max(0, p.gold + xp.gold) } : p))
-    if (xp.leveledUp) {
+    // 職業 XP なども変わるのでサーバーの状態で取り直す
+    api.player().then((r) => setPlayer(r.player), () => {})
+    if (xp.unlocked) {
+      navigator.vibrate?.([20, 60, 20, 60, 20])
+      const u = xp.unlocked
+      setTimeout(() => setLevelUp({ label: 'NEW JOB', title: `${u.icon} ${u.name}`, sub: '上位職が解放されました' }), 500)
+    } else if (xp.leveledUp) {
       navigator.vibrate?.([12, 40, 12])
-      setTimeout(() => setLevelUp(xp.level), 500)
+      setTimeout(() => setLevelUp({ label: 'LEVEL UP', title: `Lv ${xp.level}`, sub: 'SP +3' }), 500)
     }
   }, [])
 
@@ -551,7 +557,7 @@ export function App() {
             <AnimatePresence>
               {levelUp && (
                 <LevelUp
-                  level={levelUp}
+                  data={levelUp}
                   onClose={() => setLevelUp(null)}
                   onGo={() => {
                     setLevelUp(null)

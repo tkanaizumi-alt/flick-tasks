@@ -58,6 +58,9 @@ export function People() {
                       <div className="person-top">
                         <span className="person-name">{p.name}</span>
                         {p.isMe && <span className="me-tag">自分</span>}
+                        <span className="person-job">
+                          {p.jobIcon} {p.jobName}
+                        </span>
                         <span className="person-lv">Lv {lv}</span>
                       </div>
                       <div className="person-meta">
@@ -94,7 +97,9 @@ export function People() {
                           ? ` が ${a.text} に到達`
                           : a.kind === 'item'
                             ? ` が ${a.text} を入手`
-                            : ` が ${a.text} を撃破`}
+                            : a.kind === 'job'
+                              ? ` が上位職 ${a.text} を解放`
+                              : ` が ${a.text} を撃破`}
                     </span>
                     <time>{ago(a.createdAt)}</time>
                   </li>
