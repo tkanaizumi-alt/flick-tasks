@@ -3,6 +3,7 @@ import { animate, motion, useMotionValue, useMotionValueEvent, useTransform, typ
 import type { Status } from '../../shared/types'
 import { doneDaysLeft } from '../../shared/game'
 import { STATUS_LABEL } from '../api'
+import { DueBadge } from './DueBadge'
 import type { UITask } from '../App'
 import { CheckIcon, PlayIcon, SparkIcon, TrashIcon, UndoIcon, CloudIcon } from './icons'
 
@@ -191,9 +192,10 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
         <div className="card-body">
           <div className="card-title">{task.title}</div>
           {task.note ? <div className="card-note">{task.note}</div> : null}
-          {(showStatus || daysLeft !== null) && (
+          {(showStatus || daysLeft !== null || task.due) && (
             <div className="card-meta">
               {showStatus && <span className={`meta-status t-${task.status}`}>{STATUS_LABEL[task.status]}</span>}
+              <DueBadge task={task} />
               {daysLeft !== null && <span data-testid="days-left">{daysLeft === 0 ? '今日で消えます' : `あと${daysLeft}日で消えます`}</span>}
             </div>
           )}

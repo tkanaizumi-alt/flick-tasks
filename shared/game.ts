@@ -544,16 +544,24 @@ const MISSION_POOL: MissionDef[] = [
   { id: 'early', label: `朝${EARLY_HOUR}時までに1件完了`, goal: 1, gold: 30 },
   { id: 'battle', label: 'ボスに挑戦する', goal: 1, gold: 20 },
   { id: 'mid2', label: '「中」以上のタスクを2件完了', goal: 2, gold: 40 },
+  { id: 'add3', label: 'タスクを3件追加', goal: 3, gold: 20 },
+  { id: 'doing2', label: 'タスクを2件進行中にする', goal: 2, gold: 20 },
+  { id: 'chest', label: '宝箱を1回開ける', goal: 1, gold: 20 },
 ]
+/** 毎日必ず出るミッション */
 export const DAILY_BASE: MissionDef = { id: 'done3', label: 'タスクを3件完了', goal: 3, gold: 30 }
-export const DAILY_ALL: MissionDef = { id: 'all', label: '今日のミッションを全部クリア', goal: 3, gold: 0, chest: true }
+/** 日替わりで選ばれる数 */
+export const DAILY_PICKS = 4
+/** ○個クリアで宝箱 (id は旧「全部クリア」と同じ 'all' を使い続ける) */
+export const DAILY_BONUS_GOAL = 4
+export const DAILY_ALL: MissionDef = { id: 'all', label: `ミッションを${DAILY_BONUS_GOAL}個クリア`, goal: DAILY_BONUS_GOAL, gold: 0, chest: true }
 
 /** その日のミッション (日付から決まるので全員共通) */
 export function dailyMissions(dayStart: number): MissionDef[] {
   const r = rng(Math.floor(dayStart / DAY))
   const pool = [...MISSION_POOL]
   const picks: MissionDef[] = []
-  for (let i = 0; i < 2; i++) picks.push(pool.splice(Math.floor(r() * pool.length), 1)[0])
+  for (let i = 0; i < DAILY_PICKS; i++) picks.push(pool.splice(Math.floor(r() * pool.length), 1)[0])
   return [DAILY_BASE, ...picks, DAILY_ALL]
 }
 
@@ -563,6 +571,9 @@ export interface DailyCounts {
   midPlus: number
   early: number
   battles: number
+  adds: number
+  doings: number
+  chests: number
 }
 
 export function missionProgress(m: MissionDef, c: DailyCounts, claimed: string[]) {
@@ -573,8 +584,26 @@ export function missionProgress(m: MissionDef, c: DailyCounts, claimed: string[]
     mid2: c.midPlus,
     early: c.early,
     battle: c.battles,
+    add3: c.adds,
+    doing2: c.doings,
+    chest: c.chests,
+    // 受け取り済みの数 (ボーナス自身は数えない)
     all: claimed.filter((id) => id !== 'all').length,
   }
   const value = byId[m.id] ?? 0
   return { value: Math.min(value, m.goal), done: value >= m.goal, claimed: claimed.includes(m.id) }
+}
+
+// ---------- 期限 ----------
+/** 期限まであと何日か (JST の日付で比較。0 = 今日、負 = 期限切れ) */
+export function daysUntilDue(due: string, now = Date.now()) {
+  const today = jstDayStart(now)
+  const [y, m, d] = due.split('-').map(Number)
+  const dueStart = Date.UTC(y, m - 1, d) - JST
+  return Math.round((dueStart - today) / DAY)
+}
+
+/** JST の今日の日付 (YYYY-MM-DD) */
+export function jstToday(now = Date.now()) {
+  return new Date(jstDayStart(now) + JST).toISOString().slice(0, 10)
 }

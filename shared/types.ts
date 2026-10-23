@@ -14,6 +14,10 @@ export interface Task {
   source?: 'user' | 'ai'
   xpAwarded?: number
   doneAt?: number | null
+  /** 期限 (YYYY-MM-DD) */
+  due?: string | null
+  /** 期限を設定した人 (本人以外のときに表示) */
+  dueBy?: { id: string; name: string } | null
 }
 
 export interface User {
@@ -47,7 +51,7 @@ export interface Activity {
   userId: string
   name: string
   picture: string
-  kind: 'done' | 'levelup' | 'boss' | 'item' | 'job' | 'skill'
+  kind: 'todo' | 'doing' | 'done' | 'levelup' | 'boss' | 'item' | 'job' | 'skill'
   text: string
   createdAt: number
 }

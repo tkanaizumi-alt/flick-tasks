@@ -550,6 +550,17 @@ export function App() {
                     deleteTask(openTask)
                   }}
                   onBreakdown={(title, note) => onBreakdown(openTask, title, note)}
+                  onDue={async (due) => {
+                    const prev = openTask
+                    upsert([{ ...openTask, due, dueBy: null }])
+                    try {
+                      const { task } = await api.setDue(openTask.id, due)
+                      upsert([task])
+                    } catch {
+                      upsert([prev])
+                      showToast('期限を保存できませんでした')
+                    }
+                  }}
                 />
               )}
             </AnimatePresence>

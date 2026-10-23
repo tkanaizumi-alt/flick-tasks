@@ -11,7 +11,9 @@ import {
   equipItem,
   fight,
   getMissions,
+  countDaily,
   getPlayer,
+  logActivity,
   learnSkill,
   openChest,
   purgeOldDone,
@@ -60,7 +62,14 @@ const toTask = (r: any): Task => ({
   source: r.source ?? 'user',
   xpAwarded: r.xp_awarded ?? 0,
   doneAt: r.done_at ?? null,
+  due: r.due_date ?? null,
+  dueBy: r.due_by && r.due_by !== r.user_id ? { id: r.due_by, name: r.due_by_name ?? '' } : null,
 })
+
+/** タスク + 期限を設定した人の表示名 */
+const TASK_SELECT = `SELECT t.*, COALESCE(du.display_name, du.name) AS due_by_name
+  FROM tasks t LEFT JOIN users du ON du.id = t.due_by`
+const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))
 
 const cleanTitle = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 500) : '')
 const isStatus = (v: unknown): v is Status => STATUSES.includes(v as Status)
@@ -69,10 +78,25 @@ const isId = (v: unknown): v is string => typeof v === 'string' && /^[\w-]{8,64}
 api.get('/me', (c) => c.json({ user: c.get('user') }))
 
 api.get('/tasks', async (c) => {
-  const { results } = await c.env.DB.prepare(`SELECT * FROM tasks WHERE user_id = ? AND ${VISIBLE} ORDER BY position DESC`)
+  const { results } = await c.env.DB.prepare(`${TASK_SELECT} WHERE t.user_id = ? AND ${VISIBLE} ORDER BY t.position DESC`)
     .bind(c.get('user').id, doneCutoff())
     .all()
   return c.json({ tasks: results.map(toTask) })
+})
+
+/** 期限の設定。自分のタスクにも他の人のタスクにも設定できる (空で解除) */
+api.put('/tasks/:id/due', async (c) => {
+  const { due } = await c.req.json<{ due?: unknown }>().catch(() => ({ due: null }))
+  if (due !== null && due !== '' && !isDate(due)) return c.json({ error: 'invalid date' }, 400)
+  const id = c.req.param('id')
+  const owner = await c.env.DB.prepare('SELECT u.email FROM tasks t JOIN users u ON u.id = t.user_id WHERE t.id = ?').bind(id).first<{ email: string }>()
+  if (!owner || !isAllowed(c.env, owner.email)) return c.json({ error: 'not found' }, 404)
+  const value = due ? (due as string) : null
+  await c.env.DB.prepare('UPDATE tasks SET due_date = ?, due_by = ?, updated_at = ? WHERE id = ?')
+    .bind(value, value ? c.get('user').id : null, Date.now(), id)
+    .run()
+  const row = await c.env.DB.prepare(`${TASK_SELECT} WHERE t.id = ?`).bind(id).first()
+  return c.json({ task: toTask(row) })
 })
 
 api.post('/tasks', async (c) => {
@@ -100,14 +124,25 @@ api.post('/tasks', async (c) => {
       doneAt: null,
     })
   }
-  await c.env.DB.batch(
-    tasks.map((t) =>
+  // 同じ ID の再送 (オフライン復帰など) は二重に記録しない
+  const exists = new Set(
+    (
+      await c.env.DB.prepare(`SELECT id FROM tasks WHERE id IN (${tasks.map(() => '?').join(',')})`)
+        .bind(...tasks.map((t) => t.id))
+        .all()
+    ).results.map((r: any) => r.id),
+  )
+  const added = tasks.filter((t) => !exists.has(t.id) && t.status === 'todo')
+  await c.env.DB.batch([
+    ...tasks.map((t) =>
       c.env.DB.prepare(
         `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
       ).bind(t.id, userId, t.title, t.note, t.status, t.position, t.createdAt, t.updatedAt, t.source),
     ),
-  )
+    ...added.map((t) => logActivity(c.env.DB, userId, 'todo', t.title)),
+  ])
+  if (added.length) await countDaily(c.env.DB, userId, 'adds', added.length)
   // XP 用の重さ判定はレスポンスを待たせず裏で行う
   c.executionCtx.waitUntil(classifyWeights(c.env, tasks))
   return c.json({ tasks }, 201)
@@ -145,7 +180,12 @@ async function updateTask(db: D1Database, userId: string, id: string, body: Patc
   if (!before) return { error: 'not found', code: 404 as const }
   await db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).bind(...vals, id, userId).run()
   const xp = body.status !== undefined ? await applyTaskXp(db, userId, before, body.status as Status) : null
-  const row = await db.prepare('SELECT * FROM tasks WHERE id = ?').bind(id).first()
+  // 進行中にしたら「最近の動き」とデイリーミッションに記録
+  if (body.status === 'doing' && before.status !== 'doing') {
+    await logActivity(db, userId, 'doing', before.title as string).run()
+    await countDaily(db, userId, 'doings')
+  }
+  const row = await db.prepare(`${TASK_SELECT} WHERE t.id = ?`).bind(id).first()
   return { task: toTask(row), xp }
 }
 
@@ -294,7 +334,7 @@ api.get('/people/:id', async (c) => {
   if (!user || !isAllowed(c.env, user.email)) return c.json({ error: 'not found' }, 404)
   const [player, { results }] = await Promise.all([
     getPlayer(c.env.DB, id),
-    c.env.DB.prepare(`SELECT * FROM tasks WHERE user_id = ? AND ${VISIBLE} ORDER BY position DESC LIMIT 200`).bind(id, doneCutoff()).all(),
+    c.env.DB.prepare(`${TASK_SELECT} WHERE t.user_id = ? AND ${VISIBLE} ORDER BY t.position DESC LIMIT 200`).bind(id, doneCutoff()).all(),
   ])
   return c.json({
     person: { id: user.id, name: displayName(user), picture: user.picture },
@@ -303,13 +343,18 @@ api.get('/people/:id', async (c) => {
   })
 })
 
+/** 最近の動き。タスクの 追加 (todo) / 着手 (doing) / 完了 (done) だけを種類ごとに返す (撃破・レベルアップなどは出さない) */
 api.get('/activity', async (c) => {
+  const q = c.req.query('kind')
+  const kind = q === 'todo' || q === 'doing' ? q : 'done'
   const { results } = await c.env.DB.prepare(
     `SELECT a.id, a.user_id, a.kind, a.text, a.created_at, u.name, u.display_name, u.email, u.picture
        FROM activity a JOIN users u ON u.id = a.user_id
-      WHERE a.kind = 'done' -- 最近の動きはタスクの完了だけ (撃破・レベルアップなどは出さない)
+      WHERE a.kind = ?
       ORDER BY a.created_at DESC LIMIT 40`,
-  ).all()
+  )
+    .bind(kind)
+    .all()
   const activity: Activity[] = (results as any[])
     .filter((r) => isAllowed(c.env, r.email))
     .map((r) => ({
@@ -348,9 +393,13 @@ admin.delete('/activity/:id', async (c) => {
   return c.json({ ok: true })
 })
 
-/** 最近の動きのログをすべて削除 */
+/** 最近の動きのログをまとめて削除 (?kind= でそのタブの分だけ。指定なしなら全部) */
 admin.delete('/activity', async (c) => {
-  const r = await c.env.DB.prepare('DELETE FROM activity').run()
+  const kind = c.req.query('kind')
+  const r =
+    kind === 'todo' || kind === 'doing' || kind === 'done'
+      ? await c.env.DB.prepare('DELETE FROM activity WHERE kind = ?').bind(kind).run()
+      : await c.env.DB.prepare('DELETE FROM activity').run()
   return c.json({ ok: true, deleted: r.meta.changes ?? 0 })
 })
 

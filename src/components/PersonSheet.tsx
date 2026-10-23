@@ -5,6 +5,8 @@ import { SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } fro
 import { api, STATUS_LABEL } from '../api'
 import { CharacterHeader } from './CharacterHeader'
 import { GearIcon } from './GearIcon'
+import { DueBadge } from './DueBadge'
+import { DueField } from './DueField'
 
 interface Data {
   person: { id: string; name: string; picture: string }
@@ -26,7 +28,23 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props)
   const [data, setData] = useState<Data | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [dueOpen, setDueOpen] = useState<string | null>(null)
+  const [savingDue, setSavingDue] = useState(false)
   const controls = useDragControls()
+
+  const saveDue = async (task: Task, due: string | null) => {
+    if (!data) return
+    setSavingDue(true)
+    try {
+      const { task: saved } = await api.setDue(task.id, due)
+      setData({ ...data, tasks: data.tasks.map((t) => (t.id === saved.id ? saved : t)) })
+      toast?.(due ? `期限を${due.slice(5).replace('-', '/')}に設定しました` : '期限を解除しました')
+    } catch {
+      toast?.('期限を保存できませんでした')
+    } finally {
+      setSavingDue(false)
+    }
+  }
 
   const saveName = async () => {
     if (editing === null || !data) return
@@ -166,9 +184,19 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props)
                   ) : (
                     <ul>
                       {shown.map((t) => (
-                        <li key={t.id} className={`ps-task s-${t.status}`} data-testid="person-task">
-                          <span className="status-dot" />
-                          <span>{t.title}</span>
+                        <li key={t.id} className={`ps-task-wrap ${dueOpen === t.id ? 'open' : ''}`}>
+                          {/* タップで期限を設定 (他の人のタスクにも設定できる) */}
+                          <button className={`ps-task s-${t.status}`} onClick={() => setDueOpen(dueOpen === t.id ? null : t.id)} data-testid="person-task">
+                            <span className="status-dot" />
+                            <span className="ps-task-body">
+                              <span className="ps-task-title">{t.title}</span>
+                              <DueBadge task={t} />
+                            </span>
+                            <span className="ps-due-hint">{t.due ? '' : '⏰'}</span>
+                          </button>
+                          {dueOpen === t.id && (
+                            <DueField due={t.due ?? null} dueBy={t.dueBy?.name} onChange={(due) => saveDue(t, due)} disabled={savingDue} compact />
+                          )}
                         </li>
                       ))}
                     </ul>

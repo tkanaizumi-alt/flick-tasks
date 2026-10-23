@@ -716,7 +716,6 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
 .ps-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .ps-task { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.6); font-size: 14px; }
 .ps-task .status-dot { width: 16px; height: 16px; }
-.ps-task.s-done span:last-child { color: var(--ink-2); text-decoration: line-through; }
 .ps-empty { margin: 0; color: var(--ink-3); font-size: 13px; }
 
 /* ---------- 報酬演出 ---------- */

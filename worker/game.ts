@@ -234,8 +234,15 @@ function insertItem(db: D1Database, userId: string, item: Omit<Item, 'id'>) {
 const itemActivity = (db: D1Database, userId: string, item: Item) =>
   item.rarity === 'SSR' || item.rarity === 'SR' ? [logActivity(db, userId, 'item', `${item.rarity} ${item.name}`)] : []
 
-async function ensureDaily(db: D1Database, userId: string, day: number) {
+export async function ensureDaily(db: D1Database, userId: string, day: number) {
   await db.prepare('INSERT OR IGNORE INTO daily (user_id, day) VALUES (?, ?)').bind(userId, day).run()
+}
+
+/** その日の「追加した件数」「進行中にした件数」を数える (デイリーミッション用) */
+export async function countDaily(db: D1Database, userId: string, col: 'adds' | 'doings', n = 1) {
+  const day = jstDayStart(Date.now())
+  await ensureDaily(db, userId, day)
+  await db.prepare(`UPDATE daily SET ${col} = ${col} + ? WHERE user_id = ? AND day = ?`).bind(n, userId, day).run()
 }
 
 /** 現在のステージのボスに挑む。勝てば次のステージ・ゴールド・宝箱 (装備 1 つ) */
@@ -272,9 +279,12 @@ export async function openChest(db: D1Database, userId: string) {
   if (p.gold < CHEST_COST) return { error: 'ゴールドが足りません' }
   if (p.items.length >= INVENTORY_MAX) return { error: '持ち物がいっぱいです' }
   const ins = insertItem(db, userId, rollItem(seed(), p.stage))
+  const day = jstDayStart(Date.now())
+  await ensureDaily(db, userId, day)
   await db.batch([
     db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(CHEST_COST, Date.now(), userId, CHEST_COST),
     ins.stmt,
+    db.prepare('UPDATE daily SET chests = chests + 1 WHERE user_id = ? AND day = ?').bind(userId, day),
     ...itemActivity(db, userId, ins.item),
   ])
   return { item: ins.item, player: await getPlayer(db, userId) }
@@ -316,11 +326,20 @@ async function dailyState(db: D1Database, userId: string) {
            FROM tasks WHERE user_id = ? AND done_at >= ? AND xp_awarded > 0`,
       )
       .bind(day + EARLY_HOUR * 3600000, userId, day),
-    db.prepare('SELECT battles, claimed FROM daily WHERE user_id = ? AND day = ?').bind(userId, day),
+    db.prepare('SELECT battles, adds, doings, chests, claimed FROM daily WHERE user_id = ? AND day = ?').bind(userId, day),
   ])
   const c = counts.results[0] as any
   const d = row.results[0] as any
-  const dc: DailyCounts = { done: c.done ?? 0, big: c.big ?? 0, midPlus: c.midPlus ?? 0, early: c.early ?? 0, battles: d.battles ?? 0 }
+  const dc: DailyCounts = {
+    done: c.done ?? 0,
+    big: c.big ?? 0,
+    midPlus: c.midPlus ?? 0,
+    early: c.early ?? 0,
+    battles: d.battles ?? 0,
+    adds: d.adds ?? 0,
+    doings: d.doings ?? 0,
+    chests: d.chests ?? 0,
+  }
   const claimed = (d.claimed as string).split(',').filter(Boolean)
   const missions = dailyMissions(day).map((m) => ({ ...m, ...missionProgress(m, dc, claimed) }))
   return { day, claimed, missions }

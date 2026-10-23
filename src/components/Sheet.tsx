@@ -4,6 +4,7 @@ import { STATUSES, type Status } from '../../shared/types'
 import type { UITask } from '../App'
 import { STATUS_LABEL } from '../api'
 import { SparkIcon, TrashIcon } from './icons'
+import { DueField } from './DueField'
 
 interface Props {
   task: UITask
@@ -11,9 +12,10 @@ interface Props {
   onStatus: (s: Status) => void
   onDelete: () => void
   onBreakdown: (title: string, note: string) => Promise<void>
+  onDue: (due: string | null) => void
 }
 
-export function Sheet({ task, onClose, onStatus, onDelete, onBreakdown }: Props) {
+export function Sheet({ task, onClose, onStatus, onDelete, onBreakdown, onDue }: Props) {
   const [title, setTitle] = useState(task.title)
   const [note, setNote] = useState(task.note)
   const [busy, setBusy] = useState(false)
@@ -82,6 +84,8 @@ export function Sheet({ task, onClose, onStatus, onDelete, onBreakdown }: Props)
           data-testid="sheet-title"
         />
         <textarea className="sheet-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="詳細" rows={3} aria-label="詳細" />
+
+        <DueField due={task.due ?? null} dueBy={task.dueBy?.name} onChange={onDue} />
 
         <div className="seg" role="radiogroup">
           {STATUSES.map((s) => (
