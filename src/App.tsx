@@ -25,6 +25,22 @@ const CACHE_KEY = 'flick.cache'
 const TAB_KEY = 'flick.tab'
 const VIEW_KEY = 'flick.view'
 const HINT_KEY = 'flick.hint.select'
+const SORT_KEY = 'flick.sort'
+/** 並び順: 新しい順 / 重要度順 / 期日順 */
+type SortMode = 'new' | 'priority' | 'due'
+const SORTS: { key: SortMode; label: string }[] = [
+  { key: 'new', label: '新しい順' },
+  { key: 'priority', label: '重要度順' },
+  { key: 'due', label: '期日順' },
+]
+const prioRank = (t: Task) => (t.priority === 'high' ? 2 : t.priority === 'low' ? 0 : 1)
+/** 期日なしは最後 */
+const dueKey = (t: Task) => t.due ?? '9999-12-31'
+const SORT_CMP: Record<SortMode, (a: Task, b: Task) => number> = {
+  new: (a, b) => b.position - a.position,
+  priority: (a, b) => prioRank(b) - prioRank(a) || dueKey(a).localeCompare(dueKey(b)) || b.position - a.position,
+  due: (a, b) => dueKey(a).localeCompare(dueKey(b)) || prioRank(b) - prioRank(a) || b.position - a.position,
+}
 const NOTICE_POLL_MS = 60_000
 const ORDER: Status[] = ['todo', 'doing', 'done']
 const EMPTY_ICON = { todo: CircleIcon, doing: PlayIcon, done: CheckCircleIcon }
@@ -84,6 +100,14 @@ export function App() {
   const [unread, setUnread] = useState(0)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [hint, setHint] = useState(() => !store.get<boolean>(HINT_KEY, false))
+  const [sort, setSortState] = useState<SortMode>(() => {
+    const v = store.get<SortMode>(SORT_KEY, 'new')
+    return v in SORT_CMP ? v : 'new'
+  })
+  const setSort = (v: SortMode) => {
+    setSortState(v)
+    store.set(SORT_KEY, v)
+  }
   const unreadRef = useRef(0)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
@@ -252,7 +276,7 @@ export function App() {
 
   // --- 操作 ---
   const patchTask = useCallback(
-    async (task: UITask, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position'>>) => {
+    async (task: UITask, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position' | 'priority'>>) => {
       upsert([{ ...task, ...patch, updatedAt: Date.now() }])
       try {
         const { task: saved, xp } = await api.update(task.id, patch)
@@ -543,14 +567,18 @@ export function App() {
 
   const q = query?.trim().toLowerCase() ?? ''
   const visible = useMemo(() => {
+    // 未着手・進行中では、他の人から依頼されたタスクを自分で追加したものより上に固定する
+    const pinned = (t: UITask) => (t.requestedBy && t.status !== 'done' ? 1 : 0)
     if (q) {
       // 検索中は全ステータスから。未着手 → 進行中 → 完了 の順
       return tasks
         .filter((t) => t.title.toLowerCase().includes(q) || t.note.toLowerCase().includes(q))
-        .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || b.position - a.position)
+        .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || pinned(b) - pinned(a) || SORT_CMP[sort](a, b))
     }
-    return tasks.filter((t) => t.status === tab).sort((a, b) => b.position - a.position)
-  }, [tasks, tab, q])
+    // 完了タブは完了した順のまま
+    const cmp = tab === 'done' ? SORT_CMP.new : SORT_CMP[sort]
+    return tasks.filter((t) => t.status === tab).sort((a, b) => pinned(b) - pinned(a) || cmp(a, b))
+  }, [tasks, tab, q, sort])
   const selectedTasks = selected ? visible.filter((t) => selected.has(t.id)) : []
   const selStatuses = new Set(selectedTasks.map((t) => t.status))
   const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q ? tab : null
@@ -596,6 +624,15 @@ export function App() {
                         >
                           ×
                         </button>
+                      </div>
+                    )}
+                    {(tab !== 'done' || q) && visible.length > 1 && (
+                      <div className="sort-row" role="radiogroup" aria-label="並び順" data-testid="sort-row">
+                        {SORTS.map((s) => (
+                          <button key={s.key} role="radio" aria-checked={sort === s.key} className={`sort-btn ${sort === s.key ? 'on' : ''}`} onClick={() => setSort(s.key)} data-testid={`sort-${s.key}`}>
+                            {s.label}
+                          </button>
+                        ))}
                       </div>
                     )}
                     <section className="list-page">
@@ -701,6 +738,7 @@ export function App() {
                   onAddChildren={(titles, title, note) => onAddChildren(openTask, titles, title, note)}
                   onFlag={(flag, note, to) => onFlag(openTask, flag, note, to)}
                   onWeight={(w) => onWeight(openTask, w)}
+                  onPriority={(priority) => patchTask(openTask, { priority })}
                   toast={showToast}
                   onDue={async (due) => {
                     const prev = openTask

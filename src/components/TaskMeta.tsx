@@ -25,11 +25,22 @@ export function XpChip({ task }: { task: Task }) {
   )
 }
 
-/** 子タスクの進み具合・フラグ・依頼のつながり */
+/** 重要度 (普通のときは出さない) */
+export function PriorityBadge({ task }: { task: Pick<Task, 'priority' | 'status'> }) {
+  if (!task.priority || task.status === 'done') return null
+  return (
+    <span className={`prio-chip p-${task.priority}`} data-testid="prio-chip">
+      {task.priority === 'high' ? '重要度 高' : '重要度 低'}
+    </span>
+  )
+}
+
+/** 重要度・子タスクの進み具合・フラグ・依頼のつながり */
 export function TaskLinks({ task, showFlagNote = false }: { task: Task; showFlagNote?: boolean }) {
   const f = task.flag
   return (
     <>
+      <PriorityBadge task={task} />
       {task.children?.total ? (
         <span className="kids-chip" data-testid="kids-chip">
           <span className="kids-bar">

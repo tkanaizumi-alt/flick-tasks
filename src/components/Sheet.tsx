@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'motion/react'
-import { FLAGS, STATUSES, san, type Flag, type Person, type Status } from '../../shared/types'
+import { FLAGS, PRIORITIES, STATUSES, san, type Flag, type Person, type Priority, type Status } from '../../shared/types'
 import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_LABEL, WEIGHT_XP, weightChoices, type Weight } from '../../shared/game'
 import type { UITask } from '../App'
 import { api, HttpError, STATUS_LABEL } from '../api'
@@ -19,10 +19,11 @@ interface Props {
   onDue: (due: string | null) => void
   onFlag: (flag: Flag | null, note?: string, to?: string | null) => Promise<void>
   onWeight: (w: Weight) => void
+  onPriority: (p: Priority | null) => void
   toast: (text: string) => void
 }
 
-export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue, onFlag, onWeight, toast }: Props) {
+export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue, onFlag, onWeight, onPriority, toast }: Props) {
   const [title, setTitle] = useState(task.title)
   const [note, setNote] = useState(task.note)
   const [busy, setBusy] = useState(false)
@@ -122,6 +123,19 @@ export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue,
         {task.status !== 'done' && !task.parent && <WeightField task={task} onWeight={onWeight} />}
         {task.requestedBy && task.follow && <p className="sheet-info">📨 {san(task.requestedBy.name)}はこの後「{task.follow.title}」に進みます</p>}
 
+        {task.status !== 'done' && (
+          <div className="weight-field prio-field" data-testid="prio-field">
+            <span className="due-label">重要度</span>
+            {PRIORITIES.map((p) => {
+              const on = (task.priority ?? null) === p.key
+              return (
+                <button key={p.label} className={`weight-btn prio-${p.key ?? 'normal'} ${on ? 'on' : ''}`} disabled={on} onClick={() => onPriority(p.key)} data-testid={`prio-${p.key ?? 'normal'}`}>
+                  {p.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
         <DueField due={task.due ?? null} dueBy={task.dueBy?.name} onChange={onDue} />
 
         {task.status !== 'done' && <FlagField task={task} editing={flagEdit} onEdit={setFlagEdit} onFlag={onFlag} />}

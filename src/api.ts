@@ -38,7 +38,7 @@ export const api = {
   list: () => req<{ tasks: Task[] }>('/api/tasks'),
   create: (tasks: (Partial<Task> & { parentId?: string })[], source: 'user' | 'ai' = 'user') =>
     req<{ tasks: Task[] }>('/api/tasks', { method: 'POST', json: { tasks, source } }),
-  update: (id: string, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position'>>) =>
+  update: (id: string, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position' | 'priority'>>) =>
     req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}`, { method: 'PATCH', json: patch }),
   player: () => req<{ player: PlayerState }>('/api/player'),
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),

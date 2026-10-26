@@ -81,6 +81,7 @@ const toTask = (r: any): Task => ({
   xpAwarded: r.xp_awarded ?? 0,
   doneAt: r.done_at ?? null,
   due: r.due_date ?? null,
+  priority: r.priority === 'high' || r.priority === 'low' ? r.priority : null,
   dueBy: r.due_by && r.due_by !== r.user_id ? ref(r.due_by, r.due_by_name) : null,
   parent: r.parent_id ? { id: r.parent_id, title: r.parent_title ?? '', weight: r.parent_weight ?? null, siblings: r.sibling_total || 1 } : null,
   children: r.child_total ? { total: r.child_total, done: r.child_done ?? 0 } : null,
@@ -240,6 +241,8 @@ api.post('/tasks', async (c) => {
       xpAwarded: 0,
       doneAt: null,
       parentId: parents.has(pid) ? pid : null,
+      // 取り消しで戻すときに重要度も戻す
+      priority: it.priority === 'high' || it.priority === 'low' ? it.priority : null,
     })
   }
   // 同じ ID の再送 (オフライン復帰・取り消し) は二重に記録しない
@@ -260,10 +263,10 @@ api.post('/tasks', async (c) => {
     ...tasks.map((t) =>
       db
         .prepare(
-          `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source, parent_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+          `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source, parent_id, priority)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
         )
-        .bind(t.id, userId, t.title, t.note, t.status, t.position, t.createdAt, t.updatedAt, t.source, t.parentId),
+        .bind(t.id, userId, t.title, t.note, t.status, t.position, t.createdAt, t.updatedAt, t.source, t.parentId, t.priority ?? null),
     ),
     ...added.map((t) => logActivity(db, userId, 'todo', t.title)),
   ])
@@ -299,7 +302,7 @@ api.post('/tasks/:id/breakdown', async (c) => {
   }
 })
 
-type Patch = { title?: unknown; note?: unknown; status?: unknown; position?: unknown }
+type Patch = { title?: unknown; note?: unknown; status?: unknown; position?: unknown; priority?: unknown }
 
 /** タスク 1 件を更新し、ステータスが完了をまたいだら XP・ゴールドを付与/取り消す */
 async function updateTask(db: D1Database, user: User, id: string, body: Patch) {
@@ -322,6 +325,11 @@ async function updateTask(db: D1Database, user: User, id: string, body: Patch) {
     vals.push(body.status)
     // 完了したらフラグ (確認待ちなど) は外す
     if (body.status === 'done') sets.push('flag = NULL, flag_note = NULL, flag_to = NULL, flag_at = NULL')
+  }
+  if (body.priority !== undefined) {
+    if (body.priority !== null && body.priority !== 'high' && body.priority !== 'low') return { error: 'invalid priority', code: 400 as const }
+    sets.push('priority = ?')
+    vals.push(body.priority)
   }
   if (typeof body.position === 'number') {
     sets.push('position = ?')

@@ -11,6 +11,15 @@ export const FLAGS: Record<Flag, { label: string; icon: string }> = {
   late: { label: '遅れそう', icon: '⚠️' },
 }
 
+/** 重要度 (null は普通) */
+export type Priority = 'high' | 'low'
+
+export const PRIORITIES: { key: Priority | null; label: string }[] = [
+  { key: 'high', label: '高' },
+  { key: null, label: '中' },
+  { key: 'low', label: '低' },
+]
+
 export interface Ref {
   id: string
   name: string
@@ -35,6 +44,8 @@ export interface Task {
   due?: string | null
   /** 期限を設定した人 (本人以外のときに表示) */
   dueBy?: Ref | null
+  /** 重要度 (null は普通) */
+  priority?: Priority | null
   /** 分解元のタスク */
   parent?: { id: string; title: string; weight: 'S' | 'M' | 'L' | 'XL' | null; siblings: number } | null
   /** 分解した子タスクの数 / そのうち完了した数 */
