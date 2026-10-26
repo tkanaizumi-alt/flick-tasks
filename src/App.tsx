@@ -671,6 +671,7 @@ export function App() {
 
                 {view === 'people' && (
                   <People
+                    onXp={onXp}
                     isAdmin={!!user?.isAdmin}
                     toast={showToast}
                     onMeRenamed={(name) => setUser((u) => (u ? { ...u, name } : u))}

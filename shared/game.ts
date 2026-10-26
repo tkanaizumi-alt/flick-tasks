@@ -405,6 +405,11 @@ export const weightChoices = (ai: Weight | null | undefined): Weight[] =>
 /** AI が作業量を判定するときの基準 (説明画面にもそのまま出す) */
 export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程', XL: '数日がかりの大型案件（めったに出ない）' }
 
+/** 他の人のタスクを進めたときの手伝い XP: 進行中にしたら固定、完了にしたら持ち主が得た XP の半分 (どちらもタスクごとに 1 回) */
+export const HELP_DOING_XP = 3
+export const HELP_DONE_RATE = 0.5
+export const helpXp = (to: 'doing' | 'done', ownerXp: number) => (to === 'doing' ? HELP_DOING_XP : Math.max(1, Math.round(ownerXp * HELP_DONE_RATE)))
+
 /** 分解は 1 回 (1 段) まで、子タスクは合計この数まで */
 export const BREAKDOWN_MAX = 7
 /** 分解した子タスク 1 件の XP。元タスクの XP を子タスクの数で分け合う (細かくしても合計は増えない) */

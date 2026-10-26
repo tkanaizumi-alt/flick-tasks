@@ -72,6 +72,8 @@ export const api = {
   /** AI の分解案 (追加はしない) */
   breakdown: (id: string, title: string, note: string) =>
     req<{ tasks: string[]; remaining: number }>(`/api/tasks/${id}/breakdown`, { method: 'POST', json: { title, note } }),
+  /** 他の人のタスクを 進行中 / 完了 に進める */
+  moveOther: (id: string, status: 'doing' | 'done') => req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}/move`, { method: 'POST', json: { status } }),
   /** 作業量の調整 (AI の判定から 1 段階まで) */
   setWeight: (id: string, weight: Weight) => req<{ task: Task }>(`/api/tasks/${id}/weight`, { method: 'PUT', json: { weight } }),
   /** 状況フラグ (null で解除) */

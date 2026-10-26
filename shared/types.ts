@@ -111,7 +111,7 @@ export interface AttentionItem {
 
 export interface Notice {
   id: number
-  kind: 'request' | 'request_done' | 'request_deleted' | 'wait' | 'help'
+  kind: 'request' | 'request_done' | 'request_deleted' | 'wait' | 'help' | 'moved'
   text: string
   taskId: string | null
   actor: Ref & { picture: string; skin?: string | null }

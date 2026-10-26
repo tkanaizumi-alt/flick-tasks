@@ -5,6 +5,7 @@ import { aiReport, aiTasks } from './ai'
 import {
   addStat,
   applyTaskXp,
+  awardHelp,
   claimMission,
   classifyWeights,
   doneCutoff,
@@ -38,7 +39,7 @@ import {
   type User,
   san,
 } from '../shared/types'
-import { BREAKDOWN_MAX, HISTORY_KEEP_DAYS, jstDayStart, jstToday, weightChoices, type StatKey, type Weight } from '../shared/game'
+import { BREAKDOWN_MAX, HISTORY_KEEP_DAYS, helpXp, jstDayStart, jstToday, weightChoices, type StatKey, type Weight } from '../shared/game'
 
 /** 完了から 7 日経ったタスクはボードに返さない (履歴には残る) */
 const VISIBLE = "NOT (t.status = 'done' AND COALESCE(t.done_at, t.updated_at) < ?)"
@@ -115,6 +116,7 @@ const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{
 const cleanTitle = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 500) : '')
 const cleanNote = (v: unknown) => (typeof v === 'string' ? v.slice(0, 5000) : '')
 const isStatus = (v: unknown): v is Status => STATUSES.includes(v as Status)
+const STATUS_LABEL_JA: Record<Status, string> = { todo: '未着手', doing: '進行中', done: '完了' }
 const isFlag = (v: unknown): v is Flag => typeof v === 'string' && v in FLAGS
 const isId = (v: unknown): v is string => typeof v === 'string' && /^[\w-]{8,64}$/.test(v)
 
@@ -376,6 +378,35 @@ api.patch('/tasks/:id', async (c) => {
   const r = await updateTask(c.env.DB, c.get('user'), c.req.param('id'), body)
   if ('error' in r) return c.json({ error: r.error }, r.code)
   return c.json(r)
+})
+
+const MOVE_LABEL = { doing: '進行中', done: '完了' } as const
+
+/**
+ * 他の人のタスクを 進行中 / 完了 に進める (戻すことはできない)。
+ * XP などはタスクの持ち主に付き、持ち主には誰が動かしたかを通知する
+ */
+api.post('/tasks/:id/move', async (c) => {
+  const { status } = await c.req.json<{ status?: unknown }>().catch(() => ({ status: undefined }))
+  if (status !== 'doing' && status !== 'done') return c.json({ error: 'invalid status' }, 400)
+  const me = c.get('user')
+  const id = c.req.param('id')
+  const db = c.env.DB
+  const t = await db
+    .prepare('SELECT t.title, t.status, t.user_id, u.name, u.display_name, u.email FROM tasks t JOIN users u ON u.id = t.user_id WHERE t.id = ?')
+    .bind(id)
+    .first<any>()
+  if (!t || !isAllowed(c.env, t.email)) return c.json({ error: 'not found' }, 404)
+  if (t.user_id === me.id) return c.json({ error: '自分のタスクは自分の画面で動かせます' }, 400)
+  const order: Status[] = ['todo', 'doing', 'done']
+  if (order.indexOf(status) <= order.indexOf(t.status)) return c.json({ error: `すでに${STATUS_LABEL_JA[t.status as Status]}です` }, 400)
+  const owner: User = { id: t.user_id, email: t.email, name: displayName(t), picture: '' }
+  const r = await updateTask(db, owner, id, { status, position: Date.now() })
+  if ('error' in r) return c.json({ error: r.error }, r.code)
+  await notify(db, owner.id, me.id, 'moved', id, `${san(me.name)}があなたのタスク「${t.title}」を${MOVE_LABEL[status]}にしました`).run()
+  // 動かした人にも手伝い XP (完了なら持ち主が得た XP の半分)
+  const xp = await awardHelp(db, me.id, id, status, helpXp(status, r.xp?.amount ?? 0))
+  return c.json({ task: r.task, xp })
 })
 
 /** 選択した複数タスクのステータス変更・削除 */

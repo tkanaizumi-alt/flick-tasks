@@ -187,6 +187,30 @@ async function splitBase(db: D1Database, task: any): Promise<number | undefined>
   return kids?.n ? 0 : undefined
 }
 
+/**
+ * 他の人のタスクを進めた人への手伝い XP。同じタスク・同じ段階では 1 回だけ (持ち主が戻して進め直しても増えない)。
+ * 付与しなかったときは null
+ */
+export async function awardHelp(db: D1Database, userId: string, taskId: string, kind: 'doing' | 'done', amount: number): Promise<XpChange | null> {
+  const now = Date.now()
+  const ins = await db
+    .prepare('INSERT OR IGNORE INTO helps (task_id, user_id, kind, xp, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(taskId, userId, kind, amount, now)
+    .run()
+  if (!ins.meta.changes) return null
+  const player = await getPlayer(db, userId)
+  const prevLevel = levelInfo(player.xp).level
+  const gold = Math.ceil(amount / 2)
+  await db.batch([
+    db.prepare('UPDATE players SET xp = xp + ?, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(amount, gold, now, userId),
+    db
+      .prepare('INSERT INTO player_jobs (user_id, job_id, xp) VALUES (?, ?, ?) ON CONFLICT(user_id, job_id) DO UPDATE SET xp = xp + excluded.xp')
+      .bind(userId, player.job.id, amount),
+  ])
+  const level = levelInfo(player.xp + amount).level
+  return { amount, gold, bonuses: ['手伝いボーナス'], level, leveledUp: level > prevLevel }
+}
+
 /** スキンの変更 (null で Google の写真に戻す)。解放済みのものだけ */
 export async function setSkin(db: D1Database, userId: string, skin: string | null) {
   const p = await getPlayer(db, userId)

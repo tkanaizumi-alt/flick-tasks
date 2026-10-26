@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { motion, useDragControls } from 'motion/react'
+import { AnimatePresence, motion, useDragControls } from 'motion/react'
 import { san, type Task } from '../../shared/types'
-import { SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } from '../../shared/game'
-import { api, STATUS_LABEL } from '../api'
+import { HELP_DOING_XP, SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } from '../../shared/game'
+import { api, HttpError, STATUS_LABEL, type XpChange } from '../api'
 import { CharacterHeader } from './CharacterHeader'
 import { GearIcon } from './GearIcon'
 import { DueBadge } from './DueBadge'
@@ -23,17 +23,39 @@ interface Props {
   onRenamed?: (id: string, name: string) => void
   /** この人にタスクを依頼する (自分以外) */
   onRequest?: (id: string) => void
+  /** 他の人のタスクを進めたときの手伝い XP */
+  onXp?: (xp: XpChange | null) => void
   toast?: (text: string) => void
 }
 
-/** 他の人のタスクとキャラクター (閲覧のみ。管理者は名前の変更も可) */
-export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, toast }: Props) {
+/** 他の人のタスクとキャラクター。タスクは期限の設定と 進行中 / 完了 への移動ができる (管理者は名前の変更も可) */
+export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, onXp, toast }: Props) {
   const [data, setData] = useState<Data | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [dueOpen, setDueOpen] = useState<string | null>(null)
   const [savingDue, setSavingDue] = useState(false)
+  // 他の人のタスクを動かす前の確認 (null = 閉じている)
+  const [confirm, setConfirm] = useState<{ task: Task; to: 'doing' | 'done' } | null>(null)
+  const [moving, setMoving] = useState(false)
   const controls = useDragControls()
+
+  const move = async () => {
+    if (!confirm || !data) return
+    setMoving(true)
+    try {
+      const { task: saved, xp } = await api.moveOther(confirm.task.id, confirm.to)
+      setData({ ...data, tasks: data.tasks.map((t) => (t.id === saved.id ? saved : t)) })
+      toast?.(`「${saved.title}」を${STATUS_LABEL[confirm.to]}にしました${xp ? `（手伝い +${xp.amount}XP）` : ''}`)
+      onXp?.(xp)
+      setConfirm(null)
+      setDueOpen(null)
+    } catch (e) {
+      toast?.(e instanceof HttpError && e.reason ? e.reason : '動かせませんでした')
+    } finally {
+      setMoving(false)
+    }
+  }
 
   const saveDue = async (task: Task, due: string | null) => {
     if (!data) return
@@ -193,7 +215,7 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, toas
                     <ul>
                       {shown.map((t) => (
                         <li key={t.id} className={`ps-task-wrap ${dueOpen === t.id ? 'open' : ''}`}>
-                          {/* タップで期限を設定 (他の人のタスクにも設定できる) */}
+                          {/* タップで期限の設定と、進行中 / 完了 への移動 */}
                           <button className={`ps-task s-${t.status}`} onClick={() => setDueOpen(dueOpen === t.id ? null : t.id)} data-testid="person-task">
                             <span className="status-dot" />
                             <span className="ps-task-body">
@@ -202,10 +224,24 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, toas
                               <TaskLinks task={t} showFlagNote />
                               <DueBadge task={t} />
                             </span>
-                            <span className="ps-due-hint">{t.due ? '' : '⏰'}</span>
+                            <span className="ps-due-hint" aria-hidden="true">⋯</span>
                           </button>
                           {dueOpen === t.id && (
-                            <DueField due={t.due ?? null} dueBy={t.dueBy?.name} onChange={(due) => saveDue(t, due)} disabled={savingDue} compact />
+                            <>
+                              <DueField due={t.due ?? null} dueBy={t.dueBy?.name} onChange={(due) => saveDue(t, due)} disabled={savingDue} compact />
+                              {!data.person.isMe && t.status !== 'done' && (
+                                <div className="move-row">
+                                  {t.status === 'todo' && (
+                                    <button className="move-btn doing" onClick={() => setConfirm({ task: t, to: 'doing' })} data-testid="move-doing">
+                                      ▶ 進行中にする
+                                    </button>
+                                  )}
+                                  <button className="move-btn done" onClick={() => setConfirm({ task: t, to: 'done' })} data-testid="move-done">
+                                    ✓ 完了にする
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
                         </li>
                       ))}
@@ -217,6 +253,38 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, toas
           </>
         )}
       </motion.div>
+      <AnimatePresence>
+        {confirm && data && (
+          <>
+            <motion.div className="scrim top" onClick={() => !moving && setConfirm(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div
+              className="guide glass confirm"
+              role="alertdialog"
+              aria-label="確認"
+              data-testid="move-confirm"
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.16 }}
+            >
+              <h2>{san(data.person.name)}のタスクを{STATUS_LABEL[confirm.to]}にしますか？</h2>
+              <p className="confirm-task">「{confirm.task.title}」</p>
+              <p className="muted">
+                {confirm.to === 'done' ? `完了のXPは${san(data.person.name)}に付き、あなたにもその半分が手伝いボーナスとして入ります。` : `あなたに手伝いボーナス +${HELP_DOING_XP}XP が入ります。`}
+                （手伝いボーナスは1つのタスクにつき1回）{san(data.person.name)}に通知が届きます。あとから戻すのは本人だけができます。
+              </p>
+              <div className="sheet-actions">
+                <button className="pill-btn ghost" onClick={() => setConfirm(null)} disabled={moving} data-testid="move-cancel">
+                  やめる
+                </button>
+                <button className={`pill-btn primary grow move-${confirm.to}`} onClick={move} disabled={moving} data-testid="move-ok">
+                  {STATUS_LABEL[confirm.to]}にする
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   )
 }

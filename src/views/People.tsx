@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FLAGS, type Activity, type ActivityKind, type AttentionItem, type Notice, type Person, type RequestItem, san } from '../../shared/types'
 import { enemyForStage, levelInfo } from '../../shared/game'
-import { api, STATUS_LABEL, type FeedKind } from '../api'
+import { api, STATUS_LABEL, type FeedKind, type XpChange } from '../api'
 import { Avatar } from '../components/Dock'
 import { DueBadge } from '../components/DueBadge'
 import { PersonSheet } from '../components/PersonSheet'
@@ -32,9 +32,11 @@ interface Props {
   /** 自分のタスクをタップしたら自分の画面で開く */
   onOpenMine?: (taskId: string) => void
   onRequested?: () => void
+  /** 他の人のタスクを進めたときの手伝い XP */
+  onXp?: (xp: XpChange | null) => void
 }
 
-export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onOpenMine, onRequested }: Props) {
+export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onOpenMine, onRequested, onXp }: Props) {
   const [people, setPeople] = useState<Person[] | null>(null)
   const [feedKind, setFeedKind] = useState<FeedKind>('all')
   const [feedUser, setFeedUser] = useState<string | null>(null)
@@ -384,6 +386,7 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
               if (people?.find((p) => p.id === id)?.isMe) onMeRenamed?.(name)
             }}
             onRequest={(id) => setRequestTo(id)}
+            onXp={onXp}
             toast={toast}
           />
         )}
