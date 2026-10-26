@@ -355,7 +355,9 @@ async function dailyState(db: D1Database, userId: string) {
         `SELECT COUNT(*) AS done,
                 SUM(COALESCE(weight_user, weight) = 'L') AS big,
                 SUM(COALESCE(weight_user, weight, 'M') IN ('M', 'L')) AS midPlus,
-                SUM(done_at < ?) AS early
+                SUM(done_at < ?) AS early,
+                SUM(due_date IS NOT NULL AND due_date >= date(done_at / 1000 + 9 * 3600, 'unixepoch')) AS ontime,
+                SUM(parent_id IS NOT NULL) AS split
            FROM tasks WHERE user_id = ? AND done_at >= ? AND xp_awarded > 0`,
       )
       .bind(day + EARLY_HOUR * 3600000, userId, day),
@@ -368,6 +370,8 @@ async function dailyState(db: D1Database, userId: string) {
     big: c.big ?? 0,
     midPlus: c.midPlus ?? 0,
     early: c.early ?? 0,
+    ontime: c.ontime ?? 0,
+    split: c.split ?? 0,
     battles: d.battles ?? 0,
     adds: d.adds ?? 0,
     doings: d.doings ?? 0,

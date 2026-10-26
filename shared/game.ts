@@ -208,7 +208,7 @@ export const SKILLS: Skill[] = [
   { id: 'counter', branch: 'guardian', name: 'カウンター', desc: '受けたダメージの25%を返す', cost: 4, requires: 'guts' },
   { id: 'barrier', branch: 'guardian', name: '結界', desc: '最初の3ターン、受けるダメージ-50%', cost: 5, requires: 'counter' },
   { id: 'phoenix', branch: 'guardian', name: '不死鳥', desc: '1度だけHP50%で復活', cost: 6, requires: 'barrier' },
-  { id: 'early', branch: 'sage', name: '早起きの加護', desc: '朝9時までの完了でXP+20%', cost: 2 },
+  { id: 'early', branch: 'sage', name: '早起きの加護', desc: '朝10時までの完了でXP+20%', cost: 2 },
   { id: 'focus', branch: 'sage', name: '集中', desc: '1日5件目以降の完了でXP+30%', cost: 3, requires: 'early' },
   { id: 'ai', branch: 'sage', name: '分解の達人', desc: 'AIで作ったタスクのXP+10%', cost: 2, requires: 'early' },
   { id: 'streak', branch: 'sage', name: '継続は力', desc: '前日も完了していればXP+15%', cost: 3, requires: 'focus' },
@@ -462,7 +462,7 @@ export function computeXp(x: XpInput) {
     mult += v
     bonuses.push(label)
   }
-  add(has('early') && jstHour(x.now) < 9, 0.2, '早起き +20%')
+  add(has('early') && jstHour(x.now) < EARLY_SKILL_HOUR, 0.2, '早起き +20%')
   add(has('focus') && x.doneToday >= 4, 0.3, '集中 +30%')
   add(has('ai') && x.source === 'ai', 0.1, '分解の達人 +10%')
   add(has('streak') && x.doneYesterday, 0.15, '継続 +15%')
@@ -565,22 +565,26 @@ export interface MissionDef {
   gold: number
   chest?: boolean
 }
-/** 朝ミッションの締め切り (時) */
-export const EARLY_HOUR = 10
+/** 午前ミッションの締め切り (時) */
+export const EARLY_HOUR = 12
+/** スキル「早起きの加護」が効く締め切り (時) */
+export const EARLY_SKILL_HOUR = 10
 const MISSION_POOL: MissionDef[] = [
   { id: 'done5', label: 'タスクを5件完了', goal: 5, gold: 60 },
   { id: 'big', label: '「大」のタスクを1件完了', goal: 1, gold: 40 },
-  { id: 'early', label: `朝${EARLY_HOUR}時までに1件完了`, goal: 1, gold: 30 },
+  { id: 'early', label: `午前中（${EARLY_HOUR}時まで）に1件完了`, goal: 1, gold: 30 },
   { id: 'battle', label: 'ボスに挑戦する', goal: 1, gold: 20 },
   { id: 'mid2', label: '「中」以上のタスクを2件完了', goal: 2, gold: 40 },
   { id: 'add3', label: 'タスクを3件追加', goal: 3, gold: 20 },
   { id: 'doing2', label: 'タスクを2件進行中にする', goal: 2, gold: 20 },
   { id: 'chest', label: '宝箱を1回開ける', goal: 1, gold: 20 },
+  { id: 'ontime', label: '期限つきのタスクを期限内に1件完了', goal: 1, gold: 40 },
+  { id: 'split2', label: 'AIで分解したタスクを2件完了', goal: 2, gold: 30 },
 ]
 /** 毎日必ず出るミッション */
 export const DAILY_BASE: MissionDef = { id: 'done3', label: 'タスクを3件完了', goal: 3, gold: 30 }
 /** 日替わりで選ばれる数 */
-export const DAILY_PICKS = 4
+export const DAILY_PICKS = 6
 /** ○個クリアで宝箱 (id は旧「全部クリア」と同じ 'all' を使い続ける) */
 export const DAILY_BONUS_GOAL = 4
 export const DAILY_ALL: MissionDef = { id: 'all', label: `ミッションを${DAILY_BONUS_GOAL}個クリア`, goal: DAILY_BONUS_GOAL, gold: 0, chest: true }
@@ -599,6 +603,8 @@ export interface DailyCounts {
   big: number
   midPlus: number
   early: number
+  ontime: number // 期限つきのタスクを期限内に完了した数
+  split: number // 分解した子タスクを完了した数
   battles: number
   adds: number
   doings: number
@@ -612,6 +618,8 @@ export function missionProgress(m: MissionDef, c: DailyCounts, claimed: string[]
     big: c.big,
     mid2: c.midPlus,
     early: c.early,
+    ontime: c.ontime,
+    split2: c.split,
     battle: c.battles,
     add3: c.adds,
     doing2: c.doings,
