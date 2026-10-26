@@ -197,7 +197,8 @@ function WeightField({ task, onWeight }: { task: UITask; onWeight: (w: Weight) =
   return (
     <div className="weight-field" data-testid="weight-field">
       <span className="due-label">大きさ</span>
-      {WEIGHTS.map((w) => (
+      {/* 特大は AI が特大と判定したタスクにだけ出す */}
+      {WEIGHTS.filter((w) => w !== 'XL' || task.weightAi === 'XL').map((w) => (
         <button
           key={w}
           className={`weight-btn w-${w} ${current === w ? 'on' : ''}`}

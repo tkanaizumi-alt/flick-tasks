@@ -1,7 +1,5 @@
 import { motion } from 'motion/react'
-import { BREAKDOWN_MAX, WEIGHT_GUIDE, WEIGHT_LABEL, WEIGHT_XP, type Weight } from '../../shared/game'
-
-const WEIGHTS: Weight[] = ['S', 'M', 'L']
+import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_GUIDE, WEIGHT_LABEL, WEIGHT_XP } from '../../shared/game'
 
 /** 獲得 XP の決まり方と、タスクを登録する単位の目安 */
 export function XpGuide({ onClose }: { onClose: () => void }) {
@@ -19,7 +17,7 @@ export function XpGuide({ onClose }: { onClose: () => void }) {
         transition={{ duration: 0.16 }}
       >
         <h2>XPの決まり方</h2>
-        <p className="muted">タスクを追加すると、AIが作業量を「小・中・大」に判定します。判定前は「中」として計算します。判定が実際と違うときは、タスクの詳細の「大きさ」で1段階まで変えられます（中 → 小・大、小 → 中、大 → 中）。</p>
+        <p className="muted">タスクを追加すると、AIが作業量を「小・中・大」に判定します。判定前は「中」として計算します。判定が実際と違うときは、タスクの詳細の「大きさ」で1段階まで変えられます（中 → 小・大、小 → 中、大 → 中、特大 → 大）。特大はAIが判定したときだけで、自分で特大に上げることはできません。</p>
         <table className="guide-table">
           <tbody>
             {WEIGHTS.map((w) => (

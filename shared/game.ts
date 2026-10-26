@@ -2,7 +2,7 @@
 // 上位職の定義はサーバー側 (worker/jobs.ts) だけに置き、解放されたものだけをプレイヤー状態に含めて返す
 
 export type StatKey = 'atk' | 'hp' | 'crit' | 'heal'
-export type Weight = 'S' | 'M' | 'L'
+export type Weight = 'S' | 'M' | 'L' | 'XL'
 export type Branch = 'warrior' | 'guardian' | 'sage'
 export type Slot = 'head' | 'body' | 'feet' | 'weapon'
 export type Rarity = 'N' | 'R' | 'SR' | 'SSR'
@@ -392,15 +392,18 @@ export function winRate(p: BattleStats, enemy: Enemy, trials = 60) {
 export const bossGold = (stage: number) => 40 + stage * 20
 
 // ---------- 経験値・ゴールド ----------
-export const WEIGHT_XP: Record<Weight, number> = { S: 10, M: 20, L: 40 }
-export const WEIGHT_LABEL: Record<Weight, string> = { S: '小', M: '中', L: '大' }
-export const WEIGHTS: Weight[] = ['S', 'M', 'L']
-/** 本人が選べる作業量: AI の判定から 1 段階まで (中 → 小・大、小 → 中、大 → 中)。判定前は選べない */
+export const WEIGHT_XP: Record<Weight, number> = { S: 10, M: 20, L: 40, XL: 80 }
+export const WEIGHT_LABEL: Record<Weight, string> = { S: '小', M: '中', L: '大', XL: '特大' }
+export const WEIGHTS: Weight[] = ['S', 'M', 'L', 'XL']
+/**
+ * 本人が選べる作業量: AI の判定から 1 段階まで (中 → 小・大、小 → 中、大 → 中、特大 → 大)。判定前は選べない。
+ * 特大はめったに出ないものにするため、AI が特大と判定したときだけ選べる (自分で特大には上げられない)
+ */
 export const weightChoices = (ai: Weight | null | undefined): Weight[] =>
-  ai ? WEIGHTS.filter((w) => Math.abs(WEIGHTS.indexOf(w) - WEIGHTS.indexOf(ai)) <= 1) : []
+  ai ? WEIGHTS.filter((w) => Math.abs(WEIGHTS.indexOf(w) - WEIGHTS.indexOf(ai)) <= 1 && (w !== 'XL' || ai === 'XL')) : []
 
 /** AI が作業量を判定するときの基準 (説明画面にもそのまま出す) */
-export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程' }
+export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程', XL: '数日がかりの大型案件（めったに出ない）' }
 
 /** 分解は 1 回 (1 段) まで、子タスクは合計この数まで */
 export const BREAKDOWN_MAX = 7
@@ -571,7 +574,7 @@ export const EARLY_HOUR = 12
 export const EARLY_SKILL_HOUR = 10
 const MISSION_POOL: MissionDef[] = [
   { id: 'done5', label: 'タスクを5件完了', goal: 5, gold: 60 },
-  { id: 'big', label: '「大」のタスクを1件完了', goal: 1, gold: 40 },
+  { id: 'big', label: '「大」以上のタスクを1件完了', goal: 1, gold: 40 },
   { id: 'early', label: `午前中（${EARLY_HOUR}時まで）に1件完了`, goal: 1, gold: 30 },
   { id: 'battle', label: 'ボスに挑戦する', goal: 1, gold: 20 },
   { id: 'mid2', label: '「中」以上のタスクを2件完了', goal: 2, gold: 40 },

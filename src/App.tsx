@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { STATUSES, type Flag, type Status, type Task, type User } from '../shared/types'
-import { spInfo, type PlayerState } from '../shared/game'
+import { spInfo, type PlayerState, type Weight } from '../shared/game'
 import { api, HttpError, pending, STATUS_LABEL, type PendingMemo, type XpChange } from './api'
 import { Background } from './components/Background'
 import { Skeleton } from './components/Skeleton'
@@ -348,7 +348,7 @@ export function App() {
   )
 
   const onWeight = useCallback(
-    async (task: UITask, weight: 'S' | 'M' | 'L') => {
+    async (task: UITask, weight: Weight) => {
       upsert([{ ...task, weight }])
       try {
         const { task: saved } = await api.setWeight(task.id, weight)

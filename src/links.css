@@ -199,3 +199,8 @@
 .weight-btn.on.w-L { background: var(--c-doing); }
 .weight-btn:disabled:not(.on) { opacity: 0.35; cursor: default; }
 .weight-note { width: 100%; font-size: 11.5px; color: var(--ink-3); }
+
+/* 特大 (めったに出ない) */
+.xp-chip.w-XL { color: #fff; background: linear-gradient(135deg, #f7b733, #fc4a1a); box-shadow: 0 2px 8px -3px rgba(252, 74, 26, 0.6); }
+.weight-btn.on.w-XL { background: linear-gradient(135deg, #f7b733, #fc4a1a); }
+.guide-table th.w-XL { color: #fc4a1a; }

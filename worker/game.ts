@@ -353,8 +353,8 @@ async function dailyState(db: D1Database, userId: string) {
     db
       .prepare(
         `SELECT COUNT(*) AS done,
-                SUM(COALESCE(weight_user, weight) = 'L') AS big,
-                SUM(COALESCE(weight_user, weight, 'M') IN ('M', 'L')) AS midPlus,
+                SUM(COALESCE(weight_user, weight) IN ('L', 'XL')) AS big,
+                SUM(COALESCE(weight_user, weight, 'M') IN ('M', 'L', 'XL')) AS midPlus,
                 SUM(done_at < ?) AS early,
                 SUM(due_date IS NOT NULL AND due_date >= date(done_at / 1000 + 9 * 3600, 'unixepoch')) AS ontime,
                 SUM(parent_id IS NOT NULL) AS split
@@ -432,8 +432,9 @@ export const notify = (db: D1Database, userId: string, actorId: string, kind: st
     .bind(userId, actorId, kind, taskId, text, Date.now(), userId, actorId)
 
 // ---------- AI によるタスクの重さ判定 ----------
-const WEIGHT_PROMPT = `各タスクの作業量を S(15分以内) / M(1〜2時間) / L(半日以上・複数工程) で判定してください。
-入力は「番号: タスク」の行です。JSON {"weights": ["S"|"M"|"L", ...]} を入力と同じ順で返してください。`
+const WEIGHT_PROMPT = `各タスクの作業量を S(15分以内) / M(1〜2時間) / L(半日以上・複数工程) / XL(数日〜数週間かかるプロジェクト級) で判定してください。
+XL はめったに使いません。明らかに数日以上かかる大型案件だけに付け、迷ったら L にしてください。
+入力は「番号: タスク」の行です。JSON {"weights": ["S"|"M"|"L"|"XL", ...]} を入力と同じ順で返してください。`
 
 export async function classifyWeights(env: Env, tasks: { id: string; title: string }[]) {
   if (!tasks.length) return
@@ -447,7 +448,7 @@ export async function classifyWeights(env: Env, tasks: { id: string; title: stri
         type: 'json_schema',
         json_schema: {
           type: 'object',
-          properties: { weights: { type: 'array', items: { type: 'string', enum: ['S', 'M', 'L'] } } },
+          properties: { weights: { type: 'array', items: { type: 'string', enum: ['S', 'M', 'L', 'XL'] } } },
           required: ['weights'],
         },
       },
@@ -459,7 +460,7 @@ export async function classifyWeights(env: Env, tasks: { id: string; title: stri
     const data = typeof text === 'string' ? JSON.parse(text) : text
     const weights: string[] = data?.weights ?? []
     const stmts = tasks
-      .map((t, i) => (['S', 'M', 'L'].includes(weights[i]) ? env.DB.prepare('UPDATE tasks SET weight = ? WHERE id = ? AND weight IS NULL').bind(weights[i], t.id) : null))
+      .map((t, i) => (['S', 'M', 'L', 'XL'].includes(weights[i]) ? env.DB.prepare('UPDATE tasks SET weight = ? WHERE id = ? AND weight IS NULL').bind(weights[i], t.id) : null))
       .filter((s): s is D1PreparedStatement => !!s)
     if (stmts.length) await env.DB.batch(stmts)
   } catch (e) {

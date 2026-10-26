@@ -25,9 +25,9 @@ export interface Task {
   createdAt: number
   updatedAt: number
   /** 作業量 (本人が調整していればその値、なければ AI の判定) */
-  weight?: 'S' | 'M' | 'L' | null
+  weight?: 'S' | 'M' | 'L' | 'XL' | null
   /** AI の判定 (本人が調整できる範囲の基準) */
-  weightAi?: 'S' | 'M' | 'L' | null
+  weightAi?: 'S' | 'M' | 'L' | 'XL' | null
   source?: 'user' | 'ai'
   xpAwarded?: number
   doneAt?: number | null
@@ -36,7 +36,7 @@ export interface Task {
   /** 期限を設定した人 (本人以外のときに表示) */
   dueBy?: Ref | null
   /** 分解元のタスク */
-  parent?: { id: string; title: string; weight: 'S' | 'M' | 'L' | null; siblings: number } | null
+  parent?: { id: string; title: string; weight: 'S' | 'M' | 'L' | 'XL' | null; siblings: number } | null
   /** 分解した子タスクの数 / そのうち完了した数 */
   children?: { total: number; done: number } | null
   /** 状況フラグ (確認待ちなら待っている相手も) */

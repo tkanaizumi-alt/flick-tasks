@@ -1,5 +1,5 @@
 import type { Activity, AttentionItem, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
-import type { BattleResult, Item, MissionDef, PlayerState, StatKey } from '../shared/game'
+import type { BattleResult, Item, MissionDef, PlayerState, StatKey, Weight } from '../shared/game'
 
 export interface XpChange {
   amount: number
@@ -73,7 +73,7 @@ export const api = {
   breakdown: (id: string, title: string, note: string) =>
     req<{ tasks: string[]; remaining: number }>(`/api/tasks/${id}/breakdown`, { method: 'POST', json: { title, note } }),
   /** 作業量の調整 (AI の判定から 1 段階まで) */
-  setWeight: (id: string, weight: 'S' | 'M' | 'L') => req<{ task: Task }>(`/api/tasks/${id}/weight`, { method: 'PUT', json: { weight } }),
+  setWeight: (id: string, weight: Weight) => req<{ task: Task }>(`/api/tasks/${id}/weight`, { method: 'PUT', json: { weight } }),
   /** 状況フラグ (null で解除) */
   setFlag: (id: string, flag: Flag | null, note = '', to: string | null = null) =>
     req<{ task: Task }>(`/api/tasks/${id}/flag`, { method: 'PUT', json: { flag, note, to } }),
