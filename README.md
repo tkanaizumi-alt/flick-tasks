@@ -2,7 +2,7 @@
 
 開いた瞬間にメモでき、カードのフリックでステータスを切り替えるタスク管理 Web アプリ。
 
-https://flick-tasks.tkanaizumi.workers.dev
+https://flick-tasks.kagamoku.workers.dev
 
 ## 機能
 
