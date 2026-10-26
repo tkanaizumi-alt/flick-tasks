@@ -248,7 +248,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <section className="panel glass" data-testid="skins">
             <div className="panel-head">
               <h2>スキン</h2>
-              <span className="muted">レベル・ステージで解放</span>
+              <span className="muted">レベル・ステージでさらに解放</span>
             </div>
             <div className="skin-grid">
               <button className={`skin ${!player.skin ? 'on' : ''}`} disabled={busy || !player.skin} onClick={() => run(() => api.setSkin(null))} data-testid="skin-photo">

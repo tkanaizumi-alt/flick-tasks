@@ -394,6 +394,11 @@ export const bossGold = (stage: number) => 40 + stage * 20
 // ---------- 経験値・ゴールド ----------
 export const WEIGHT_XP: Record<Weight, number> = { S: 10, M: 20, L: 40 }
 export const WEIGHT_LABEL: Record<Weight, string> = { S: '小', M: '中', L: '大' }
+export const WEIGHTS: Weight[] = ['S', 'M', 'L']
+/** 本人が選べる作業量: AI の判定から 1 段階まで (中 → 小・大、小 → 中、大 → 中)。判定前は選べない */
+export const weightChoices = (ai: Weight | null | undefined): Weight[] =>
+  ai ? WEIGHTS.filter((w) => Math.abs(WEIGHTS.indexOf(w) - WEIGHTS.indexOf(ai)) <= 1) : []
+
 /** AI が作業量を判定するときの基準 (説明画面にもそのまま出す) */
 export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程' }
 
@@ -643,6 +648,20 @@ export interface SkinDef {
   stage?: number
 }
 export const SKINS: SkinDef[] = [
+  // 最初から選べる
+  { id: 'rabbit', name: 'うさぎ', emoji: '🐰', bg: 'linear-gradient(135deg,#fde2e4,#fad0c4)' },
+  { id: 'bear', name: 'くま', emoji: '🐻', bg: 'linear-gradient(135deg,#e6c9a8,#c79a6b)' },
+  { id: 'hamster', name: 'ハムスター', emoji: '🐹', bg: 'linear-gradient(135deg,#fff1d6,#ffd59e)' },
+  { id: 'koala', name: 'コアラ', emoji: '🐨', bg: 'linear-gradient(135deg,#e0e7ef,#b8c6db)' },
+  { id: 'tiger', name: 'とら', emoji: '🐯', bg: 'linear-gradient(135deg,#ffe29f,#ffa751)' },
+  { id: 'pig', name: 'ぶた', emoji: '🐷', bg: 'linear-gradient(135deg,#ffd1dc,#ff9aae)' },
+  { id: 'monkey', name: 'さる', emoji: '🐵', bg: 'linear-gradient(135deg,#f3e0c7,#d9a86c)' },
+  { id: 'chick', name: 'ひよこ', emoji: '🐥', bg: 'linear-gradient(135deg,#fff9c4,#ffe066)' },
+  { id: 'octopus', name: 'たこ', emoji: '🐙', bg: 'linear-gradient(135deg,#ffc3a0,#ff7e7e)' },
+  { id: 'owl', name: 'ふくろう', emoji: '🦉', bg: 'linear-gradient(135deg,#d7c9b8,#a68a6d)' },
+  { id: 'whale', name: 'くじら', emoji: '🐳', bg: 'linear-gradient(135deg,#b5e8ff,#6ec6ff)' },
+  { id: 'cactus', name: 'サボテン', emoji: '🌵', bg: 'linear-gradient(135deg,#d8f5c4,#9be15d)' },
+  // レベル・ステージで解放
   { id: 'cat', name: 'ねこ', emoji: '🐱', bg: 'linear-gradient(135deg,#ffe0b2,#ffb74d)', level: 2 },
   { id: 'dog', name: 'いぬ', emoji: '🐶', bg: 'linear-gradient(135deg,#ffecd2,#fcb69f)', level: 3 },
   { id: 'frog', name: 'かえる', emoji: '🐸', bg: 'linear-gradient(135deg,#d4fc79,#96e6a1)', stage: 3 },

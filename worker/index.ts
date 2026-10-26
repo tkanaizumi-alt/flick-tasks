@@ -38,7 +38,7 @@ import {
   type User,
   san,
 } from '../shared/types'
-import { BREAKDOWN_MAX, HISTORY_KEEP_DAYS, jstDayStart, jstToday, type StatKey } from '../shared/game'
+import { BREAKDOWN_MAX, HISTORY_KEEP_DAYS, jstDayStart, jstToday, weightChoices, type StatKey, type Weight } from '../shared/game'
 
 /** 完了から 7 日経ったタスクはボードに返さない (履歴には残る) */
 const VISIBLE = "NOT (t.status = 'done' AND COALESCE(t.done_at, t.updated_at) < ?)"
@@ -75,7 +75,8 @@ const toTask = (r: any): Task => ({
   position: r.position,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
-  weight: r.weight ?? null,
+  weight: r.weight_user ?? r.weight ?? null,
+  weightAi: r.weight ?? null,
   source: r.source ?? 'user',
   xpAwarded: r.xp_awarded ?? 0,
   doneAt: r.done_at ?? null,
@@ -94,7 +95,7 @@ const nameOf = (a: string) => `COALESCE(${a}.display_name, ${a}.name, substr(${a
 
 /** タスク + 期限を設定した人・分解元・子タスクの進み具合・フラグ・依頼の情報 */
 const TASK_SELECT = `SELECT t.*, ${nameOf('du')} AS due_by_name,
-    pt.title AS parent_title, pt.weight AS parent_weight,
+    pt.title AS parent_title, COALESCE(pt.weight_user, pt.weight) AS parent_weight,
     CASE WHEN t.parent_id IS NULL THEN 0 ELSE (SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.parent_id) END AS sibling_total,
     (SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id) AS child_total,
     (SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id AND c.status = 'done') AS child_done,
@@ -185,6 +186,22 @@ api.put('/tasks/:id/flag', async (c) => {
   }
   await db.batch(stmts)
   return c.json({ task: await getTask(db, id) })
+})
+
+/** 作業量の調整。AI の判定から 1 段階まで、未完了・分解した子タスク以外の自分のタスクのみ */
+api.put('/tasks/:id/weight', async (c) => {
+  const { weight } = await c.req.json<{ weight?: unknown }>().catch(() => ({ weight: undefined }))
+  const id = c.req.param('id')
+  const t = await c.env.DB.prepare('SELECT weight, status, parent_id FROM tasks WHERE id = ? AND user_id = ?').bind(id, c.get('user').id).first<any>()
+  if (!t) return c.json({ error: 'not found' }, 404)
+  if (t.status === 'done') return c.json({ error: '完了したタスクは変更できません' }, 400)
+  if (t.parent_id) return c.json({ error: '分解したタスクのXPは元タスクから分配されます' }, 400)
+  if (!t.weight) return c.json({ error: 'AIの判定が終わってから変更できます' }, 400)
+  if (!weightChoices(t.weight).includes(weight as Weight)) return c.json({ error: 'AIの判定から1段階までです' }, 400)
+  await c.env.DB.prepare('UPDATE tasks SET weight_user = ?, updated_at = ? WHERE id = ?')
+    .bind(weight === t.weight ? null : weight, Date.now(), id)
+    .run()
+  return c.json({ task: await getTask(c.env.DB, id) })
 })
 
 api.post('/tasks', async (c) => {

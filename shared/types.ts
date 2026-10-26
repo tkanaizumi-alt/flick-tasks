@@ -24,7 +24,10 @@ export interface Task {
   position: number
   createdAt: number
   updatedAt: number
+  /** 作業量 (本人が調整していればその値、なければ AI の判定) */
   weight?: 'S' | 'M' | 'L' | null
+  /** AI の判定 (本人が調整できる範囲の基準) */
+  weightAi?: 'S' | 'M' | 'L' | null
   source?: 'user' | 'ai'
   xpAwarded?: number
   doneAt?: number | null

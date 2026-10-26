@@ -19,7 +19,7 @@ export function XpChip({ task }: { task: Task }) {
   if (task.children?.total) return <span className="xp-chip split">XPは子タスクへ</span>
   const label = task.parent ? '分配' : WEIGHT_LABEL[task.weight ?? 'M']
   return (
-    <span className={`xp-chip w-${task.parent ? 'split' : (task.weight ?? 'M')}`} data-testid="xp-chip" title={task.weight ? '' : 'AI判定前 (中として計算)'}>
+    <span className={`xp-chip w-${task.parent ? 'split' : (task.weight ?? 'M')}`} data-testid="xp-chip" title={task.weight ? (task.weightAi && task.weight !== task.weightAi ? '本人が調整' : '') : 'AI判定前 (中として計算)'}>
       {label} +{xp}XP
     </span>
   )

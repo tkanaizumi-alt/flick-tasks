@@ -19,7 +19,7 @@ export function XpGuide({ onClose }: { onClose: () => void }) {
         transition={{ duration: 0.16 }}
       >
         <h2>XPの決まり方</h2>
-        <p className="muted">タスクを追加すると、AIが作業量を「小・中・大」に判定します。判定前は「中」として計算します。</p>
+        <p className="muted">タスクを追加すると、AIが作業量を「小・中・大」に判定します。判定前は「中」として計算します。判定が実際と違うときは、タスクの詳細の「大きさ」で1段階まで変えられます（中 → 小・大、小 → 中、大 → 中）。</p>
         <table className="guide-table">
           <tbody>
             {WEIGHTS.map((w) => (

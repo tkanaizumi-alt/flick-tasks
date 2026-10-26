@@ -126,7 +126,7 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       .bind(day, day - 86400000, day, userId)
       .first<{ today: number | null; yesterday: number | null }>()
     const { amount, gold, bonuses } = computeXp({
-      weight: before.weight as Weight | null,
+      weight: (before.weight_user ?? before.weight) as Weight | null,
       base: await splitBase(db, before),
       createdAt: before.created_at,
       now,
@@ -178,7 +178,7 @@ async function splitBase(db: D1Database, task: any): Promise<number | undefined>
   if (task.parent_id) {
     // 元タスクを消しても分け合う形は変わらない (消して満額にする稼ぎ防止)
     const r = await db
-      .prepare('SELECT (SELECT weight FROM tasks WHERE id = ?1) AS weight, COUNT(*) AS n FROM tasks WHERE parent_id = ?1')
+      .prepare('SELECT (SELECT COALESCE(weight_user, weight) FROM tasks WHERE id = ?1) AS weight, COUNT(*) AS n FROM tasks WHERE parent_id = ?1')
       .bind(task.parent_id)
       .first<{ weight: Weight | null; n: number }>()
     return childXp(r?.weight ?? null, r?.n ?? 1)
@@ -353,8 +353,8 @@ async function dailyState(db: D1Database, userId: string) {
     db
       .prepare(
         `SELECT COUNT(*) AS done,
-                SUM(weight = 'L') AS big,
-                SUM(COALESCE(weight, 'M') IN ('M', 'L')) AS midPlus,
+                SUM(COALESCE(weight_user, weight) = 'L') AS big,
+                SUM(COALESCE(weight_user, weight, 'M') IN ('M', 'L')) AS midPlus,
                 SUM(done_at < ?) AS early
            FROM tasks WHERE user_id = ? AND done_at >= ? AND xp_awarded > 0`,
       )

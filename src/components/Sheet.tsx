@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'motion/react'
 import { FLAGS, STATUSES, san, type Flag, type Person, type Status } from '../../shared/types'
-import { BREAKDOWN_MAX } from '../../shared/game'
+import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_LABEL, WEIGHT_XP, weightChoices, type Weight } from '../../shared/game'
 import type { UITask } from '../App'
 import { api, HttpError, STATUS_LABEL } from '../api'
 import { SparkIcon, TrashIcon } from './icons'
@@ -18,10 +18,11 @@ interface Props {
   onAddChildren: (titles: string[], title: string, note: string) => Promise<void>
   onDue: (due: string | null) => void
   onFlag: (flag: Flag | null, note?: string, to?: string | null) => Promise<void>
+  onWeight: (w: Weight) => void
   toast: (text: string) => void
 }
 
-export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue, onFlag, toast }: Props) {
+export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue, onFlag, onWeight, toast }: Props) {
   const [title, setTitle] = useState(task.title)
   const [note, setNote] = useState(task.note)
   const [busy, setBusy] = useState(false)
@@ -118,6 +119,7 @@ export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue,
             XPの決まり方
           </button>
         </div>
+        {task.status !== 'done' && !task.parent && <WeightField task={task} onWeight={onWeight} />}
         {task.requestedBy && task.follow && <p className="sheet-info">📨 {san(task.requestedBy.name)}はこの後「{task.follow.title}」に進みます</p>}
 
         <DueField due={task.due ?? null} dueBy={task.dueBy?.name} onChange={onDue} />
@@ -185,6 +187,31 @@ export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue,
       </motion.div>
       <AnimatePresence>{guide && <XpGuide onClose={() => setGuide(false)} />}</AnimatePresence>
     </>
+  )
+}
+
+/** 作業量 (小・中・大) の調整。AI の判定から 1 段階まで */
+function WeightField({ task, onWeight }: { task: UITask; onWeight: (w: Weight) => void }) {
+  const choices = weightChoices(task.weightAi)
+  const current = task.weight ?? null
+  return (
+    <div className="weight-field" data-testid="weight-field">
+      <span className="due-label">大きさ</span>
+      {WEIGHTS.map((w) => (
+        <button
+          key={w}
+          className={`weight-btn w-${w} ${current === w ? 'on' : ''}`}
+          disabled={!choices.includes(w) || current === w}
+          onClick={() => onWeight(w)}
+          data-testid={`weight-${w}`}
+        >
+          {WEIGHT_LABEL[w]} <small>+{WEIGHT_XP[w]}</small>
+        </button>
+      ))}
+      <span className="weight-note">
+        {task.weightAi ? `AIの判定: ${WEIGHT_LABEL[task.weightAi]}（1段階まで変えられます）` : 'AIが判定中です'}
+      </span>
+    </div>
   )
 }
 

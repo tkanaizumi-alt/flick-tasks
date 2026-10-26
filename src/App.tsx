@@ -347,6 +347,20 @@ export function App() {
     [patchTask, setTab, showToast, upsert],
   )
 
+  const onWeight = useCallback(
+    async (task: UITask, weight: 'S' | 'M' | 'L') => {
+      upsert([{ ...task, weight }])
+      try {
+        const { task: saved } = await api.setWeight(task.id, weight)
+        upsert([saved])
+      } catch (e) {
+        upsert([task])
+        showToast(e instanceof HttpError && e.reason ? e.reason : '変更できませんでした')
+      }
+    },
+    [showToast, upsert],
+  )
+
   const onFlag = useCallback(
     async (task: UITask, flag: Flag | null, note = '', to: string | null = null) => {
       try {
@@ -686,6 +700,7 @@ export function App() {
                   }}
                   onAddChildren={(titles, title, note) => onAddChildren(openTask, titles, title, note)}
                   onFlag={(flag, note, to) => onFlag(openTask, flag, note, to)}
+                  onWeight={(w) => onWeight(openTask, w)}
                   toast={showToast}
                   onDue={async (due) => {
                     const prev = openTask
