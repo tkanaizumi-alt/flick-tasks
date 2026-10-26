@@ -5,11 +5,15 @@ import {
   CHEST_COST,
   INVENTORY_MAX,
   SKILLS,
+  SKINS,
   SLOTS,
   STATS,
   canLearn,
   effectiveStats,
   enemyForStage,
+  levelInfo,
+  skinCondition,
+  skinUnlocked,
   spInfo,
   winRate,
   type BattleResult,
@@ -23,6 +27,7 @@ import { CharacterHeader } from '../components/CharacterHeader'
 import { ChestReveal, ItemCard, ItemSheet } from '../components/Loot'
 import { StageMap } from '../components/StageMap'
 import { GearIcon } from '../components/GearIcon'
+import { Avatar } from '../components/Dock'
 import type { Celebration } from '../components/Rewards'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train'
@@ -240,6 +245,36 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
 
       {tab === 'train' && (
         <>
+          <section className="panel glass" data-testid="skins">
+            <div className="panel-head">
+              <h2>スキン</h2>
+              <span className="muted">レベル・ステージで解放</span>
+            </div>
+            <div className="skin-grid">
+              <button className={`skin ${!player.skin ? 'on' : ''}`} disabled={busy || !player.skin} onClick={() => run(() => api.setSkin(null))} data-testid="skin-photo">
+                <Avatar name={name} picture={picture} size={44} />
+                <span className="skin-name">写真</span>
+              </button>
+              {SKINS.map((s) => {
+                const open = skinUnlocked(s, levelInfo(player.xp).level, player.stage)
+                const on = player.skin === s.id
+                return (
+                  <button
+                    key={s.id}
+                    className={`skin ${on ? 'on' : ''} ${open ? '' : 'locked'}`}
+                    disabled={busy || on || !open}
+                    onClick={() => run(() => api.setSkin(s.id))}
+                    data-testid={`skin-${s.id}`}
+                    title={open ? s.name : skinCondition(s)}
+                  >
+                    {open ? <Avatar name={s.name} skin={s.id} size={44} /> : <span className="skin-lock">🔒</span>}
+                    <span className="skin-name">{open ? s.name : skinCondition(s)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
           <section className="panel glass" data-testid="jobs">
             <div className="panel-head">
               <h2>冒険職</h2>

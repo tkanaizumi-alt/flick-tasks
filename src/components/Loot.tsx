@@ -22,20 +22,38 @@ export function ItemCard({ item, equipped, onClick }: { item: Item; equipped?: b
 /** 宝箱を開ける演出: 揺れる → 開く → レア度の光とともに中身 */
 export function ChestReveal({ item, onClose }: { item: Item; onClose: () => void }) {
   const [open, setOpen] = useState(false)
+  const rare = item.rarity === 'SSR' || item.rarity === 'SR'
   useEffect(() => {
-    const t = setTimeout(() => setOpen(true), item.rarity === 'SSR' ? 1100 : 700)
+    const t = setTimeout(() => setOpen(true), item.rarity === 'SSR' ? 1400 : item.rarity === 'SR' ? 1000 : 700)
     return () => clearTimeout(t)
   }, [item.rarity])
+  // レアは開いた瞬間に振動 (SSR は長め)
+  useEffect(() => {
+    if (open && rare) navigator.vibrate?.(item.rarity === 'SSR' ? [30, 40, 30, 40, 120] : [20, 40, 20])
+  }, [open, rare, item.rarity])
   return (
     <>
       <motion.div className="scrim" onClick={open ? onClose : undefined} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
       <motion.div className="reveal" data-testid="chest-reveal" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
         {!open ? (
-          <div className={`chest-shake ${item.rarity === 'SSR' || item.rarity === 'SR' ? 'rare' : ''}`} onClick={() => setOpen(true)}>
+          <div className={`chest-shake ${rare ? 'rare' : ''} ${item.rarity === 'SSR' ? 'ssr' : ''}`} onClick={() => setOpen(true)}>
             🎁
           </div>
         ) : (
-          <div className={`reveal-card glass r-${item.rarity}`} data-testid="reveal-card">
+          <div className={`reveal-card glass r-${item.rarity} ${rare ? 'rare' : ''}`} data-testid="reveal-card">
+            {rare && (
+              <>
+                <div className={`rare-flash f-${item.rarity}`} aria-hidden="true" />
+                <div className="rare-stamp" aria-hidden="true">
+                  {item.rarity === 'SSR' ? 'SSR!!' : 'SR!'}
+                </div>
+                <div className="confetti burst" aria-hidden="true">
+                  {Array.from({ length: item.rarity === 'SSR' ? 28 : 14 }, (_, i) => (
+                    <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 7) * 0.05}s` }} />
+                  ))}
+                </div>
+              </>
+            )}
             <div className="rays" aria-hidden="true" />
             <div className="reveal-rarity">{item.rarity}</div>
             <div className="reveal-icon">

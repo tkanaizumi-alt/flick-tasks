@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
 import type { User } from '../../shared/types'
+import { SKIN_MAP } from '../../shared/game'
 import { CheckCircleIcon, PeopleIcon, SwordIcon } from './icons'
 
 export type View = 'me' | 'people' | 'game'
@@ -17,9 +18,12 @@ interface Props {
   user: User | null
   onLogout: () => void
   badge: number // 未使用 SP
+  /** みんなタブの未読 (自分宛ての通知) */
+  peopleBadge?: number
+  onHistory: () => void
 }
 
-export function Dock({ view, onChange, user, onLogout, badge }: Props) {
+export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory }: Props) {
   const [menu, setMenu] = useState(false)
   return (
     <div className="dock">
@@ -33,6 +37,11 @@ export function Dock({ view, onChange, user, onLogout, badge }: Props) {
                 <Icon />
               </span>
               <span className="tab-label">{label}</span>
+              {key === 'people' && peopleBadge > 0 && (
+                <span className="tab-count notice" data-testid="people-badge">
+                  {peopleBadge > 9 ? '9+' : peopleBadge}
+                </span>
+              )}
               {key === 'game' && badge > 0 && (
                 <span className="tab-count sp" data-testid="sp-badge">
                   {badge}
@@ -61,6 +70,16 @@ export function Dock({ view, onChange, user, onLogout, badge }: Props) {
               >
                 <div className="menu-email">{user?.email}</div>
                 <button
+                  className="menu-item"
+                  data-testid="menu-history"
+                  onClick={() => {
+                    setMenu(false)
+                    onHistory()
+                  }}
+                >
+                  📒 履歴・エクスポート
+                </button>
+                <button
                   className="menu-item danger"
                   data-testid="logout"
                   onClick={() => {
@@ -79,7 +98,15 @@ export function Dock({ view, onChange, user, onLogout, badge }: Props) {
   )
 }
 
-export function Avatar({ name, picture, size = 44 }: { name: string; picture?: string; size?: number }) {
+/** アイコン。スキンを選んでいればスキン、なければ Google の写真 (なければ頭文字) */
+export function Avatar({ name, picture, size = 44, skin }: { name: string; picture?: string; size?: number; skin?: string | null }) {
+  const sk = skin ? SKIN_MAP[skin] : undefined
+  if (sk)
+    return (
+      <span className="av-skin" style={{ width: size, height: size, fontSize: size * 0.58, background: sk.bg }} role="img" aria-label={sk.name}>
+        {sk.emoji}
+      </span>
+    )
   return picture ? (
     <img className="av-img" src={picture} alt="" width={size} height={size} referrerPolicy="no-referrer" />
   ) : (

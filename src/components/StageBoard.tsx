@@ -30,7 +30,7 @@ export function StageBoard({ people, onOpen }: { people: Person[]; onOpen: (id: 
                   <i key={n} className="track-tick" style={{ left: pos(n) }} />
                 ))}
                 <span className="track-me" style={{ left: pos(p.stage) }}>
-                  <Avatar name={p.name} picture={p.picture} size={24} />
+                  <Avatar name={p.name} picture={p.picture} skin={p.skin} size={24} />
                 </span>
               </span>
               <span className="track-stage">

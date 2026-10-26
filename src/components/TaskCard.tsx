@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode, type Ref } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform, type Variants } from 'motion/react'
 import type { Status } from '../../shared/types'
 import { doneDaysLeft } from '../../shared/game'
+import { TaskLinks, XpChip, groupHue } from './TaskMeta'
 import { STATUS_LABEL } from '../api'
 import { DueBadge } from './DueBadge'
 import type { UITask } from '../App'
@@ -65,6 +66,8 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
   const press = useRef<{ t: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null)
   const locked = task.ai || task.syncing
   const daysLeft = task.status === 'done' ? doneDaysLeft(task.doneAt ?? task.updatedAt) : null
+  // 分解した元タスクと子タスクは同じ色の目印でそろえる
+  const hue = groupHue(task)
 
   // 長押しで選択モードへ (少しでも動いたらスワイプ扱いで中止)
   const cancelPress = () => {
@@ -143,9 +146,9 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
 
       <motion.div
         ref={cardRef}
-        className={`card card-surface s-${task.status} ${task.ai ? 'is-ai' : ''} ${selecting ? 'selecting' : ''} ${selected ? 'selected' : ''}`}
+        className={`card card-surface s-${task.status} ${task.ai ? 'is-ai' : ''} ${selecting ? 'selecting' : ''} ${selected ? 'selected' : ''} ${hue !== null ? 'grouped' : ''}`}
         aria-pressed={selecting ? !!selected : undefined}
-        style={{ x, rotate }}
+        style={{ x, rotate, ...(hue !== null ? ({ '--gh': hue } as CSSProperties) : {}) }}
         drag={locked || selecting ? false : 'x'}
         onPointerDown={startPress}
         onPointerMove={movePress}
@@ -190,15 +193,20 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
           </span>
         )}
         <div className="card-body">
+          {task.parent?.title ? (
+            <div className="card-parent" data-testid="card-parent">
+              ↳ {task.parent.title}
+            </div>
+          ) : null}
           <div className="card-title">{task.title}</div>
           {task.note ? <div className="card-note">{task.note}</div> : null}
-          {(showStatus || daysLeft !== null || task.due) && (
-            <div className="card-meta">
-              {showStatus && <span className={`meta-status t-${task.status}`}>{STATUS_LABEL[task.status]}</span>}
-              <DueBadge task={task} />
-              {daysLeft !== null && <span data-testid="days-left">{daysLeft === 0 ? '今日で消えます' : `あと${daysLeft}日で消えます`}</span>}
-            </div>
-          )}
+          <div className="card-meta">
+            {showStatus && <span className={`meta-status t-${task.status}`}>{STATUS_LABEL[task.status]}</span>}
+            <TaskLinks task={task} />
+            <DueBadge task={task} />
+            {!task.ai && !task.syncing && <XpChip task={task} />}
+            {daysLeft !== null && <span data-testid="days-left">{daysLeft === 0 ? '今日で履歴へ' : `あと${daysLeft}日で履歴へ`}</span>}
+          </div>
         </div>
         {task.ai ? (
           <span className="card-badge ai" aria-label="AI処理中">

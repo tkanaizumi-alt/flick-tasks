@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { motion, useDragControls } from 'motion/react'
-import type { Task } from '../../shared/types'
+import { san, type Task } from '../../shared/types'
 import { SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } from '../../shared/game'
 import { api, STATUS_LABEL } from '../api'
 import { CharacterHeader } from './CharacterHeader'
 import { GearIcon } from './GearIcon'
 import { DueBadge } from './DueBadge'
 import { DueField } from './DueField'
+import { TaskLinks } from './TaskMeta'
 
 interface Data {
-  person: { id: string; name: string; picture: string }
+  person: { id: string; name: string; picture: string; isMe?: boolean }
   player: PlayerState
   tasks: Task[]
 }
@@ -20,11 +21,13 @@ interface Props {
   /** 管理者だけ名前を変更できる (自分も含む) */
   canRename?: boolean
   onRenamed?: (id: string, name: string) => void
+  /** この人にタスクを依頼する (自分以外) */
+  onRequest?: (id: string) => void
   toast?: (text: string) => void
 }
 
 /** 他の人のタスクとキャラクター (閲覧のみ。管理者は名前の変更も可) */
-export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props) {
+export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, toast }: Props) {
   const [data, setData] = useState<Data | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -106,6 +109,11 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props)
         ) : (
           <>
             <CharacterHeader name={data.person.name} picture={data.person.picture} player={data.player} />
+            {onRequest && !data.person.isMe && (
+              <button className="pill-btn primary small request-btn" onClick={() => onRequest(data.person.id)} data-testid="person-request">
+                📨 {san(data.person.name)}にタスクを依頼
+              </button>
+            )}
             {canRename &&
               (editing === null ? (
                 <button className="rename-btn" onClick={() => setEditing(data.person.name)} data-testid="rename-start">
@@ -189,7 +197,9 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, toast }: Props)
                           <button className={`ps-task s-${t.status}`} onClick={() => setDueOpen(dueOpen === t.id ? null : t.id)} data-testid="person-task">
                             <span className="status-dot" />
                             <span className="ps-task-body">
+                              {t.parent?.title && <span className="ps-parent">↳ {t.parent.title}</span>}
                               <span className="ps-task-title">{t.title}</span>
+                              <TaskLinks task={t} showFlagNote />
                               <DueBadge task={t} />
                             </span>
                             <span className="ps-due-hint">{t.due ? '' : '⏰'}</span>

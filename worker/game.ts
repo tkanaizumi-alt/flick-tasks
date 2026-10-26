@@ -6,7 +6,12 @@ import {
   EARLY_HOUR,
   jobLevelInfo,
   CHEST_COST,
+  ACTIVITY_KEEP_DAYS,
   DONE_KEEP_DAYS,
+  HISTORY_KEEP_DAYS,
+  SKIN_MAP,
+  childXp,
+  skinUnlocked,
   INVENTORY_MAX,
   RARITY_SELL,
   SLOTS,
@@ -86,6 +91,7 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
     })),
     secretSkills: visibleSecrets(ownedSkills),
     bonus: bonusOf(ownedSkills),
+    skin: r.skin && SKIN_MAP[r.skin] ? r.skin : null,
   }
 }
 
@@ -121,6 +127,7 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       .first<{ today: number | null; yesterday: number | null }>()
     const { amount, gold, bonuses } = computeXp({
       weight: before.weight as Weight | null,
+      base: await splitBase(db, before),
       createdAt: before.created_at,
       now,
       doneToday: counts?.today ?? 0,
@@ -164,6 +171,32 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
     db.prepare('UPDATE tasks SET xp_awarded = 0, gold_awarded = 0, xp_job = NULL, done_at = NULL WHERE id = ?').bind(before.id),
   ])
   return { amount: -amount, gold: -gold, bonuses: [], level: levelInfo(Math.max(0, player.xp - amount)).level, leveledUp: false }
+}
+
+/** 分解まわりの基本 XP。分解済みの元タスクは 0、子タスクは元タスクの XP を兄弟の数で割った値 */
+async function splitBase(db: D1Database, task: any): Promise<number | undefined> {
+  if (task.parent_id) {
+    // 元タスクを消しても分け合う形は変わらない (消して満額にする稼ぎ防止)
+    const r = await db
+      .prepare('SELECT (SELECT weight FROM tasks WHERE id = ?1) AS weight, COUNT(*) AS n FROM tasks WHERE parent_id = ?1')
+      .bind(task.parent_id)
+      .first<{ weight: Weight | null; n: number }>()
+    return childXp(r?.weight ?? null, r?.n ?? 1)
+  }
+  const kids = await db.prepare('SELECT COUNT(*) AS n FROM tasks WHERE parent_id = ?').bind(task.id).first<{ n: number }>()
+  return kids?.n ? 0 : undefined
+}
+
+/** スキンの変更 (null で Google の写真に戻す)。解放済みのものだけ */
+export async function setSkin(db: D1Database, userId: string, skin: string | null) {
+  const p = await getPlayer(db, userId)
+  if (skin !== null) {
+    const def = SKIN_MAP[skin]
+    if (!def) return { error: '存在しないスキン' }
+    if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage)) return { error: 'まだ解放されていません' }
+  }
+  await db.prepare('UPDATE players SET skin = ?, updated_at = ? WHERE user_id = ?').bind(skin, Date.now(), userId).run()
+  return { player: await getPlayer(db, userId) }
 }
 
 export async function addStat(db: D1Database, userId: string, stat: StatKey) {
@@ -371,18 +404,28 @@ export async function claimMission(db: D1Database, userId: string, missionId: st
   return { item, gold: m.gold, player: await getPlayer(db, userId), missions: (await dailyState(db, userId)).missions }
 }
 
-// ---------- 7 日経過した完了タスクの削除 ----------
+// ---------- 古いデータの整理 ----------
+/** 完了から 7 日経ったタスクはボードに出さない (履歴としては残る) */
 export const doneCutoff = () => Date.now() - DONE_KEEP_DAYS * 86400000
 
 export async function purgeOldDone(db: D1Database) {
+  const now = Date.now()
   const res = await db
     .prepare("DELETE FROM tasks WHERE status = 'done' AND COALESCE(done_at, updated_at) < ?")
-    .bind(doneCutoff())
+    .bind(now - HISTORY_KEEP_DAYS * 86400000)
     .run()
-  // 最近の動きも 30 日より前は削除
-  await db.prepare('DELETE FROM activity WHERE created_at < ?').bind(Date.now() - 30 * 86400000).run()
+  await db.batch([
+    db.prepare('DELETE FROM activity WHERE created_at < ?').bind(now - ACTIVITY_KEEP_DAYS * 86400000),
+    db.prepare('DELETE FROM notifications WHERE created_at < ?').bind(now - 30 * 86400000),
+  ])
   return res.meta.changes ?? 0
 }
+
+/** アプリ内通知を作る (自分宛てには作らない) */
+export const notify = (db: D1Database, userId: string, actorId: string, kind: string, taskId: string | null, text: string) =>
+  db
+    .prepare('INSERT INTO notifications (user_id, actor_id, kind, task_id, text, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ? <> ?')
+    .bind(userId, actorId, kind, taskId, text, Date.now(), userId, actorId)
 
 // ---------- AI によるタスクの重さ判定 ----------
 const WEIGHT_PROMPT = `各タスクの作業量を S(15分以内) / M(1〜2時間) / L(半日以上・複数工程) で判定してください。

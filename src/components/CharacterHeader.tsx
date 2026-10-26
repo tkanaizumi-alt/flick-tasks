@@ -7,7 +7,7 @@ export function CharacterHeader({ name, picture, player, gold }: { name: string;
   const current = enemyForStage(player.stage)
   return (
     <section className="panel glass char">
-      <Avatar name={name} picture={picture} size={52} />
+      <Avatar name={name} picture={picture} skin={player.skin} size={52} />
       <div className="char-body">
         <div className="char-top">
           <span className="char-name">{name}</span>

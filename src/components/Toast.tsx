@@ -5,6 +5,8 @@ export interface ToastData {
   id: number
   text: string
   undo?: () => void
+  /** 取り消し以外の操作ボタンの文言 (例: 完了にする) */
+  action?: string
 }
 
 export function Toast({ toast, onDone }: { toast: ToastData | null; onDone: () => void }) {
@@ -38,7 +40,7 @@ export function Toast({ toast, onDone }: { toast: ToastData | null; onDone: () =
                   onDone()
                 }}
               >
-                取り消す
+                {toast.action ?? '取り消す'}
               </button>
             )}
             <motion.span

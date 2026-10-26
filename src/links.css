@@ -1,0 +1,192 @@
+/* 分解のつながり・状況フラグ・依頼・通知・履歴・スキン・レア演出 */
+
+/* ---------- スキン付きアイコン ---------- */
+.av-skin { display: inline-grid; place-items: center; flex: none; border-radius: 50%; line-height: 1; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6); }
+.feed .av-skin { font-size: 15px !important; }
+.tab-count.notice { background: var(--c-danger); color: #fff; }
+
+/* ---------- カード: 分解元・子タスク・XP・フラグ・依頼 ---------- */
+.card.grouped { box-shadow: inset 4px 0 0 hsl(var(--gh) 75% 62%); }
+.card.grouped.selected { box-shadow: inset 4px 0 0 hsl(var(--gh) 75% 62%), inset 0 0 0 2px var(--c-todo); }
+.card-parent { font-size: 11.5px; font-weight: 700; color: hsl(var(--gh, 230) 55% 45%); margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-meta:empty { display: none; }
+.xp-chip, .kids-chip, .flag-chip, .req-chip, .wait-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 750; padding: 1px 7px; border-radius: 8px; white-space: nowrap;
+}
+.xp-chip { color: var(--ink-2); background: rgba(20, 28, 48, 0.05); }
+.xp-chip.w-L { color: #b45309; background: rgba(255, 159, 46, 0.14); }
+.xp-chip.w-S { color: var(--ink-3); }
+.xp-chip.w-split, .xp-chip.split { color: #6d5bd0; background: rgba(166, 91, 255, 0.1); }
+.xp-chip.done { color: var(--c-done); background: rgba(22, 199, 132, 0.1); }
+.kids-chip { color: var(--ink-2); background: rgba(20, 28, 48, 0.05); }
+.kids-bar { width: 34px; height: 5px; border-radius: 3px; background: rgba(20, 28, 48, 0.1); overflow: hidden; }
+.kids-bar span { display: block; height: 100%; background: var(--c-done); transform-origin: left; }
+.flag-chip.f-wait { color: #4f5bff; background: rgba(111, 124, 255, 0.12); }
+.flag-chip.f-help { color: #fff; background: var(--c-danger); }
+.flag-chip.f-late { color: #b45309; background: rgba(255, 159, 46, 0.18); }
+.req-chip { color: #0f766e; background: rgba(20, 184, 166, 0.12); }
+.wait-chip { color: var(--ink-2); background: rgba(20, 28, 48, 0.06); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.wait-chip.ok { color: var(--c-done); background: rgba(22, 199, 132, 0.12); }
+
+/* ---------- 一括操作のヒント・履歴への導線 ---------- */
+.hint-bar { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px; padding: 8px 10px 8px 12px; border-radius: 14px; font-size: 12.5px; color: var(--ink-2); background: rgba(111, 124, 255, 0.08); }
+.hint-bar span { flex: 1; }
+.hint-bar button { border: 0; background: none; font-size: 16px; color: var(--ink-3); cursor: pointer; padding: 0 4px; }
+.history-link { display: block; width: 100%; margin: 14px 0 4px; border: 0; background: rgba(255, 255, 255, 0.55); border-radius: 14px; padding: 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--c-todo); cursor: pointer; }
+.sb-btn.done { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(160deg, #4ee3a5, var(--c-done)); }
+.sb-btn.done svg { width: 18px; height: 18px; stroke-width: 3; }
+
+/* ---------- タスクの詳細シート ---------- */
+.sheet-parent { font-size: 12px; font-weight: 700; color: var(--ink-3); margin: 2px 0 2px; }
+.title-wrap { position: relative; display: block; }
+.title-wrap .sheet-title { padding-right: 28px !important; }
+.edit-hint { position: absolute; right: 4px; top: 8px; font-size: 15px; color: var(--ink-3); pointer-events: none; }
+.sheet-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.link-btn { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 750; color: var(--c-todo); cursor: pointer; padding: 2px 4px; text-decoration: underline; text-underline-offset: 2px; }
+.sheet-info { font-size: 12.5px; color: var(--ink-2); margin: 8px 0 0; }
+.muted.grow { flex: 1; align-self: center; }
+.flag-field { margin-top: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.55); box-shadow: inset 0 0 0 0.5px rgba(20, 28, 48, 0.06); }
+.flag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.flag-btn { height: 30px; border: 0; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; background: rgba(20, 28, 48, 0.05); color: var(--ink-2); }
+.flag-btn.editing { box-shadow: inset 0 0 0 1.5px var(--c-todo); }
+.flag-btn.on.f-wait { background: var(--c-todo); color: #fff; }
+.flag-btn.on.f-help { background: var(--c-danger); color: #fff; }
+.flag-btn.on.f-late { background: var(--c-doing); color: #fff; }
+.flag-form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.flag-form input { flex: 1; min-width: 160px; height: 36px; border: 0; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 14px; background: #fff; box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.12); }
+.who-row { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.who { height: 30px; border: 0; border-radius: 15px; padding: 0 12px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; background: rgba(20, 28, 48, 0.05); color: var(--ink-2); }
+.who.on { background: var(--c-todo); color: #fff; }
+
+/* 分解の確認画面 */
+.draft { margin-top: 14px; padding: 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.6); box-shadow: inset 0 0 0 1.5px rgba(166, 91, 255, 0.35); }
+.draft-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.draft-guide { font-size: 12px; color: #6d5bd0; margin: 6px 0 8px; }
+.draft ul { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.draft li { display: flex; align-items: center; gap: 6px; }
+.draft-no { width: 18px; font-size: 12px; font-weight: 800; color: var(--ink-3); text-align: center; flex: none; }
+.draft input { flex: 1; min-width: 0; height: 38px; border: 0; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 14.5px; background: #fff; box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.12); }
+.draft-del { flex: none; width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(255, 77, 106, 0.1); color: var(--c-danger); font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+
+/* ---------- 説明・依頼のダイアログ ---------- */
+.scrim.top { z-index: 80; }
+.guide {
+  position: fixed; z-index: 90; inset: 0; margin: auto; height: fit-content;
+  width: min(420px, calc(100vw - 32px)); max-height: 86dvh; overflow-y: auto; border-radius: 26px; padding: 20px;
+  --glass: linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.9));
+}
+.guide h2 { margin: 0 0 6px; font-size: 18px; }
+.guide h3 { margin: 14px 0 4px; font-size: 14px; }
+.guide p, .guide li { font-size: 13px; line-height: 1.6; color: var(--ink-2); margin: 0; }
+.guide ul { margin: 0; padding-left: 18px; }
+.guide > .pill-btn { width: 100%; margin-top: 16px; }
+.guide-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; }
+.guide-table th, .guide-table td { padding: 8px 6px; border-bottom: 1px solid rgba(20, 28, 48, 0.06); text-align: left; }
+.guide-table th { width: 36px; font-weight: 800; }
+.guide-table th.w-L { color: #b45309; }
+.guide-xp { text-align: right !important; font-weight: 800; white-space: nowrap; }
+.request-form { display: flex; flex-direction: column; gap: 8px; }
+.request-form .field-label { font-size: 12px; font-weight: 750; color: var(--ink-2); margin-top: 4px; }
+.request-form input:not([type='date']), .request-form textarea, .request-form select {
+  width: 100%; border: 0; border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 15px; background: #fff; box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.12); color: var(--ink); resize: vertical;
+}
+.request-form input[type='date'] { height: 36px; border: 0; border-radius: 10px; padding: 0 8px; font: inherit; font-size: 14px; background: #fff; box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.12); }
+.request-form .sheet-actions { margin-top: 6px; }
+.request-btn { width: 100%; margin: -2px 0 12px; }
+.ps-parent { width: 100%; font-size: 11px; font-weight: 700; color: var(--ink-3); }
+
+/* ---------- 履歴 ---------- */
+.history { max-height: 90dvh; }
+.sheet-h { margin: 0 0 10px; font-size: 18px; }
+.preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset { height: 32px; border: 0; border-radius: 16px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; background: rgba(20, 28, 48, 0.05); color: var(--ink-2); }
+.preset.on { background: var(--c-todo); color: #fff; }
+.range-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.range-row input[type='date'] { height: 36px; border: 0; border-radius: 10px; padding: 0 8px; font: inherit; font-size: 14px; background: #fff; box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.12); color: var(--ink); }
+.history-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 12px 0 8px; }
+.history-bar .muted { flex: 1; font-size: 13px; }
+.report-btn { width: 100%; }
+.report { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.report textarea { width: 100%; border: 0; border-radius: 14px; padding: 12px; font: inherit; font-size: 13.5px; line-height: 1.6; background: #fff !important; box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.12); resize: vertical; }
+.history-day { margin-top: 14px; }
+.history-day h3 { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: var(--ink-2); }
+.history-day h3 span { color: var(--ink-3); font-weight: 700; }
+.history-day ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.history-day li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.6); font-size: 14px; }
+.history-day time { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; flex: none; }
+.history-title { flex: 1; min-width: 0; }
+.history-title small { color: var(--ink-3); font-size: 11.5px; }
+
+/* ---------- みんな: お知らせ・要対応・依頼 ---------- */
+.notices ul, .attention ul, .requests ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.notices li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 8px; border-radius: 12px; }
+.notices li.unread { background: rgba(111, 124, 255, 0.1); font-weight: 650; }
+.notices .feed-text { white-space: normal; }
+.notices time { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+.att-item, .req-item {
+  width: 100%; display: flex; align-items: flex-start; gap: 10px; text-align: left; border: 0; font: inherit; color: inherit; cursor: pointer;
+  padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.6);
+}
+.att-item.r-help { box-shadow: inset 3px 0 0 var(--c-danger); }
+.att-item.r-wait { box-shadow: inset 3px 0 0 var(--c-todo); }
+.att-item.r-late, .att-item.r-over { box-shadow: inset 3px 0 0 var(--c-doing); }
+.att-item.mine { background: rgba(111, 124, 255, 0.1); }
+.att-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.att-top { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.att-reason { font-weight: 800; }
+.att-reason.r-help { color: var(--c-danger); }
+.att-reason.r-wait { color: var(--c-todo); }
+.att-reason.r-late, .att-reason.r-over { color: #b45309; }
+.att-title { font-size: 14px; font-weight: 650; word-break: break-word; }
+.att-note { font-size: 12px; color: var(--ink-2); word-break: break-word; }
+.req-status { flex: none; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 8px; margin-top: 1px; color: #fff; }
+.req-status.t-todo { background: var(--c-todo); }
+.req-status.t-doing { background: var(--c-doing); }
+.req-status.t-done { background: var(--c-done); }
+.req-item.s-done .att-title { color: var(--ink-2); text-decoration: line-through; }
+.requests .feed-tabs { margin-bottom: 10px; }
+
+/* 最近の動き: 日付の区切り・人で絞り込み・もっと見る */
+.feed-who { margin: 8px 0 2px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+.feed-who .who { flex: none; height: 28px; font-size: 12px; }
+.feed li.feed-day { font-size: 11.5px; font-weight: 800; color: var(--ink-3); margin-top: 4px; }
+.feed-av { border: 0; background: none; padding: 0; cursor: pointer; display: grid; }
+.feed-mark.t-flag { color: var(--c-danger); }
+.feed-mark.t-request { font-size: 11px; }
+.more-btn { display: block; width: 100%; margin-top: 10px; height: 38px; border: 0; border-radius: 12px; background: rgba(20, 28, 48, 0.05); font: inherit; font-size: 13px; font-weight: 750; color: var(--ink-2); cursor: pointer; }
+
+/* ---------- スキン選択 ---------- */
+.skin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+.skin { border: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 16px; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; background: rgba(255, 255, 255, 0.6); }
+.skin.on { box-shadow: inset 0 0 0 2px var(--c-todo); background: #fff; cursor: default; }
+.skin:disabled { opacity: 1; }
+.skin.locked { opacity: 0.55; cursor: default; }
+.skin-lock { width: 44px; height: 44px; display: grid; place-items: center; font-size: 20px; border-radius: 50%; background: rgba(20, 28, 48, 0.06); }
+.skin-name { font-size: 10.5px; font-weight: 700; text-align: center; line-height: 1.25; }
+
+/* ---------- レアアイテムの演出 ---------- */
+.chest-shake.ssr { animation-duration: 0.28s; filter: drop-shadow(0 0 26px #f0a400) drop-shadow(0 0 6px #fff); }
+.reveal-card.rare { padding-top: 44px; }
+.reveal-card.r-SR .rays { opacity: 0.35; animation-duration: 5s; }
+.reveal-card.r-SSR .rays { opacity: 0.5; animation-duration: 3s; }
+.reveal-card.r-SSR { box-shadow: var(--glass-edge), 0 0 0 3px var(--rc), 0 0 60px 6px rgba(240, 164, 0, 0.55); animation: pop-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4), ssr-glow 1.6s ease-in-out 0.4s infinite; }
+.reveal-card.r-SR { animation: pop-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4), sr-glow 1.8s ease-in-out 0.4s infinite; }
+@keyframes ssr-glow { 50% { box-shadow: var(--glass-edge), 0 0 0 3px var(--rc), 0 0 90px 16px rgba(240, 164, 0, 0.7); } }
+@keyframes sr-glow { 50% { box-shadow: var(--glass-edge), 0 0 0 3px var(--rc), 0 0 50px 8px rgba(166, 91, 255, 0.5); } }
+.rare-flash { position: fixed; inset: 0; z-index: 100; pointer-events: none; animation: rare-flash 0.7s ease-out forwards; }
+.rare-flash.f-SSR { background: radial-gradient(circle, #fff 0%, #ffe08a 45%, rgba(240, 164, 0, 0.4) 100%); }
+.rare-flash.f-SR { background: radial-gradient(circle, #fff 0%, rgba(166, 91, 255, 0.35) 100%); animation-duration: 0.5s; }
+@keyframes rare-flash { from { opacity: 1; } to { opacity: 0; } }
+.rare-stamp {
+  position: absolute; left: 50%; top: 6px; transform: translateX(-50%) rotate(-6deg); z-index: 2;
+  font-size: 30px; font-weight: 900; letter-spacing: 0.06em; color: var(--rc); white-space: nowrap;
+  text-shadow: 0 2px 0 #fff, 0 0 14px rgba(255, 255, 255, 0.9);
+  animation: stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.6) 0.15s both;
+}
+.reveal-card.r-SSR .rare-stamp { font-size: 38px; }
+@keyframes stamp { from { transform: translateX(-50%) rotate(-6deg) scale(2.4); opacity: 0; } }
+.confetti.burst { z-index: 3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rare-flash, .rare-stamp, .reveal-card.rare { animation: none !important; }
+}

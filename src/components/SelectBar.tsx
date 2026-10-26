@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import type { Status } from '../../shared/types'
 import { STATUS_LABEL } from '../api'
-import { TrashIcon, XIcon } from './icons'
+import { CheckIcon, TrashIcon, XIcon } from './icons'
 
 const ORDER: Status[] = ['todo', 'doing', 'done']
 
@@ -14,10 +14,13 @@ interface Props {
   onCancel: () => void
   onMove: (dir: 1 | -1) => void
   onDelete: () => void
+  /** どのステータスからでもまとめて完了 */
+  onDone: () => void
+  canDone: boolean
 }
 
 /** 選択モード中、下のタブの代わりに出す操作バー */
-export function SelectBar({ count, total, status, onAll, onCancel, onMove, onDelete }: Props) {
+export function SelectBar({ count, total, status, onAll, onCancel, onMove, onDelete, onDone, canDone }: Props) {
   const i = status ? ORDER.indexOf(status) : -1
   const prev = status === null ? '前へ' : i > 0 ? `${STATUS_LABEL[ORDER[i - 1]]}へ` : null
   const next = status === null ? '次へ' : i < ORDER.length - 1 ? `${STATUS_LABEL[ORDER[i + 1]]}へ` : null
@@ -46,9 +49,14 @@ export function SelectBar({ count, total, status, onAll, onCancel, onMove, onDel
             ← {prev}
           </button>
         )}
-        {next && (
-          <button className="sb-btn primary" disabled={!count} onClick={() => onMove(1)} data-testid="bulk-next">
+        {next && next !== '完了へ' && (
+          <button className="sb-btn" disabled={!count} onClick={() => onMove(1)} data-testid="bulk-next">
             {next} →
+          </button>
+        )}
+        {status !== 'done' && (
+          <button className="sb-btn primary done" disabled={!count || !canDone} onClick={onDone} data-testid="bulk-done">
+            <CheckIcon /> 完了
           </button>
         )}
         <button className="sb-btn danger" disabled={!count} onClick={onDelete} aria-label="削除" data-testid="bulk-delete">

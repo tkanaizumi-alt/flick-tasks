@@ -62,6 +62,7 @@ export interface PlayerState {
   jobs: JobProgress[] // 選べる職業 (未解放の上位職は含まない)
   secretSkills: SecretSkillView[] // 解放済みの隠しスキル (条件を満たしたものだけ)
   bonus: Bonus // 習得済みの隠しスキルの効果の合計
+  skin?: string | null // 見た目 (null = Google の写真)
 }
 
 /** 隠しスキルの効果。中身 (名前・条件) はサーバーだけが知っていて、フロントには数値だけが届く */
@@ -393,6 +394,21 @@ export const bossGold = (stage: number) => 40 + stage * 20
 // ---------- 経験値・ゴールド ----------
 export const WEIGHT_XP: Record<Weight, number> = { S: 10, M: 20, L: 40 }
 export const WEIGHT_LABEL: Record<Weight, string> = { S: '小', M: '中', L: '大' }
+/** AI が作業量を判定するときの基準 (説明画面にもそのまま出す) */
+export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程' }
+
+/** 分解は 1 回 (1 段) まで、子タスクは合計この数まで */
+export const BREAKDOWN_MAX = 7
+/** 分解した子タスク 1 件の XP。元タスクの XP を子タスクの数で分け合う (細かくしても合計は増えない) */
+export const childXp = (parentWeight: Weight | null, siblings: number) =>
+  Math.max(2, Math.round(WEIGHT_XP[parentWeight ?? 'M'] / Math.max(1, siblings)))
+
+/** タスク 1 件の基本 XP の見込み (ボーナス抜き)。表示用 */
+export function baseXp(t: { weight?: Weight | null; parent?: { weight: Weight | null; siblings: number } | null; children?: { total: number } | null }) {
+  if (t.children?.total) return 0
+  if (t.parent) return childXp(t.parent.weight, t.parent.siblings)
+  return WEIGHT_XP[t.weight ?? 'M']
+}
 
 const JST = 9 * 60 * 60 * 1000
 const DAY = 86400000
@@ -400,13 +416,19 @@ const DAY = 86400000
 export const jstDayStart = (t: number) => Math.floor((t + JST) / DAY) * DAY - JST
 const jstHour = (t: number) => new Date(t + JST).getUTCHours()
 
-/** 完了タスクを残す日数 */
+/** 完了タスクをボードに残す日数 (過ぎたら履歴へ) */
 export const DONE_KEEP_DAYS = 7
+/** 完了タスクの履歴を残す日数 */
+export const HISTORY_KEEP_DAYS = 400
+/** 最近の動きを残す日数 */
+export const ACTIVITY_KEEP_DAYS = 90
 export const doneDaysLeft = (doneAt: number, now = Date.now()) =>
   Math.max(0, DONE_KEEP_DAYS - Math.floor((now - doneAt) / DAY))
 
 export interface XpInput {
   weight: Weight | null
+  /** 基本 XP の上書き (分解した子タスク)。0 なら分解済みの元タスクで XP なし */
+  base?: number
   createdAt: number
   now: number
   doneToday: number // この完了より前に今日完了した件数
@@ -421,7 +443,9 @@ export function computeXp(x: XpInput) {
   const bonuses: string[] = []
   const fx = x.effects ?? []
   const has = (id: string) => x.skills.includes(id)
-  let amount = WEIGHT_XP[x.weight ?? 'M']
+  if (x.base === 0) return { amount: 0, gold: 0, bonuses: ['分解済み: XPは子タスクへ'] }
+  let amount = x.base ?? WEIGHT_XP[x.weight ?? 'M']
+  if (x.base !== undefined) bonuses.push('分解: XPを分配')
   // 作ってすぐ完了したものは大きく減らす (稼ぎ防止)
   if (x.now - x.createdAt < 2 * 60 * 1000) {
     amount = Math.max(1, Math.round(amount * 0.25))
@@ -607,3 +631,32 @@ export function daysUntilDue(due: string, now = Date.now()) {
 export function jstToday(now = Date.now()) {
   return new Date(jstDayStart(now) + JST).toISOString().slice(0, 10)
 }
+
+// ---------- スキン ----------
+export interface SkinDef {
+  id: string
+  name: string
+  emoji: string
+  /** 背景のグラデーション */
+  bg: string
+  level?: number
+  stage?: number
+}
+export const SKINS: SkinDef[] = [
+  { id: 'cat', name: 'ねこ', emoji: '🐱', bg: 'linear-gradient(135deg,#ffe0b2,#ffb74d)', level: 2 },
+  { id: 'dog', name: 'いぬ', emoji: '🐶', bg: 'linear-gradient(135deg,#ffecd2,#fcb69f)', level: 3 },
+  { id: 'frog', name: 'かえる', emoji: '🐸', bg: 'linear-gradient(135deg,#d4fc79,#96e6a1)', stage: 3 },
+  { id: 'fox', name: 'きつね', emoji: '🦊', bg: 'linear-gradient(135deg,#ffd194,#ff8a5c)', level: 5 },
+  { id: 'panda', name: 'パンダ', emoji: '🐼', bg: 'linear-gradient(135deg,#f5f7fa,#c3cfe2)', stage: 6 },
+  { id: 'penguin', name: 'ペンギン', emoji: '🐧', bg: 'linear-gradient(135deg,#a1c4fd,#c2e9fb)', level: 8 },
+  { id: 'lion', name: 'ライオン', emoji: '🦁', bg: 'linear-gradient(135deg,#f6d365,#fda085)', stage: 10 },
+  { id: 'robot', name: 'ロボ', emoji: '🤖', bg: 'linear-gradient(135deg,#cfd9df,#a3bded)', level: 12 },
+  { id: 'wizard', name: 'まほうつかい', emoji: '🧙', bg: 'linear-gradient(135deg,#c471f5,#fa71cd)', level: 15 },
+  { id: 'ninja', name: 'にんじゃ', emoji: '🥷', bg: 'linear-gradient(135deg,#434343,#7a7a7a)', stage: 15 },
+  { id: 'unicorn', name: 'ユニコーン', emoji: '🦄', bg: 'linear-gradient(135deg,#fbc2eb,#a6c1ee)', level: 20 },
+  { id: 'dragon', name: 'ドラゴン', emoji: '🐉', bg: 'linear-gradient(135deg,#43e97b,#38f9d7)', stage: 20 },
+  { id: 'king', name: 'おうさま', emoji: '🤴', bg: 'linear-gradient(135deg,#f7b733,#fc4a1a)', stage: 30 },
+]
+export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((s) => [s.id, s]))
+export const skinUnlocked = (s: SkinDef, level: number, stage: number) => (s.level ?? 0) <= level && (s.stage ?? 0) <= stage
+export const skinCondition = (s: SkinDef) => [s.level && `Lv${s.level}`, s.stage && `ステージ${s.stage}到達`].filter(Boolean).join('・')

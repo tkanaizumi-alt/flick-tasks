@@ -1,3 +1,4 @@
+import { san } from '../../shared/types'
 import { jstToday } from '../../shared/game'
 
 interface Props {
@@ -36,7 +37,7 @@ export function DueField({ due, dueBy, onChange, disabled, compact }: Props) {
           解除
         </button>
       )}
-      {due && dueBy && <span className="due-by">{dueBy}さんが設定</span>}
+      {due && dueBy && <span className="due-by">{san(dueBy)}が設定</span>}
     </div>
   )
 }

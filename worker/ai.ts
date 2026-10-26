@@ -18,8 +18,10 @@ const PROMPTS = {
 - 重複や雑談は除く
 - タスクが1つならそれ1つだけ返す
 JSON {"tasks": string[]} のみを返してください。`,
-  breakdown: `あなたはタスク分解アシスタントです。与えられたタスクを、すぐ着手できる具体的なサブタスク3〜6個に分解してください。
+  breakdown: `あなたはタスク分解アシスタントです。与えられたタスク(1行目が件名、2行目以降が詳細)を、すぐ着手できる具体的なサブタスク3〜7個に分解してください。
+- 1件は「15分〜半日で終わり、終わったと報告できる単位」にする。細かくしすぎない
 - 各サブタスクは日本語で簡潔に(40文字以内)、動詞で終える
+- 何の作業か単体で分かるよう、元タスクの対象(案件名・相手・資料名など)を入れる
 - 実行する順番に並べる
 JSON {"tasks": string[]} のみを返してください。`,
 } as const
@@ -77,4 +79,35 @@ export async function aiTasks(env: Env, kind: keyof typeof PROMPTS, input: strin
     console.error('primary model failed', e)
   }
   return run(env, FALLBACK_MODEL, kind, input)
+}
+
+const REPORT_PROMPT = `あなたは日報・月次報告の作成アシスタントです。ユーザーが期間内に完了したタスクの一覧(日付つき)から、上司に提出できる報告文を日本語で作ってください。
+- 1行目に「【期間】」を書く
+- 「主な成果」を3〜6個の箇条書き(「・」始まり)で、関連するタスクはまとめる
+- 「件数」として完了件数を書く
+- 最後に「所感」を1〜2文(事実から言える範囲で。誇張しない)
+- 見出しは【】で囲む。Markdown 記号(#, *)は使わない`
+
+/** 完了タスクの一覧から日報・月次報告の下書きを作る */
+export async function aiReport(env: Env, period: string, lines: string[]): Promise<string> {
+  const input = `期間: ${period}\n完了タスク(${lines.length}件):\n${lines.join('\n')}`.slice(0, 6000)
+  const call = async (model: string, extra: object = {}) => {
+    const res = await env.AI.run(model as any, {
+      messages: [
+        { role: 'system', content: REPORT_PROMPT },
+        { role: 'user', content: input },
+      ],
+      max_tokens: 900,
+      temperature: 0.3,
+      ...extra,
+    } as any)
+    return extractText(res).trim()
+  }
+  try {
+    const text = await call(MODEL, { chat_template_kwargs: { enable_thinking: false } })
+    if (text) return text
+  } catch (e) {
+    console.error('report primary failed', e)
+  }
+  return call(FALLBACK_MODEL)
 }

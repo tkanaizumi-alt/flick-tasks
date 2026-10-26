@@ -2,6 +2,20 @@ export type Status = 'todo' | 'doing' | 'done'
 
 export const STATUSES: Status[] = ['todo', 'doing', 'done']
 
+/** 状況フラグ: 確認待ち / 困っている / 遅れそう */
+export type Flag = 'wait' | 'help' | 'late'
+
+export const FLAGS: Record<Flag, { label: string; icon: string }> = {
+  wait: { label: '確認待ち', icon: '⏳' },
+  help: { label: '困っている', icon: '🆘' },
+  late: { label: '遅れそう', icon: '⚠️' },
+}
+
+export interface Ref {
+  id: string
+  name: string
+}
+
 export interface Task {
   id: string
   title: string
@@ -17,7 +31,19 @@ export interface Task {
   /** 期限 (YYYY-MM-DD) */
   due?: string | null
   /** 期限を設定した人 (本人以外のときに表示) */
-  dueBy?: { id: string; name: string } | null
+  dueBy?: Ref | null
+  /** 分解元のタスク */
+  parent?: { id: string; title: string; weight: 'S' | 'M' | 'L' | null; siblings: number } | null
+  /** 分解した子タスクの数 / そのうち完了した数 */
+  children?: { total: number; done: number } | null
+  /** 状況フラグ (確認待ちなら待っている相手も) */
+  flag?: { kind: Flag; note: string; to: Ref | null; at: number } | null
+  /** このタスクを依頼した人 */
+  requestedBy?: Ref | null
+  /** 依頼した人側の後続タスク */
+  follow?: { id: string; title: string } | null
+  /** このタスクの前に待っている依頼 (自分が出した依頼) */
+  waitingOn?: { id: string; title: string; status: Status; owner: Ref } | null
 }
 
 export interface User {
@@ -34,6 +60,7 @@ export interface Person {
   id: string
   name: string
   picture: string
+  skin?: string | null
   xp: number
   stage: number
   jobName: string
@@ -46,12 +73,44 @@ export interface Person {
   isMe: boolean
 }
 
+export type ActivityKind = 'todo' | 'doing' | 'done' | 'flag' | 'request' | 'levelup' | 'boss' | 'item' | 'job' | 'skill'
+
 export interface Activity {
   id: number
   userId: string
   name: string
   picture: string
-  kind: 'todo' | 'doing' | 'done' | 'levelup' | 'boss' | 'item' | 'job' | 'skill'
+  skin?: string | null
+  kind: ActivityKind
   text: string
   createdAt: number
 }
+
+/** 要対応: フラグ付き・期限切れ・依頼中のタスク */
+export interface AttentionItem {
+  task: Task
+  owner: Ref & { picture: string; skin?: string | null }
+  reason: 'wait' | 'help' | 'late' | 'over'
+  /** 自分宛て (自分の確認待ち / 自分への依頼) */
+  mine: boolean
+}
+
+export interface Notice {
+  id: number
+  kind: 'request' | 'request_done' | 'request_deleted' | 'wait' | 'help'
+  text: string
+  taskId: string | null
+  actor: Ref & { picture: string; skin?: string | null }
+  createdAt: number
+  read: boolean
+}
+
+/** 依頼の一覧 (出した / 受けた) */
+export interface RequestItem {
+  task: Task
+  owner: Ref
+  requester: Ref
+}
+
+/** 「○○さん」(名前がすでに さん・様 などで終わっていれば付けない) */
+export const san = (name: string) => (/(さん|様|さま|くん|ちゃん)$/.test(name) ? name : `${name}さん`)

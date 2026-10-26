@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { STATUSES, type Status, type Task, type User } from '../shared/types'
+import { STATUSES, type Flag, type Status, type Task, type User } from '../shared/types'
 import { spInfo, type PlayerState } from '../shared/game'
 import { api, HttpError, pending, STATUS_LABEL, type PendingMemo, type XpChange } from './api'
 import { Background } from './components/Background'
@@ -14,6 +14,7 @@ import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
 import { LevelUp, XpPops, type Celebration, type XpPopData } from './components/Rewards'
 import { CheckCircleIcon, CircleIcon, PlayIcon } from './components/icons'
+import { History } from './components/History'
 import { People } from './views/People'
 import { Adventure } from './views/Adventure'
 
@@ -23,6 +24,8 @@ type Phase = 'loading' | 'guest' | 'ready'
 const CACHE_KEY = 'flick.cache'
 const TAB_KEY = 'flick.tab'
 const VIEW_KEY = 'flick.view'
+const HINT_KEY = 'flick.hint.select'
+const NOTICE_POLL_MS = 60_000
 const ORDER: Status[] = ['todo', 'doing', 'done']
 const EMPTY_ICON = { todo: CircleIcon, doing: PlayIcon, done: CheckCircleIcon }
 
@@ -78,6 +81,10 @@ export function App() {
   const [levelUp, setLevelUp] = useState<Celebration | null>(null)
   const [selected, setSelected] = useState<Set<string> | null>(null) // null = 選択モードでない
   const [query, setQuery] = useState<string | null>(null) // null = 検索を閉じている
+  const [unread, setUnread] = useState(0)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [hint, setHint] = useState(() => !store.get<boolean>(HINT_KEY, false))
+  const unreadRef = useRef(0)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const tabRef = useRef(tab)
@@ -103,7 +110,7 @@ export function App() {
     document.body.dataset.view = phase === 'ready' ? view : 'me'
   }, [view, phase])
 
-  const showToast = useCallback((text: string, undo?: () => void) => setToastState({ id: Date.now(), text, undo }), [])
+  const showToast = useCallback((text: string, undo?: () => void, action?: string) => setToastState({ id: Date.now(), text, undo, action }), [])
   const clearToast = useCallback(() => setToastState(null), [])
 
   const upsert = useCallback((list: UITask[]) => {
@@ -251,6 +258,19 @@ export function App() {
         const { task: saved, xp } = await api.update(task.id, patch)
         upsert([saved])
         onXp(xp)
+        // 子タスクを動かしたら元タスクの進み具合 (3/5 など) を取り直し、全部終わったら元タスクの完了を提案
+        if (saved.parent && patch.status) {
+          const pid = saved.parent.id
+          const { tasks: all } = await api.list()
+          upsert(all.filter((t) => t.id === pid || t.parent?.id === pid))
+          const parent = all.find((t) => t.id === pid)
+          if (patch.status === 'done' && parent && parent.status !== 'done' && parent.children && parent.children.done === parent.children.total) {
+            setTimeout(
+              () => showToast(`子タスクがすべて完了。「${parent.title}」も完了にしますか？`, () => patchRef.current(parent, { status: 'done', position: Date.now() }), '完了にする'),
+              900,
+            )
+          }
+        }
       } catch {
         upsert([task])
         showToast('保存できませんでした')
@@ -258,6 +278,8 @@ export function App() {
     },
     [onXp, showToast, upsert],
   )
+  const patchRef = useRef(patchTask)
+  patchRef.current = patchTask
 
   const deleteTask = useCallback(
     async (task: UITask) => {
@@ -299,34 +321,76 @@ export function App() {
     [deleteTask, patchTask, showToast],
   )
 
-  const onBreakdown = useCallback(
-    async (task: UITask, title: string, note: string) => {
-      // シートは分解後に閉じるので、編集中のタイトル・詳細を先に保存しておく
+  /** 確認画面で編集した分解案を、元タスクにつながった子タスクとして追加 */
+  const onAddChildren = useCallback(
+    async (task: UITask, titles: string[], title: string, note: string) => {
+      // シートは追加後に閉じるので、編集中のタイトル・詳細を先に保存しておく
       const patch: Partial<Pick<Task, 'title' | 'note'>> = {}
       if (title && title !== task.title) patch.title = title
       if (note !== task.note) patch.note = note
-      if (Object.keys(patch).length) patchTask(task, patch)
+      if (Object.keys(patch).length) await patchTask(task, patch)
       try {
-        const { tasks: titles } = await api.ai('breakdown', note ? `${title}\n${note}` : title)
-        if (!titles.length) throw new Error('empty')
         const base = Date.now()
         const { tasks: created } = await api.create(
-          titles.map((t, i) => ({ id: crypto.randomUUID(), title: t, status: 'todo' as Status, position: base - i })),
+          titles.map((t, i) => ({ id: crypto.randomUUID(), title: t, status: 'todo' as Status, position: base - i, parentId: task.id })),
           'ai',
         )
         setOpenId(null)
         if (tabRef.current !== 'todo') setTab('todo')
         created.forEach((t, i) => setTimeout(() => upsert([t]), 200 + i * 70))
+        api.list().then((r) => upsert(r.tasks.filter((t) => t.id === task.id)), () => {})
         showToast(`${created.length}件に分解`)
-      } catch {
-        showToast('AIを利用できませんでした')
+      } catch (e) {
+        showToast(e instanceof HttpError && e.reason ? e.reason : '追加できませんでした')
       }
     },
     [patchTask, setTab, showToast, upsert],
   )
 
+  const onFlag = useCallback(
+    async (task: UITask, flag: Flag | null, note = '', to: string | null = null) => {
+      try {
+        const { task: saved } = await api.setFlag(task.id, flag, note, to)
+        upsert([saved])
+        showToast(flag ? '状況を共有しました' : '状況を解除しました')
+      } catch {
+        showToast('保存できませんでした')
+      }
+    },
+    [showToast, upsert],
+  )
+
+  // --- 通知: 自分宛ての未読を定期的に確認し、増えたら知らせる ---
+  const checkNotices = useCallback(async () => {
+    if (phaseRef.current !== 'ready') return
+    try {
+      const { notices, unread: n } = await api.notices()
+      if (n > unreadRef.current && notices[0] && !notices[0].read && viewRef.current !== 'people') {
+        showToast(notices[0].text)
+        // 依頼の完了などで自分のタスクの表示 (待ち → 完了) も変わる
+        api.list().then((r) => upsert(r.tasks), () => {})
+      }
+      unreadRef.current = n
+      setUnread(n)
+    } catch {}
+  }, [showToast, upsert])
+
+  useEffect(() => {
+    if (phase !== 'ready') return
+    checkNotices()
+    const t = setInterval(() => document.visibilityState === 'visible' && checkNotices(), NOTICE_POLL_MS)
+    const onVis = () => document.visibilityState === 'visible' && checkNotices()
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [phase, checkNotices])
+
   // --- 選択モード (長押し or 選択ボタン) ---
   const onSelect = useCallback((task: UITask) => {
+    setHint(false)
+    store.set(HINT_KEY, true)
     setSelected((prev) => {
       const next = new Set(prev ?? [])
       if (next.has(task.id)) next.delete(task.id)
@@ -383,6 +447,37 @@ export function App() {
       } catch {
         upsert(moved)
         showToast('移動できませんでした')
+      }
+    },
+    [onXp, showToast, upsert],
+  )
+
+  /** 選択したものをまとめて完了に (どのステータスからでも) */
+  const bulkDone = useCallback(
+    async (list: UITask[]) => {
+      const targets = list.filter((t) => t.status !== 'done')
+      if (!targets.length) return
+      const now = Date.now()
+      upsert(targets.map((t, i) => ({ ...t, status: 'done' as Status, position: now - i })))
+      setSelected(null)
+      try {
+        const r = await api.bulk(
+          targets.map((t) => t.id),
+          { status: 'done' },
+        )
+        if (r.tasks) upsert(r.tasks)
+        onXp(r.xp ?? null)
+        showToast(`${targets.length}件を完了しました`, async () => {
+          upsert(targets)
+          for (const st of ['todo', 'doing'] as Status[]) {
+            const ts = targets.filter((t) => t.status === st)
+            if (ts.length) onXp((await api.bulk(ts.map((t) => t.id), { status: st })).xp ?? null)
+          }
+        })
+        if (targets.some((t) => t.parent)) api.list().then((x) => upsert(x.tasks), () => {})
+      } catch {
+        upsert(targets)
+        showToast('完了にできませんでした')
       }
     },
     [onXp, showToast, upsert],
@@ -475,6 +570,20 @@ export function App() {
                       }}
                       onStartSelect={() => setSelected((s) => (s ? null : new Set()))}
                     />
+                    {hint && !selected && !q && visible.length > 1 && (
+                      <div className="hint-bar" data-testid="select-hint">
+                        <span>💡 カードを長押しすると複数選択して、まとめて完了・削除できます</span>
+                        <button
+                          onClick={() => {
+                            setHint(false)
+                            store.set(HINT_KEY, true)
+                          }}
+                          aria-label="閉じる"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
                     <section className="list-page">
                       <LayoutGroup>
                         <ul className="list" data-testid={`list-${tab}`}>
@@ -500,11 +609,35 @@ export function App() {
                           {q ? <span className="empty-text">見つかりません</span> : <EmptyIcon />}
                         </div>
                       )}
+                      {tab === 'done' && !q && (
+                        <button className="history-link" onClick={() => setHistoryOpen(true)} data-testid="history-open">
+                          📒 7日より前の完了・エクスポート・AI日報は「履歴」へ
+                        </button>
+                      )}
                     </section>
                   </>
                 )}
 
-                {view === 'people' && <People isAdmin={!!user?.isAdmin} toast={showToast} onMeRenamed={(name) => setUser((u) => (u ? { ...u, name } : u))} />}
+                {view === 'people' && (
+                  <People
+                    isAdmin={!!user?.isAdmin}
+                    toast={showToast}
+                    onMeRenamed={(name) => setUser((u) => (u ? { ...u, name } : u))}
+                    onNoticesRead={() => {
+                      unreadRef.current = 0
+                      setUnread(0)
+                    }}
+                    onOpenMine={(id) => {
+                      const t = tasks.find((x) => x.id === id)
+                      setView('me')
+                      if (t) {
+                        setTab(t.status)
+                        setOpenId(id)
+                      }
+                    }}
+                    onRequested={() => api.list().then((r) => upsert(r.tasks), () => {})}
+                  />
+                )}
 
                 {view === 'game' &&
                   (player ? (
@@ -525,9 +658,11 @@ export function App() {
                 onCancel={() => setSelected(null)}
                 onMove={(dir) => bulkMove(selectedTasks, dir)}
                 onDelete={() => bulkDelete(selectedTasks)}
+                onDone={() => bulkDone(selectedTasks)}
+                canDone={selectedTasks.some((t) => t.status !== 'done')}
               />
             ) : (
-              <Dock view={view} onChange={setView} user={user} onLogout={logout} badge={freeSp} />
+              <Dock view={view} onChange={setView} user={user} onLogout={logout} badge={freeSp} peopleBadge={unread} onHistory={() => setHistoryOpen(true)} />
             )}
 
             <AnimatePresence>
@@ -549,7 +684,9 @@ export function App() {
                     exitDir.delete(openTask.id)
                     deleteTask(openTask)
                   }}
-                  onBreakdown={(title, note) => onBreakdown(openTask, title, note)}
+                  onAddChildren={(titles, title, note) => onAddChildren(openTask, titles, title, note)}
+                  onFlag={(flag, note, to) => onFlag(openTask, flag, note, to)}
+                  toast={showToast}
                   onDue={async (due) => {
                     const prev = openTask
                     upsert([{ ...openTask, due, dueBy: null }])
@@ -564,6 +701,8 @@ export function App() {
                 />
               )}
             </AnimatePresence>
+
+            <AnimatePresence>{historyOpen && <History onClose={() => setHistoryOpen(false)} toast={showToast} />}</AnimatePresence>
 
             <AnimatePresence>
               {levelUp && (

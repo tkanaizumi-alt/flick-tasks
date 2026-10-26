@@ -1,4 +1,4 @@
-import type { Activity, Person, Status, Task, User } from '../shared/types'
+import type { Activity, AttentionItem, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
 import type { BattleResult, Item, MissionDef, PlayerState, StatKey } from '../shared/game'
 
 export interface XpChange {
@@ -36,7 +36,7 @@ async function req<T>(path: string, init?: RequestInit & { json?: unknown }): Pr
 export const api = {
   me: () => req<{ user: User }>('/api/me'),
   list: () => req<{ tasks: Task[] }>('/api/tasks'),
-  create: (tasks: Partial<Task>[], source: 'user' | 'ai' = 'user') =>
+  create: (tasks: (Partial<Task> & { parentId?: string })[], source: 'user' | 'ai' = 'user') =>
     req<{ tasks: Task[] }>('/api/tasks', { method: 'POST', json: { tasks, source } }),
   update: (id: string, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position'>>) =>
     req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}`, { method: 'PATCH', json: patch }),
@@ -64,19 +64,40 @@ export const api = {
     }),
   people: () => req<{ people: Person[] }>('/api/people'),
   person: (id: string) =>
-    req<{ person: Pick<Person, 'id' | 'name' | 'picture'>; player: PlayerState; tasks: Task[] }>(`/api/people/${id}`),
-  activity: (kind: Status = 'done') => req<{ activity: Activity[] }>(`/api/activity?kind=${kind}`),
+    req<{ person: Pick<Person, 'id' | 'name' | 'picture' | 'isMe'>; player: PlayerState; tasks: Task[] }>(`/api/people/${id}`),
+  activity: (kind: FeedKind, opts: { before?: number; user?: string } = {}) =>
+    req<{ activity: Activity[]; more: boolean; cursor: number | null }>(
+      `/api/activity?${new URLSearchParams({ kind, ...(opts.before ? { before: String(opts.before) } : {}), ...(opts.user ? { user: opts.user } : {}) })}`,
+    ),
+  /** AI の分解案 (追加はしない) */
+  breakdown: (id: string, title: string, note: string) =>
+    req<{ tasks: string[]; remaining: number }>(`/api/tasks/${id}/breakdown`, { method: 'POST', json: { title, note } }),
+  /** 状況フラグ (null で解除) */
+  setFlag: (id: string, flag: Flag | null, note = '', to: string | null = null) =>
+    req<{ task: Task }>(`/api/tasks/${id}/flag`, { method: 'PUT', json: { flag, note, to } }),
+  request: (body: { to: string; title: string; note?: string; due?: string | null; followId?: string | null }) =>
+    req<{ task: Task }>('/api/requests', { method: 'POST', json: body }),
+  requests: () => req<{ sent: RequestItem[]; received: RequestItem[] }>('/api/requests'),
+  attention: () => req<{ items: AttentionItem[] }>('/api/attention'),
+  notices: () => req<{ notices: Notice[]; unread: number }>('/api/notifications'),
+  readNotices: () => req<{ ok: true }>('/api/notifications/read', { method: 'POST', json: {} }),
+  history: (from: string, to: string) => req<{ tasks: Task[] }>(`/api/history?from=${from}&to=${to}`),
+  report: (from: string, to: string) => req<{ text: string }>('/api/history/report', { method: 'POST', json: { from, to } }),
+  setSkin: (skin: string | null) => req<{ player: PlayerState }>('/api/player/skin', { method: 'POST', json: { skin } }),
   /** 期限の設定 (自分・他の人のタスクどちらも可。null で解除) */
   setDue: (id: string, due: string | null) => req<{ task: Task }>(`/api/tasks/${id}/due`, { method: 'PUT', json: { due } }),
   // 管理者のみ
   renamePerson: (id: string, name: string) => req<{ name: string }>(`/api/admin/people/${id}/name`, { method: 'PATCH', json: { name } }),
   deleteActivity: (id: number) => req<{ ok: true }>(`/api/admin/activity/${id}`, { method: 'DELETE' }),
-  clearActivity: (kind: Status) => req<{ ok: true; deleted: number }>(`/api/admin/activity?kind=${kind}`, { method: 'DELETE' }),
+  clearActivity: (kind: FeedKind) => req<{ ok: true; deleted: number }>(`/api/admin/activity?kind=${kind}`, { method: 'DELETE' }),
   remove: (id: string) => req<{ ok: true }>(`/api/tasks/${id}`, { method: 'DELETE' }),
   ai: (kind: 'split' | 'breakdown', text: string) =>
     req<{ tasks: string[] }>(`/api/ai/${kind}`, { method: 'POST', json: { text } }),
   logout: () => req<{ ok: true }>('/auth/logout', { method: 'POST' }),
 }
+
+/** 最近の動きのタブ */
+export type FeedKind = 'all' | Status
 
 export type Mission = MissionDef & { value: number; done: boolean; claimed: boolean }
 
