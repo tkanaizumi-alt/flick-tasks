@@ -1,5 +1,6 @@
 /** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
 import { MAX_TURNS, type BattleResult, type Rarity } from './game'
+import type { AchievementStats } from './achievements'
 
 const DAY = 86400000
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10)
@@ -28,34 +29,49 @@ export function raidForWeek(monday: string, players: number) {
   return { ...b, hp: Math.max(1, players) * RAID_HP_PER_PLAYER }
 }
 
-// ---------- ペット (実績の数で仲間になる。連れているとXP・ゴールドに少しボーナス) ----------
+// ---------- ペット (実績の数や働き方で仲間になる。連れているとXP・ゴールドに少しボーナス) ----------
 export interface PetDef {
   id: string
   name: string
   emoji: string
-  need: number // 必要な実績の数
+  /** 仲間になる条件: 実績の数、または活動の記録 (大以上の完了・朝の完了・連続日数・手伝い・ステージ・特大) */
+  need: { stat: keyof AchievementStats | 'achievements'; goal: number; label: string }
   xp: number // タスク XP (加算倍率)
   gold: number // タスクのゴールド (加算倍率)
 }
+const ach = (goal: number) => ({ stat: 'achievements' as const, goal, label: `実績${goal}個` })
 export const PETS: PetDef[] = [
-  { id: 'chick', name: 'ぴよ', emoji: '🐣', need: 1, xp: 0.03, gold: 0 },
-  { id: 'kitten', name: 'にゃん', emoji: '🐈', need: 3, xp: 0, gold: 0.1 },
-  { id: 'puppy', name: 'わん', emoji: '🐕', need: 5, xp: 0.05, gold: 0 },
-  { id: 'owlet', name: 'ほっほ', emoji: '🦉', need: 8, xp: 0.05, gold: 0.05 },
-  { id: 'drake', name: 'こりゅう', emoji: '🐲', need: 12, xp: 0.08, gold: 0.05 },
-  { id: 'bird', name: 'ことり', emoji: '🐦', need: 16, xp: 0.1, gold: 0.1 },
+  { id: 'chick', name: 'ぴよ', emoji: '🐣', need: ach(1), xp: 0.03, gold: 0 },
+  { id: 'kitten', name: 'にゃん', emoji: '🐈', need: ach(3), xp: 0, gold: 0.1 },
+  { id: 'puppy', name: 'わん', emoji: '🐕', need: ach(5), xp: 0.05, gold: 0 },
+  { id: 'owlet', name: 'ほっほ', emoji: '🦉', need: ach(8), xp: 0.05, gold: 0.05 },
+  { id: 'drake', name: 'こりゅう', emoji: '🐲', need: ach(12), xp: 0.08, gold: 0.05 },
+  { id: 'bird', name: 'ことり', emoji: '🐦', need: ach(16), xp: 0.1, gold: 0.1 },
+  // 実績の数ではなく、働き方で仲間になる
+  { id: 'andre', name: 'アンドレ', emoji: '🦁', need: { stat: 'big', goal: 10, label: '「大」以上を10件完了' }, xp: 0.06, gold: 0 },
+  { id: 'mike', name: 'マイク', emoji: '🐒', need: { stat: 'early', goal: 10, label: '朝10時までに10件完了' }, xp: 0, gold: 0.08 },
+  { id: 'george', name: 'ジョージ', emoji: '🐢', need: { stat: 'bestStreak', goal: 7, label: '7日連続で完了' }, xp: 0.05, gold: 0.05 },
+  { id: 'emily', name: 'エミリー', emoji: '🦩', need: { stat: 'helps', goal: 10, label: '他の人のタスクを10回進める' }, xp: 0, gold: 0.1 },
+  { id: 'lucas', name: 'ルーカス', emoji: '🐺', need: { stat: 'cleared', goal: 15, label: 'ステージ15をクリア' }, xp: 0.08, gold: 0 },
+  { id: 'sophia', name: 'ソフィア', emoji: '🦋', need: { stat: 'xl', goal: 1, label: '「特大」を1件完了' }, xp: 0.05, gold: 0.05 },
 ]
 export const PET_MAP: Record<string, PetDef> = Object.fromEntries(PETS.map((p) => [p.id, p]))
+/** ペットが仲間になっているか (achievements = 取った実績の数) */
+export const petUnlocked = (p: PetDef, achievements: number, stats: AchievementStats | null) =>
+  p.need.stat === 'achievements' ? achievements >= p.need.goal : (stats?.[p.need.stat] ?? 0) >= p.need.goal
+/** 条件の進み具合 (表示用) */
+export const petProgress = (p: PetDef, achievements: number, stats: AchievementStats | null) =>
+  Math.min(p.need.goal, p.need.stat === 'achievements' ? achievements : (stats?.[p.need.stat] ?? 0))
 export const petEffect = (p: PetDef) => [p.xp && `XP+${Math.round(p.xp * 100)}%`, p.gold && `ゴールド+${Math.round(p.gold * 100)}%`].filter(Boolean).join('・')
 
 // ---------- ショップ ----------
 export const SHOP = [
   { id: 'boost', name: 'XP2倍チケット', desc: '次の3回の完了でXPが2倍', icon: '🎫', price: 200 },
-  { id: 'srchest', name: 'SR以上確定の宝箱', desc: 'SR 80% ・ SSR 20%', icon: '💎', price: 400 },
+  { id: 'srchest', name: 'SR以上確定の宝箱', desc: 'SR 78% ・ SSR 20% ・ UR 2%', icon: '💎', price: 400 },
 ] as const
 export type ShopId = (typeof SHOP)[number]['id']
 export const BOOST_COUNT = 3
-export const srChestRarity = (r: number): Rarity => (r < 0.2 ? 'SSR' : 'SR')
+export const srChestRarity = (r: number): Rarity => (r < 0.02 ? 'UR' : r < 0.22 ? 'SSR' : 'SR')
 
 // ---------- 装備の強化 (同じ部位・同じレア度の装備を 1 つ使って +1。最大 +5) ----------
 export const PLUS_MAX = 5

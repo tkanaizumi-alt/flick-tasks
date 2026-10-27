@@ -1,7 +1,7 @@
 import type { Env } from './env'
 import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
 import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
-import { doneDays, jstDayNo } from './achievements'
+import { achievementStats, doneDays, jstDayNo } from './achievements'
 import { ACHIEVEMENT_MAP, streakOf } from '../shared/achievements'
 import {
   BOOST_COUNT,
@@ -12,6 +12,7 @@ import {
   SHOP,
   activeEvent,
   hasEventSkin,
+  petUnlocked,
   plusUp,
   srChestRarity,
   type ShopId,
@@ -221,7 +222,8 @@ export async function setPet(db: D1Database, userId: string, pet: string | null)
   if (pet !== null) {
     const def = PET_MAP[pet]
     if (!def) return { error: '存在しないペット' }
-    if (achievementCount(p) < def.need) return { error: `実績を${def.need}個取ると仲間になります` }
+    const stats = def.need.stat === 'achievements' ? null : await achievementStats(db, userId)
+    if (!petUnlocked(def, achievementCount(p), stats)) return { error: `${def.need.label}で仲間になります` }
   }
   await db.prepare('UPDATE players SET pet = ?, updated_at = ? WHERE user_id = ?').bind(pet, Date.now(), userId).run()
   return { player: await getPlayer(db, userId) }
@@ -399,7 +401,7 @@ export const insertItemFor = (db: D1Database, userId: string, item: Omit<Item, '
 
 /** SR 以上を引いたらみんなの「最近の動き」に流す */
 const itemActivity = (db: D1Database, userId: string, item: Item) =>
-  item.rarity === 'SSR' || item.rarity === 'SR' ? [logActivity(db, userId, 'item', `${item.rarity} ${item.name}`)] : []
+  item.rarity === 'UR' || item.rarity === 'SSR' || item.rarity === 'SR' ? [logActivity(db, userId, 'item', `${item.rarity} ${item.name}`)] : []
 
 export async function ensureDaily(db: D1Database, userId: string, day: number) {
   await db.prepare('INSERT OR IGNORE INTO daily (user_id, day) VALUES (?, ?)').bind(userId, day).run()
@@ -569,11 +571,14 @@ export const notify = (db: D1Database, userId: string, actorId: string, kind: st
 // ---------- AI によるタスクの重さ判定 ----------
 const WEIGHT_PROMPT = `あなたは会社員のタスクの作業量を見積もる係です。各タスクを、完了までにかかる実際の作業量で 4 段階に分けてください。
 
-XL (特大): 案件・プロジェクトそのもの。制度や規程の見直し、補助金・助成金の申請、事業計画・採用計画などの計画づくり、システムの導入・移管・移行・刷新など。
-  複数の人・部署・社外とのやり取りがあり、完了まで数週間〜数か月かかる。件名が短くても案件全体を指していれば XL。
-  例: 「全社就業規則見直し」「省力化補助金」「CDO事業計画」「弥生販売システム移管」「人事評価制度の刷新」「IT導入補助金の申請」「新卒採用計画」
-L (大): 半日〜数日。1 人でまとまった時間をかけて作る成果物。
-  例: 「新人研修の資料作成」「取締役会の議案資料を作る」「四半期の売上分析レポート」
+XL (特大): 件名が「案件・プロジェクトの全体」を指すものだけ。めったに付けない (全体の 1 割未満)。
+  会社や部署全体に関わる制度・規程の見直し、補助金・助成金の案件全体、事業計画・採用計画づくり、システムの導入・移管・移行・刷新など、
+  完了まで数週間〜数か月かかり、多くの人・部署・社外とのやり取りがあるもの。
+  例: 「全社就業規則見直し」「省力化補助金」「CDO事業計画」「弥生販売システム移管」「人事評価制度の刷新」「新卒採用計画」
+  案件の中の 1 つの作業 (打ち合わせ・対応・提出・申請書の作成・準備・連絡など) は XL にしない。内容に応じて L か M にする。
+  締切付きの申請や提出、イベントの準備も XL ではなく L。迷ったら L にする。
+L (大): 半日〜数日。1 人でまとまった時間をかけて作る成果物や、大きめの準備・申請・提出。
+  例: 「新人研修の資料作成」「取締役会の議案資料を作る」「四半期の売上分析レポート」「助成金申請（12/15〆）」「補助金の事務局対応と打ち合わせ」「店舗の消防計画を提出する」
 M (中): 1〜2 時間。報告・見積書・議事録・打ち合わせの準備など、まとまった作業 1 つ。
   例: 「週次報告をまとめる」「見積書を作成する」「会議の議事録をまとめる」
 S (小): 15 分以内。連絡・予約・登録・コピー・回覧・確認など、すぐ終わる作業。

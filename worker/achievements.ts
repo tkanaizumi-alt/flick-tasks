@@ -46,7 +46,7 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
       .bind(userId),
     db.prepare('SELECT COUNT(*) AS n FROM helps WHERE user_id = ?').bind(userId),
     db.prepare('SELECT xp, stage FROM players WHERE user_id = ?').bind(userId),
-    db.prepare("SELECT COUNT(*) AS n FROM items WHERE user_id = ? AND rarity = 'SSR'").bind(userId),
+    db.prepare("SELECT COUNT(*) AS n FROM items WHERE user_id = ? AND rarity IN ('SSR', 'UR')").bind(userId),
   ])
   const a = agg.results[0] as any
   const p = (player.results[0] as any) ?? { xp: 0, stage: 1 }

@@ -5,7 +5,7 @@ export type StatKey = 'atk' | 'hp' | 'crit' | 'heal'
 export type Weight = 'S' | 'M' | 'L' | 'XL'
 export type Branch = 'warrior' | 'guardian' | 'sage'
 export type Slot = 'head' | 'body' | 'feet' | 'weapon'
-export type Rarity = 'N' | 'R' | 'SR' | 'SSR'
+export type Rarity = 'N' | 'R' | 'SR' | 'SSR' | 'UR'
 
 export interface Item {
   id: string
@@ -521,14 +521,18 @@ export const SLOTS: { key: Slot; label: string }[] = [
   { key: 'feet', label: '靴' },
   { key: 'weapon', label: '武器' },
 ]
-export const RARITY_SELL: Record<Rarity, number> = { N: 10, R: 25, SR: 60, SSR: 150 }
+/** レア度の高い順 (並び替え用) */
+export const RARITY_ORDER: Rarity[] = ['UR', 'SSR', 'SR', 'R', 'N']
+export const RARITY_SELL: Record<Rarity, number> = { N: 10, R: 25, SR: 60, SSR: 150, UR: 400 }
+/** 宝箱の出やすさ (累積): UR 0.5% ・ SSR 3% ・ SR 9% ・ R 18% ・ N 69.5% */
 export const RARITY_RATE: [Rarity, number][] = [
-  ['SSR', 0.03],
+  ['UR', 0.005],
+  ['SSR', 0.035],
   ['SR', 0.12],
   ['R', 0.3],
   ['N', 1],
 ]
-const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.6, SR: 2.4, SSR: 3.5 }
+const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.6, SR: 2.4, SSR: 3.5, UR: 4.8 }
 
 export const EFFECTS: Record<string, string> = {
   first: '先制: 1ターン目の攻撃×2',
@@ -556,24 +560,28 @@ const NAMES: Record<Slot, Record<Rarity, string[]>> = {
     R: ['鉄の兜', '騎士の兜', '羽根付き帽子', '銀の髪飾り'],
     SR: ['騎士の兜', '竜の兜', '魔導士の帽子', '月光のサークレット'],
     SSR: ['竜の兜', '王者の冠', '天空の兜', '神々の冠'],
+    UR: ['創世の冠', '星詠みの宝冠', '虹のティアラ', '覇王の兜'],
   },
   body: {
     N: ['布の服', '革の鎧', '旅人のマント', '木の胸当て'],
     R: ['革の鎧', '鋼の鎧', '鎖かたびら', '銀の胸当て'],
     SR: ['鋼の鎧', '竜鱗の鎧', '魔法のローブ', '白銀の鎧'],
     SSR: ['竜鱗の鎧', '聖なる鎧', '星屑のローブ', '神鉄の鎧'],
+    UR: ['創世の鎧', '天衣無縫', '虹の羽衣', '覇王の鎧'],
   },
   feet: {
     N: ['布の靴', '革のブーツ', 'わらじ', '木靴'],
     R: ['革のブーツ', '鉄の具足', '銀の靴', '旅人のブーツ'],
     SR: ['鉄の具足', '疾風の靴', '忍びの足袋', '雷光のブーツ'],
     SSR: ['疾風の靴', '天馬の靴', '神速のサンダル', '天空のブーツ'],
+    UR: ['創世の靴', '時を駆けるブーツ', '虹の翼靴', '覇王の具足'],
   },
   weapon: {
     N: ['木の剣', '鉄の剣', 'こんぼう', '銅のナイフ'],
     R: ['鉄の剣', '炎の剣', '鋼の槍', '銀の斧'],
     SR: ['炎の剣', '雷の槍', '氷の大剣', '魔弓アルテミス'],
     SSR: ['雷の槍', '勇者の剣', '聖剣エクスカリバー', '神槍グングニル'],
+    UR: ['創世の剣', '星砕きの大剣', '虹の聖剣', '覇王の槍'],
   },
 }
 
@@ -606,7 +614,7 @@ export function rollItem(seed: number, stage: number, forceRarity?: Rarity, forc
     st.hp = Math.round(4 * power * j())
     if (r() < 0.5) st.heal = Math.round(0.6 * power * j())
   }
-  const effect = rarity === 'SSR' || (rarity === 'SR' && r() < 0.6) ? EFFECT_POOL[slot][Math.floor(r() * 3)] : null
+  const effect = rarity === 'UR' || rarity === 'SSR' || (rarity === 'SR' && r() < 0.6) ? EFFECT_POOL[slot][Math.floor(r() * 3)] : null
   return { slot, name, icon: slot, rarity, ...st, effect }
 }
 

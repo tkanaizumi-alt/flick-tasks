@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, type ShopId } from '../../shared/extras'
-import { ACHIEVEMENT_MAP } from '../../shared/achievements'
+import { BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, type ShopId } from '../../shared/extras'
+import { ACHIEVEMENT_MAP, type AchievementStats } from '../../shared/achievements'
 import type { Item, PlayerState } from '../../shared/game'
 import { api, HttpError, type EventState, type Mvp, type RaidState } from '../api'
 import { Avatar } from './Dock'
@@ -120,23 +120,29 @@ export function ShopPanel({ player, busy, onBuy }: { player: PlayerState; busy: 
   )
 }
 
-/** ペット (実績の数で仲間になる) */
+/** ペット (実績の数や働き方で仲間になる) */
 export function PetPanel({ player, busy, onPet }: { player: PlayerState; busy: boolean; onPet: (id: string | null) => void }) {
   const count = (player.achievements ?? []).filter((a) => ACHIEVEMENT_MAP[a.id]).length
+  // 働き方で仲間になるペットの条件 (大以上の完了数など) は集計から
+  const [stats, setStats] = useState<AchievementStats | null>(null)
+  useEffect(() => {
+    api.player().then((r) => setStats(r.stats ?? null), () => {})
+  }, [player.xp])
   return (
     <section className="panel glass" data-testid="pets">
       <div className="panel-head">
         <h2>ペット</h2>
-        <span className="muted">実績の数で仲間になります（今 {count}個）</span>
+        <span className="muted">実績の数や働き方で仲間になります（実績 {count}個）</span>
       </div>
       <div className="pet-grid">
         {PETS.map((p) => {
-          const open = count >= p.need
+          const open = petUnlocked(p, count, stats)
           const on = player.pet === p.id
           return (
             <button key={p.id} className={`pet ${on ? 'on' : ''} ${open ? '' : 'locked'}`} disabled={busy || !open} onClick={() => onPet(on ? null : p.id)} data-testid={`pet-${p.id}`}>
               <span className="pet-emoji">{open ? p.emoji : '🔒'}</span>
-              <span className="pet-name">{open ? p.name : `実績${p.need}個`}</span>
+              <span className="pet-name">{p.name}</span>
+              <span className="pet-need">{open ? '' : `${p.need.label}（${petProgress(p, count, stats)}/${p.need.goal}）`}</span>
               <span className="pet-fx">{petEffect(p)}</span>
               {on && <span className="pet-on">連れている</span>}
             </button>

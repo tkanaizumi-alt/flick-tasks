@@ -4,6 +4,7 @@ import {
   BRANCHES,
   CHEST_COST,
   INVENTORY_MAX,
+  RARITY_ORDER,
   SKILLS,
   SKINS,
   SLOTS,
@@ -22,6 +23,7 @@ import {
   type StatKey,
 } from '../../shared/game'
 import { api, HttpError, type Mission } from '../api'
+import { store } from '../store'
 import { BattleModal } from '../components/BattleModal'
 import { CharacterHeader } from '../components/CharacterHeader'
 import { ChestReveal, ItemCard, ItemSheet } from '../components/Loot'
@@ -34,6 +36,23 @@ import { EventBanner, PetPanel, RaidPanel, ShopPanel } from '../components/GameE
 import { EVENT_SKINS, hasEventSkin } from '../../shared/extras'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train' | 'achieve'
+
+/** 持ち物の並び順: 新しい順 / レア度順 (同じなら強化の高い順) / 部位順 (頭・胴体・靴・武器、その中はレア度順) */
+type InvSort = 'new' | 'rarity' | 'slot'
+const INV_SORT_KEY = 'flick.sort.items'
+const INV_SORTS: { key: InvSort; label: string }[] = [
+  { key: 'new', label: '新しい順' },
+  { key: 'rarity', label: 'レア度順' },
+  { key: 'slot', label: '部位順' },
+]
+const rarityRank = (i: Item) => RARITY_ORDER.indexOf(i.rarity)
+const slotRank = (i: Item) => SLOTS.findIndex((s) => s.key === i.slot)
+// 新しい順はサーバーの並び (入手が新しい順) のまま
+const INV_CMP: Record<InvSort, (a: Item, b: Item) => number> = {
+  new: () => 0,
+  rarity: (a, b) => rarityRank(a) - rarityRank(b) || (b.plus ?? 0) - (a.plus ?? 0) || slotRank(a) - slotRank(b),
+  slot: (a, b) => slotRank(a) - slotRank(b) || rarityRank(a) - rarityRank(b) || (b.plus ?? 0) - (a.plus ?? 0),
+}
 
 interface Props {
   player: PlayerState
@@ -52,6 +71,16 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   const [openItem, setOpenItem] = useState<Item | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
   const [confirmReset, setConfirmReset] = useState(false)
+  // 持ち物の並び順 (この端末に保存)
+  const [invSort, setInvSortState] = useState<InvSort>(() => {
+    const v = store.get<InvSort>(INV_SORT_KEY, 'new')
+    return v in INV_CMP ? v : 'new'
+  })
+  const setInvSort = (v: InvSort) => {
+    setInvSortState(v)
+    store.set(INV_SORT_KEY, v)
+  }
+  const items = useMemo(() => [...player.items].sort(INV_CMP[invSort]), [player.items, invSort])
   const sp = spInfo(player)
   const eff = effectiveStats(player)
   const enemy = enemyForStage(player.stage)
@@ -166,7 +195,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             <div className="chest-icon">🎁</div>
             <div className="chest-body">
               <div className="chest-title">宝箱</div>
-              <div className="muted">N 70% ・ R 18% ・ SR 9% ・ SSR 3%</div>
+              <div className="muted">N 69.5% ・ R 18% ・ SR 9% ・ SSR 3% ・ UR 0.5%</div>
             </div>
             <button
               className="pill-btn primary"
@@ -217,11 +246,20 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                 {player.items.length}/{INVENTORY_MAX}
               </span>
             </div>
+            {player.items.length > 1 && (
+              <div className="sort-row inv-sort" role="radiogroup" aria-label="持ち物の並び順" data-testid="inv-sort">
+                {INV_SORTS.map((s) => (
+                  <button key={s.key} role="radio" aria-checked={invSort === s.key} className={`sort-btn ${invSort === s.key ? 'on' : ''}`} onClick={() => setInvSort(s.key)} data-testid={`inv-sort-${s.key}`}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {player.items.length === 0 ? (
               <p className="muted">宝箱を開けるか、ボスを倒すと手に入ります</p>
             ) : (
               <div className="inv-grid">
-                {player.items.map((it) => (
+                {items.map((it) => (
                   <ItemCard key={it.id} item={it} equipped={Object.values(player.equipped).includes(it.id)} onClick={() => setOpenItem(it)} />
                 ))}
               </div>

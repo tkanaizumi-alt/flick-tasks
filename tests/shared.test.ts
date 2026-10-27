@@ -82,12 +82,12 @@ describe('デイリーミッション', () => {
 describe('装備', () => {
   it('部位・レア度ごとに 4 種類の名前が出る', () => {
     const names = new Map<string, Set<string>>()
-    for (let i = 1; i < 3000; i++) {
+    for (let i = 1; i < 30000; i++) {
       const it = rollItem((i * 2654435761) >>> 0, 3)
       const k = `${it.slot}/${it.rarity}`
       names.set(k, (names.get(k) ?? new Set()).add(it.name))
     }
-    expect(names.size).toBe(16)
+    expect(names.size).toBe(20) // 4 部位 × 5 レア度 (N・R・SR・SSR・UR)
     for (const set of names.values()) expect(set.size).toBe(4)
   })
   it('同じ種なら同じ装備・同じ戦闘結果 (再現できる)', () => {

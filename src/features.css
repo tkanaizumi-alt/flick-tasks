@@ -161,3 +161,28 @@ kbd { display: inline-block; min-width: 24px; padding: 2px 8px; border-radius: 6
 .err-src.client { background: var(--c-doing); }
 .err-msg { flex: 1; min-width: 0; word-break: break-word; }
 .err-msg small { display: block; color: var(--ink-3); }
+
+/* ---------- UR (SSR より上・虹色) ---------- */
+.r-UR { --rc: #e8467c; }
+.item-card.r-UR { background: linear-gradient(135deg, #ffe3f0, #fff7d6, #e3f6ff, #efe3ff); }
+.item-card.r-UR .item-rarity, .reveal-card.r-UR .reveal-rarity, .reveal-card.r-UR .rare-stamp {
+  background: linear-gradient(90deg, #ff4d6a, #ffb300, #16c784, #3b9cff, #a65bff); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.gear-icon.r-UR { filter: drop-shadow(0 0 5px rgba(232, 70, 124, 0.6)); }
+.reveal-card.r-UR { box-shadow: var(--glass-edge), 0 0 0 3px #e8467c, 0 0 80px 12px rgba(166, 91, 255, 0.55); animation: pop-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.4), ur-glow 1.4s linear 0.4s infinite; }
+.reveal-card.r-UR .rays { opacity: 0.6; animation-duration: 2s; background: repeating-conic-gradient(#ff4d6a 0 8deg, #ffb300 8deg 16deg, #16c784 16deg 24deg, #3b9cff 24deg 32deg, #a65bff 32deg 40deg, transparent 40deg 60deg); }
+.reveal-card.r-UR .rare-stamp { font-size: 44px; }
+.rare-flash.f-UR { background: radial-gradient(circle, #fff 0%, #ffd6e7 35%, #d6ecff 65%, rgba(166, 91, 255, 0.45) 100%); animation-duration: 1s; }
+.chest-shake.ur { animation-duration: 0.2s; filter: drop-shadow(0 0 30px #e8467c) drop-shadow(0 0 12px #3b9cff); }
+@keyframes ur-glow {
+  0% { box-shadow: var(--glass-edge), 0 0 0 3px #ff4d6a, 0 0 80px 12px rgba(255, 77, 106, 0.5); }
+  33% { box-shadow: var(--glass-edge), 0 0 0 3px #ffb300, 0 0 80px 12px rgba(255, 179, 0, 0.5); }
+  66% { box-shadow: var(--glass-edge), 0 0 0 3px #3b9cff, 0 0 80px 12px rgba(59, 156, 255, 0.5); }
+  100% { box-shadow: var(--glass-edge), 0 0 0 3px #ff4d6a, 0 0 80px 12px rgba(255, 77, 106, 0.5); }
+}
+@media (prefers-reduced-motion: reduce) { .reveal-card.r-UR { animation: none !important; } }
+
+.pet-need { font-size: 10px; color: var(--ink-3); text-align: center; line-height: 1.3; }
+
+/* 持ち物の並び順 */
+.inv-sort { justify-content: flex-start; margin: -2px 0 10px; }

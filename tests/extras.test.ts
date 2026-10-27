@@ -26,6 +26,7 @@ describe('ゲームの追加要素', () => {
   it('SR 以上確定の宝箱', () => {
     expect(srChestRarity(0.1)).toBe('SSR')
     expect(srChestRarity(0.5)).toBe('SR')
+    expect(srChestRarity(0.01)).toBe('UR')
   })
   it('ペット・イベント・XP2倍チケットは XP とゴールドに上乗せ', () => {
     const now = Date.UTC(2026, 9, 27, 3)
@@ -38,7 +39,10 @@ describe('ゲームの追加要素', () => {
     expect(computeXp({ ...base, extras: [...many, { label: '🎫XP2倍', double: true }] }).amount).toBe(80)
     const pet = PETS.find((p) => p.id === 'kitten')!
     expect(computeXp({ ...base, extras: [{ label: pet.name, gold: pet.gold }] }).gold).toBe(11)
-    expect(PETS.map((p) => p.need)).toEqual([...PETS.map((p) => p.need)].sort((a, b) => a - b))
+    const byAch = PETS.filter((p) => p.need.stat === 'achievements').map((p) => p.need.goal)
+    expect(byAch).toEqual([...byAch].sort((a, b) => a - b))
+    expect(PETS).toHaveLength(12)
+    expect(new Set(PETS.map((p) => p.id)).size).toBe(12)
   })
   it('負けたときのアドバイス', () => {
     const enemy = enemyForStage(5)

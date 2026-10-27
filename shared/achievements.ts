@@ -12,7 +12,7 @@ export interface AchievementStats {
   early: number // 朝 10 時までの完了
   cleared: number // クリアしたステージ数
   level: number
-  ssr: number // 持っている SSR 装備
+  ssr: number // 持っている SSR 以上の装備
 }
 
 export interface AchievementDef {
@@ -43,7 +43,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'stage10', name: '冒険者', icon: '🗺️', desc: 'ステージ10をクリア', stat: 'cleared', goal: 10 },
   { id: 'stage30', name: '伝説の勇者', icon: '👑', desc: 'ステージ30をクリア', stat: 'cleared', goal: 30 },
   { id: 'lv20', name: 'ベテラン', icon: '🎖️', desc: 'レベル20になる', stat: 'level', goal: 20 },
-  { id: 'ssr', name: '幸運の持ち主', icon: '🍀', desc: 'SSRの装備を手に入れる', stat: 'ssr', goal: 1 },
+  { id: 'ssr', name: '幸運の持ち主', icon: '🍀', desc: 'SSR以上の装備を手に入れる', stat: 'ssr', goal: 1 },
 ]
 export const ACHIEVEMENT_MAP: Record<string, AchievementDef> = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]))
 
