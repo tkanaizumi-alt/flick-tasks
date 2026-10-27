@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { STATUSES, type Status } from '../../shared/types'
 import { STATUS_LABEL } from '../api'
@@ -12,10 +12,12 @@ interface Props {
   query: string | null
   onQuery: (q: string | null) => void
   onStartSelect: () => void
+  /** 右端に足すもの (見え方の切り替えなど) */
+  extra?: ReactNode
 }
 
 /** 自分の画面上部: ステータス切り替え / 検索 / 選択 */
-export function MeToolbar({ tab, counts, onChange, query, onQuery, onStartSelect }: Props) {
+export function MeToolbar({ tab, counts, onChange, query, onQuery, onStartSelect, extra }: Props) {
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (query !== null) input.current?.focus()
@@ -65,6 +67,7 @@ export function MeToolbar({ tab, counts, onChange, query, onQuery, onStartSelect
       <button className="tool-btn glass" aria-label="選択" data-testid="select-start" onClick={onStartSelect}>
         <CheckIcon />
       </button>
+      {extra}
     </div>
   )
 }

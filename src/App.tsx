@@ -16,6 +16,8 @@ import { Login } from './components/Login'
 import { LevelUp, XpPops, type Celebration, type XpPopData } from './components/Rewards'
 import { CheckCircleIcon, CircleIcon, PlayIcon } from './components/icons'
 import { ReorderList } from './components/ReorderList'
+import { LayoutGuide, LayoutToggle } from './components/LayoutToggle'
+import { useLayouts } from './layout'
 // 開いた瞬間のメモを速くするため、みんな・冒険・履歴は使うときに読み込む
 const People = lazy(() => import('./views/People').then((m) => ({ default: m.People })))
 const Adventure = lazy(() => import('./views/Adventure').then((m) => ({ default: m.Adventure })))
@@ -75,18 +77,6 @@ const store = {
   },
 }
 
-/** PC など横に広い画面: 未着手・進行中・完了を 3 列で並べる */
-const WIDE_QUERY = '(min-width: 1000px)'
-function useWide() {
-  const [wide, setWide] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(WIDE_QUERY).matches)
-  useEffect(() => {
-    const m = matchMedia(WIDE_QUERY)
-    const on = () => setWide(m.matches)
-    m.addEventListener('change', on)
-    return () => m.removeEventListener('change', on)
-  }, [])
-  return wide
-}
 
 const inflight = new Set<string>()
 const composer = () => document.getElementById('composer')
@@ -131,7 +121,10 @@ export function App() {
     store.set(SORT_KEY, v)
   }
   const unreadRef = useRef(0)
-  const wide = useWide()
+  // 画面ごとの見え方 (スマホ / PC)。PC 表示の「自分」は未着手・進行中・完了の 3 列
+  const { isPc, setLayout, canToggle } = useLayouts()
+  const wide = isPc('me')
+  const [layoutGuide, setLayoutGuide] = useState(false)
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   // 並べ替えモード (null = していない)。ステータスごとの新しい並び (上から順の ID)
   const [reorder, setReorder] = useState<Partial<Record<Status, string[]>> | null>(null)
@@ -158,7 +151,17 @@ export function App() {
   // メモ欄は「自分」の画面でだけ出す (index.html 側の要素なので body の属性で切り替え)
   useEffect(() => {
     document.body.dataset.view = phase === 'ready' ? view : 'me'
-  }, [view, phase])
+    // サイドバーなど画面全体の見え方は、今の画面の設定に合わせる
+    document.body.dataset.layout = phase === 'ready' && isPc(view) ? 'pc' : 'mobile'
+  }, [view, phase, isPc])
+
+  // 見え方を切り替えられることを、メンバーごとに最初の 1 回だけ案内する
+  useEffect(() => {
+    if (phase !== 'ready' || !user || !canToggle) return
+    if (store.get<boolean>(`flick.hint.layout.${user.id}`, false)) return
+    const t = setTimeout(() => setLayoutGuide(true), 1500)
+    return () => clearTimeout(t)
+  }, [phase, user, canToggle])
 
   const showToast = useCallback((text: string, undo?: () => void, action?: string) => setToastState({ id: Date.now(), text, undo, action }), [])
   const clearToast = useCallback(() => setToastState(null), [])
@@ -683,6 +686,7 @@ export function App() {
                         setSelected(null)
                       }}
                       onStartSelect={() => setSelected((s) => (s ? null : new Set()))}
+                      extra={canToggle ? <LayoutToggle pc={isPc('me')} onChange={(m) => setLayout('me', m)} label="自分" /> : null}
                     />
                     {hint && !selected && !q && visible.length > 1 && (
                       <div className="hint-bar" data-testid="select-hint">
@@ -833,8 +837,14 @@ export function App() {
                 )}
 
                 <Suspense fallback={<ViewSkeleton />}>
+                {view !== 'me' && canToggle && (
+                  <div className="view-head">
+                    <LayoutToggle pc={isPc(view)} onChange={(m) => setLayout(view, m)} label={view === 'people' ? 'みんな' : '冒険'} />
+                  </div>
+                )}
                 {view === 'people' && (
                   <People
+                    pc={isPc('people')}
                     onXp={onXp}
                     isAdmin={!!user?.isAdmin}
                     toast={showToast}
@@ -936,6 +946,16 @@ export function App() {
               )}
             </AnimatePresence>
 
+            <AnimatePresence>
+              {layoutGuide && (
+                <LayoutGuide
+                  onClose={() => {
+                    setLayoutGuide(false)
+                    if (user) store.set(`flick.hint.layout.${user.id}`, true)
+                  }}
+                />
+              )}
+            </AnimatePresence>
             <Suspense fallback={null}>
               <AnimatePresence>{historyOpen && <History onClose={() => setHistoryOpen(false)} toast={showToast} />}</AnimatePresence>
             </Suspense>

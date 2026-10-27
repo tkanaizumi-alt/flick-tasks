@@ -20,7 +20,13 @@ const FEED_TABS: { key: FeedKind; label: string }[] = [
   { key: 'doing', label: '進行中' },
   { key: 'done', label: '完了' },
 ]
-const FEED_MARK: Partial<Record<ActivityKind, string>> = { todo: '＋', doing: '▶', done: '✓', flag: '⚑', request: '📨' }
+const FEED_MARK: Partial<Record<ActivityKind, string>> = {
+  todo: '＋',
+  doing: '▶',
+  done: '✓',
+  flag: '⚑',
+  request: '📨',
+}
 const REASON: Record<AttentionItem['reason'], { label: string; icon: string }> = {
   ...FLAGS,
   over: { label: '期限切れ', icon: '⏰' },
@@ -36,9 +42,11 @@ interface Props {
   onRequested?: () => void
   /** 他の人のタスクを進めたときの手伝い XP */
   onXp?: (xp: XpChange | null) => void
+  /** PC 用の見え方 */
+  pc?: boolean
 }
 
-export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onOpenMine, onRequested, onXp }: Props) {
+export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onOpenMine, onRequested, onXp, pc = false }: Props) {
   const [people, setPeople] = useState<Person[] | null>(null)
   const [feedKind, setFeedKind] = useState<FeedKind>('all')
   const [feedUser, setFeedUser] = useState<string | null>(null)
@@ -46,7 +54,10 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
   const [more, setMore] = useState<number | null>(null) // 続きを読むためのカーソル
   const [loadingMore, setLoadingMore] = useState(false)
   const [attention, setAttention] = useState<AttentionItem[] | null>(null)
-  const [requests, setRequests] = useState<{ sent: RequestItem[]; received: RequestItem[] } | null>(null)
+  const [requests, setRequests] = useState<{
+    sent: RequestItem[]
+    received: RequestItem[]
+  } | null>(null)
   const [reqTab, setReqTab] = useState<'received' | 'sent'>('received')
   const [notices, setNotices] = useState<Notice[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
@@ -80,10 +91,17 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
 
   // 通知は開いたときに既読にする (未読は強調表示のまま残す)
   useEffect(() => {
-    api.notices().then((r) => {
-      setNotices(r.notices.slice(0, 8))
-      if (r.unread) api.readNotices().then(() => readRef.current?.(), () => {})
-    }, () => {})
+    api.notices().then(
+      (r) => {
+        setNotices(r.notices.slice(0, 8))
+        if (r.unread)
+          api.readNotices().then(
+            () => readRef.current?.(),
+            () => {},
+          )
+      },
+      () => {},
+    )
   }, [])
 
   // 表示中は 30 秒ごと + 画面に戻ったときに更新
@@ -113,7 +131,10 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
     if (more === null || loadingMore) return
     setLoadingMore(true)
     try {
-      const a = await api.activity(feedKind, { before: more, user: feedUser ?? undefined })
+      const a = await api.activity(feedKind, {
+        before: more,
+        user: feedUser ?? undefined,
+      })
       setActivity((cur) => [...(cur ?? []), ...a.activity])
       setMore(a.more ? a.cursor : null)
     } catch {
@@ -151,8 +172,8 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
   const reqList = requests?.[reqTab] ?? []
   const openReq = (requests?.received ?? []).filter((r) => r.task.status !== 'done').length
 
-  return (
-    <div className="people" data-testid="people">
+  const noticesPanel = (
+    <>
       {notices.length > 0 && (
         <section className="panel glass notices" data-testid="notices">
           <div className="panel-head">
@@ -169,7 +190,10 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
           </ul>
         </section>
       )}
-
+    </>
+  )
+  const attentionPanel = (
+    <>
       <section className="panel glass attention" data-testid="attention">
         <div className="panel-head">
           <h2>要対応</h2>
@@ -210,7 +234,10 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
           </ul>
         )}
       </section>
-
+    </>
+  )
+  const requestsPanel = (
+    <>
       <section className="panel glass requests" data-testid="requests">
         <div className="panel-head">
           <h2>依頼</h2>
@@ -222,9 +249,7 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
           {(['received', 'sent'] as const).map((k) => (
             <button key={k} role="tab" aria-selected={reqTab === k} className={`feed-tab ${reqTab === k ? 'on' : ''}`} onClick={() => setReqTab(k)} data-testid={`req-tab-${k}`}>
               {reqTab === k && <motion.span layoutId="req-pill" className="feed-pill" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
-              <span className="feed-tab-label">
-                {k === 'received' ? `受けた${openReq ? ` ${openReq}` : ''}` : '出した'}
-              </span>
+              <span className="feed-tab-label">{k === 'received' ? `受けた${openReq ? ` ${openReq}` : ''}` : '出した'}</span>
             </button>
           ))}
         </div>
@@ -261,7 +286,10 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
           </ul>
         )}
       </section>
-
+    </>
+  )
+  const feedPanel = (
+    <>
       <section className="panel glass feed" data-testid="feed">
         <div className="panel-head">
           <h2>最近の動き</h2>
@@ -314,9 +342,7 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
             {activity.map((a, i) => {
               const day = dayLabel(a.createdAt)
               const head = i === 0 || dayLabel(activity[i - 1].createdAt) !== day
-              return (
-                <FeedRow key={a.id} a={a} head={head ? day : null} isAdmin={isAdmin} onDelete={() => removeLog(a.id)} onOpen={() => setOpenId(a.userId)} />
-              )
+              return <FeedRow key={a.id} a={a} head={head ? day : null} isAdmin={isAdmin} onDelete={() => removeLog(a.id)} onOpen={() => setOpenId(a.userId)} />
             })}
           </ul>
         )}
@@ -326,55 +352,90 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
           </button>
         )}
       </section>
+    </>
+  )
+  const loading = !people && (
+    <div className="skel-list">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="skel skel-card tall" />
+      ))}
+    </div>
+  )
+  const personList = people && (
+    <ul className="person-list">
+      {people.map((p) => {
+        const lv = levelInfo(p.xp).level
+        const boss = enemyForStage(p.stage)
+        const total = p.todo + p.doing + p.done || 1
+        return (
+          <li key={p.id}>
+            <button className="person card-surface" onClick={() => setOpenId(p.id)} data-testid="person">
+              <Avatar name={p.name} picture={p.picture} skin={p.skin} size={46} />
+              <div className="person-body">
+                <div className="person-top">
+                  <span className="person-name">{p.name}</span>
+                  {p.isMe && <span className="me-tag">自分</span>}
+                  {p.title && ACHIEVEMENT_MAP[p.title] && <span className="title-chip">{ACHIEVEMENT_MAP[p.title].name}</span>}
+                  {!!p.streak && <span className="streak-chip">🔥{p.streak}</span>}
+                  <span className="person-job">
+                    {p.jobIcon} {p.jobName}
+                  </span>
+                  <span className="person-lv">Lv {lv}</span>
+                </div>
+                <div className="person-meta">
+                  <span>今日 ✓{p.today}</span>
+                  <span>7日 ✓{p.week}</span>
+                  <span className="person-stage">
+                    St.{p.stage} {boss.icon} {boss.name}
+                  </span>
+                </div>
+                <div className="mini-bar" aria-label={`未着手${p.todo} 進行中${p.doing} 完了${p.done}`}>
+                  <span className="todo" style={{ flex: p.todo / total }} />
+                  <span className="doing" style={{ flex: p.doing / total }} />
+                  <span className="done" style={{ flex: p.done / total }} />
+                </div>
+              </div>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+  const boards = people && (
+    <>
+      <MvpPanel />
+      <StageBoard people={people} onOpen={setOpenId} />
+    </>
+  )
 
-      {!people ? (
-        <div className="skel-list">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="skel skel-card tall" />
-          ))}
-        </div>
+  return (
+    <div className={`people ${pc ? 'pc' : ''}`} data-testid="people">
+      {pc ? (
+        // PC: 左にお知らせ・要対応、真ん中に最近の動き、右に依頼・MVP・冒険の進み具合。高さの違うパネルを列ごとに積む
+        <>
+          <div className="pc-cols">
+            <div className="pc-col">
+              {noticesPanel}
+              {attentionPanel}
+            </div>
+            <div className="pc-col">{feedPanel}</div>
+            <div className="pc-col">
+              {requestsPanel}
+              {boards}
+            </div>
+          </div>
+          {loading}
+          {personList}
+        </>
       ) : (
         <>
-          <MvpPanel />
-          <StageBoard people={people} onOpen={setOpenId} />
-          <ul className="person-list">
-            {people.map((p) => {
-              const lv = levelInfo(p.xp).level
-              const boss = enemyForStage(p.stage)
-              const total = p.todo + p.doing + p.done || 1
-              return (
-                <li key={p.id}>
-                  <button className="person card-surface" onClick={() => setOpenId(p.id)} data-testid="person">
-                    <Avatar name={p.name} picture={p.picture} skin={p.skin} size={46} />
-                    <div className="person-body">
-                      <div className="person-top">
-                        <span className="person-name">{p.name}</span>
-                        {p.isMe && <span className="me-tag">自分</span>}
-                        {p.title && ACHIEVEMENT_MAP[p.title] && <span className="title-chip">{ACHIEVEMENT_MAP[p.title].name}</span>}
-                        {!!p.streak && <span className="streak-chip">🔥{p.streak}</span>}
-                        <span className="person-job">
-                          {p.jobIcon} {p.jobName}
-                        </span>
-                        <span className="person-lv">Lv {lv}</span>
-                      </div>
-                      <div className="person-meta">
-                        <span>今日 ✓{p.today}</span>
-                        <span>7日 ✓{p.week}</span>
-                        <span className="person-stage">
-                          St.{p.stage} {boss.icon} {boss.name}
-                        </span>
-                      </div>
-                      <div className="mini-bar" aria-label={`未着手${p.todo} 進行中${p.doing} 完了${p.done}`}>
-                        <span className="todo" style={{ flex: p.todo / total }} />
-                        <span className="doing" style={{ flex: p.doing / total }} />
-                        <span className="done" style={{ flex: p.done / total }} />
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          {noticesPanel}
+          {attentionPanel}
+          {requestsPanel}
+          {feedPanel}
+          {loading}
+          {boards}
+          {personList}
         </>
       )}
 
@@ -463,4 +524,3 @@ function ago(t: number) {
   if (h < 24) return `${h}時間前`
   return `${Math.floor(h / 24)}日前`
 }
-

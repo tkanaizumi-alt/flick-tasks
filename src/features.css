@@ -119,4 +119,3 @@
 .mvp-label { width: 100px; flex: none; color: var(--ink-2); font-weight: 700; }
 .mvp-who { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .mvp-person { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
-.people > .mvp { grid-column: 1 / -1; }
