@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
 import type { User } from '../../shared/types'
 import { SKIN_MAP } from '../../shared/game'
+import { EVENT_SKIN_MAP } from '../../shared/extras'
 import { CheckCircleIcon, PeopleIcon, SwordIcon } from './icons'
 
 export type View = 'me' | 'people' | 'game'
@@ -100,7 +101,7 @@ export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, o
 
 /** アイコン。スキンを選んでいればスキン、なければ Google の写真 (なければ頭文字) */
 export function Avatar({ name, picture, size = 44, skin }: { name: string; picture?: string; size?: number; skin?: string | null }) {
-  const sk = skin ? SKIN_MAP[skin] : undefined
+  const sk = skin ? (SKIN_MAP[skin] ?? EVENT_SKIN_MAP[skin]) : undefined
   if (sk)
     return (
       <span className="av-skin" style={{ width: size, height: size, fontSize: size * 0.58, background: sk.bg }} role="img" aria-label={sk.name}>

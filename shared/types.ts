@@ -56,6 +56,10 @@ export interface Task {
   requestedBy?: Ref | null
   /** 依頼した人側の後続タスク */
   follow?: { id: string; title: string } | null
+  /** 繰り返しから作られたタスク */
+  recurring?: { id: string; rule: string } | null
+  /** コメントの数 */
+  comments?: number
   /** このタスクの前に待っている依頼 (自分が出した依頼) */
   waitingOn?: { id: string; title: string; status: Status; owner: Ref } | null
 }
@@ -75,6 +79,10 @@ export interface Person {
   name: string
   picture: string
   skin?: string | null
+  /** 称号 (実績の ID) */
+  title?: string | null
+  /** 今の連続日数 */
+  streak?: number
   xp: number
   stage: number
   jobName: string
@@ -111,12 +119,26 @@ export interface AttentionItem {
 
 export interface Notice {
   id: number
-  kind: 'request' | 'request_done' | 'request_deleted' | 'wait' | 'help' | 'moved'
+  kind: 'request' | 'request_done' | 'request_deleted' | 'wait' | 'help' | 'moved' | 'comment' | 'due' | 'weekly'
   text: string
   taskId: string | null
   actor: Ref & { picture: string; skin?: string | null }
   createdAt: number
   read: boolean
+}
+
+export interface Comment {
+  id: number
+  user: Ref & { picture: string; skin?: string | null }
+  text: string
+  createdAt: number
+  mine: boolean
+}
+
+export interface Recurring {
+  id: string
+  title: string
+  rule: string
 }
 
 /** 依頼の一覧 (出した / 受けた) */
@@ -128,3 +150,7 @@ export interface RequestItem {
 
 /** 「○○さん」(名前がすでに さん・様 などで終わっていれば付けない) */
 export const san = (name: string) => (/(さん|様|さま|くん|ちゃん)$/.test(name) ? name : `${name}さん`)
+
+/** タイトル・詳細の中の #タグ (例: #A社 #社内)。全角の＃も使える */
+export const TAG_RE = /[#＃]([^\s#＃、。,.!?！？「」()（）]+)/g
+export const tagsOf = (t: { title: string; note?: string }) => [...new Set([...`${t.title} ${t.note ?? ''}`.matchAll(TAG_RE)].map((m) => m[1]))]

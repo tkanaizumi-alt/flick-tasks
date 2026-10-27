@@ -8,6 +8,24 @@ import { DueBadge } from './DueBadge'
 import type { UITask } from '../App'
 import { CheckIcon, PlayIcon, SparkIcon, TrashIcon, UndoIcon, CloudIcon } from './icons'
 
+/** #タグの部分だけ色を付けて表示 */
+function Tagged({ text }: { text: string }) {
+  const parts = text.split(/([#＃][^\s#＃、。,.!?！？「」()（）]+)/g)
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 ? (
+          <span key={i} className="tag-inline">
+            {p}
+          </span>
+        ) : (
+          p
+        ),
+      )}
+    </>
+  )
+}
+
 /** フリックで確定したカードの飛ばす方向 (exit アニメーション用) */
 export const exitDir = new Map<string, number>()
 
@@ -198,7 +216,9 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
               ↳ {task.parent.title}
             </div>
           ) : null}
-          <div className="card-title">{task.title}</div>
+          <div className="card-title">
+            <Tagged text={task.title} />
+          </div>
           {task.note ? <div className="card-note">{task.note}</div> : null}
           <div className="card-meta">
             {showStatus && <span className={`meta-status t-${task.status}`}>{STATUS_LABEL[task.status]}</span>}

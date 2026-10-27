@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
+import { battleAdvice } from '../../shared/extras'
 import type { BattleResult, Item } from '../../shared/game'
 import { ItemCard } from './Loot'
 
@@ -89,7 +90,9 @@ export function BattleModal({ result, reward, onClose }: Props) {
                 )}
               </div>
             ) : (
-              <div className="result-sub">あと {Math.round((enemyHp / result.enemy.hp) * 100)}% 削れば勝てる ・ タスクで強くなろう</div>
+              <div className="result-sub" data-testid="battle-advice">
+                💡 {battleAdvice(result)}
+              </div>
             )}
             <button className="pill-btn primary" onClick={onClose} data-testid="battle-close">
               閉じる

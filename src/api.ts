@@ -1,5 +1,6 @@
-import type { Activity, AttentionItem, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
+import type { Activity, AttentionItem, Comment, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
 import type { BattleResult, Item, MissionDef, PlayerState, StatKey, Weight } from '../shared/game'
+import type { AchievementDef, AchievementStats } from '../shared/achievements'
 
 export interface XpChange {
   amount: number
@@ -40,7 +41,15 @@ export const api = {
     req<{ tasks: Task[] }>('/api/tasks', { method: 'POST', json: { tasks, source } }),
   update: (id: string, patch: Partial<Pick<Task, 'title' | 'note' | 'status' | 'position' | 'priority'>>) =>
     req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}`, { method: 'PATCH', json: patch }),
-  player: () => req<{ player: PlayerState }>('/api/player'),
+  player: () => req<{ player: PlayerState; stats?: AchievementStats; unlocked?: AchievementDef[] }>('/api/player'),
+  setPet: (pet: string | null) => req<{ player: PlayerState }>('/api/player/pet', { method: 'POST', json: { pet } }),
+  enhance: (id: string) => req<{ player: PlayerState }>(`/api/items/${id}/enhance`, { method: 'POST', json: {} }),
+  buy: (id: string) => req<{ player: PlayerState; item: Item | null }>(`/api/shop/${id}`, { method: 'POST', json: {} }),
+  raid: () => req<RaidState>('/api/raid'),
+  claimRaid: () => req<{ gold: number; item: Item | null; player: PlayerState }>('/api/raid/claim', { method: 'POST', json: {} }),
+  mvp: () => req<Mvp>('/api/mvp'),
+  event: () => req<{ event: EventState | null }>('/api/event'),
+  setTitle: (title: string | null) => req<{ player: PlayerState }>('/api/player/title', { method: 'POST', json: { title } }),
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),
   learn: (id: string) =>
     req<{ player: PlayerState; revealed?: { name: string; combo: string }[] }>('/api/player/skill', { method: 'POST', json: { id } }),
@@ -72,6 +81,14 @@ export const api = {
   /** AI の分解案 (追加はしない) */
   breakdown: (id: string, title: string, note: string) =>
     req<{ tasks: string[]; remaining: number }>(`/api/tasks/${id}/breakdown`, { method: 'POST', json: { title, note } }),
+  /** 繰り返し (rule: daily / weekdays / weekly:N / monthly:N) */
+  setRecurring: (id: string, rule: string) => req<{ task: Task }>(`/api/tasks/${id}/recurring`, { method: 'POST', json: { rule } }),
+  stopRecurring: (rid: string) => req<{ ok: true }>(`/api/recurring/${rid}`, { method: 'DELETE' }),
+  comments: (taskId: string) => req<{ comments: Comment[] }>(`/api/tasks/${taskId}/comments`),
+  addComment: (taskId: string, text: string) => req<{ ok: true }>(`/api/tasks/${taskId}/comments`, { method: 'POST', json: { text } }),
+  deleteComment: (id: number) => req<{ ok: true }>(`/api/comments/${id}`, { method: 'DELETE' }),
+  /** 手動の並べ替え (上から順の ID) */
+  reorder: (ids: string[]) => req<{ ok: true }>('/api/tasks/reorder', { method: 'POST', json: { ids } }),
   /** 他の人のタスクを 進行中 / 完了 に進める */
   moveOther: (id: string, status: 'doing' | 'done') => req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}/move`, { method: 'POST', json: { status } }),
   /** 作業量の調整 (AI の判定から 1 段階まで) */
@@ -85,8 +102,9 @@ export const api = {
   attention: () => req<{ items: AttentionItem[] }>('/api/attention'),
   notices: () => req<{ notices: Notice[]; unread: number }>('/api/notifications'),
   readNotices: () => req<{ ok: true }>('/api/notifications/read', { method: 'POST', json: {} }),
+  reports: () => req<{ reports: { id: number; from: string; to: string; text: string; createdAt: number }[] }>('/api/reports'),
   history: (from: string, to: string) => req<{ tasks: Task[] }>(`/api/history?from=${from}&to=${to}`),
-  report: (from: string, to: string) => req<{ text: string }>('/api/history/report', { method: 'POST', json: { from, to } }),
+  report: (from: string, to: string, tag: string | null = null) => req<{ text: string }>('/api/history/report', { method: 'POST', json: { from, to, tag } }),
   setSkin: (skin: string | null) => req<{ player: PlayerState }>('/api/player/skin', { method: 'POST', json: { skin } }),
   /** 期限の設定 (自分・他の人のタスクどちらも可。null で解除) */
   setDue: (id: string, due: string | null) => req<{ task: Task }>(`/api/tasks/${id}/due`, { method: 'PUT', json: { due } }),
@@ -102,6 +120,34 @@ export const api = {
 
 /** 最近の動きのタブ */
 export type FeedKind = 'all' | Status
+
+type Who = { id: string; name: string; picture: string; skin: string | null }
+export interface RaidState {
+  week: string
+  until: string
+  boss: { name: string; icon: string; hp: number }
+  damage: number
+  defeated: boolean
+  ranking: (Who & { damage: number })[]
+  mine: number
+  claimed: boolean
+}
+export interface Mvp {
+  week: string
+  until: string
+  done: { value: number; winners: Who[] } | null
+  xp: { value: number; winners: Who[] } | null
+  helps: { value: number; winners: Who[] } | null
+}
+export interface EventState {
+  id: string
+  name: string
+  icon: string
+  end: string
+  skin: { id: string; name: string; emoji: string }
+  done: number
+  got: boolean
+}
 
 export type Mission = MissionDef & { value: number; done: boolean; claimed: boolean }
 

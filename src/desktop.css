@@ -1,0 +1,75 @@
+/* PC など横に広い画面 (1000px 以上): 左のサイドバー + 広いレイアウト。スマホの見え方は変えない */
+
+@media (min-width: 1000px) {
+  :root { --side: 104px; --page: 1280px; }
+
+  /* ---------- 下のタブ → 左のサイドバー ---------- */
+  .dock {
+    left: 16px; right: auto; top: 0; bottom: 0; width: 80px;
+    flex-direction: column; justify-content: center; gap: 14px; padding: 0;
+  }
+  .tabbar { flex: none; flex-direction: column; width: 80px; max-width: none; padding: 6px; border-radius: 28px; }
+  .tab { flex: none; height: 72px; border-radius: 22px; }
+  .tab-label { font-size: 11.5px; }
+  .tab-count { top: 8px; right: 10px; }
+  .menu { right: auto; left: calc(100% + 12px); bottom: 0; transform-origin: bottom left !important; }
+
+  /* ---------- 本文: サイドバーの右に広く ---------- */
+  .view {
+    max-width: calc(var(--page) + var(--side) + 56px);
+    padding: calc(var(--safe-t) + 24px) 28px 48px calc(var(--side) + 28px);
+  }
+  .view-me { padding-top: calc(var(--safe-t) + var(--composer-h) + 28px); }
+  .composer { left: calc(var(--side) + 28px); right: 28px; max-width: var(--page); top: calc(var(--safe-t) + 16px); }
+  .select-bar { left: calc(var(--side) + 28px); right: 28px; bottom: 20px; }
+  .sheet { left: calc(var(--side) + 28px); right: 28px; bottom: 20px; max-width: 680px; }
+  .toast-zone { left: var(--side); bottom: calc(var(--safe-b) + 28px); }
+
+  /* ---------- 自分: 未着手・進行中・完了の 3 列 ---------- */
+  .board-mode .status-tabs { display: none; }
+  .board-mode .me-toolbar { justify-content: flex-end; }
+  .board-mode .me-toolbar .tool-btn { height: 42px; }
+  .board-mode .me-toolbar { margin-bottom: 8px; }
+  .board-mode .hint-bar { position: absolute; margin: 0; top: calc(var(--safe-t) + var(--composer-h) + 28px); left: calc(var(--side) + 28px); height: 42px; }
+  .board-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .board-col {
+    min-height: 60vh; padding: 12px; border-radius: 26px;
+    background: rgba(255, 255, 255, 0.32); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), inset 0 0 0 1px rgba(20, 28, 48, 0.04);
+  }
+  .board-col-head { display: flex; align-items: center; gap: 8px; margin: 2px 6px 10px; font-size: 14px; font-weight: 800; }
+  .board-col-head span { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; font-size: 12px; line-height: 22px; text-align: center; color: #fff; }
+  .board-col.t-todo .board-col-head { color: var(--c-todo); }
+  .board-col.t-todo .board-col-head span { background: var(--c-todo); }
+  .board-col.t-doing .board-col-head { color: #d97706; }
+  .board-col.t-doing .board-col-head span { background: var(--c-doing); }
+  .board-col.t-done .board-col-head { color: var(--c-done); }
+  .board-col.t-done .board-col-head span { background: var(--c-done); }
+  .board-empty { display: grid; place-items: center; height: 120px; color: var(--ink-3); opacity: 0.5; }
+  .board-empty svg { width: 34px; height: 34px; }
+  .board-col .card-title { font-size: 15px; }
+  .hint-bar { max-width: 640px; }
+
+  /* ---------- みんな: 左にお知らせ・要対応・依頼、右に最近の動き ---------- */
+  .people { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 16px; align-items: start; }
+  .people > .notices, .people > .attention, .people > .requests { grid-column: 1; }
+  .people > .feed { grid-column: 2; grid-row: 1 / span 3; }
+  .people > .board, .people > .person-list, .people > .skel-list { grid-column: 1 / -1; }
+  .person-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
+  .person-list > li { margin: 0; }
+
+  /* ---------- 冒険: 2 列 ---------- */
+  .adv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 16px; align-items: start; }
+  .adv > .char, .adv > .sub-tabs { grid-column: 1 / -1; }
+  .adv .sub-tabs { max-width: 640px; }
+  .adv > [data-testid='missions'] { grid-column: 1 / -1; }
+  .stage-map { grid-template-columns: repeat(10, 1fr); }
+  .stage-node.tower { grid-column: span 10; }
+
+  /* ---------- マウス操作 ---------- */
+  .card { transition: box-shadow 0.18s ease, transform 0.18s ease; }
+}
+
+@media (min-width: 1000px) and (hover: hover) {
+  .card:not(.selecting):hover { box-shadow: var(--glass-edge), 0 10px 26px -12px rgba(20, 28, 48, 0.28); }
+  .person:hover, .att-item:hover, .req-item:hover { box-shadow: 0 8px 22px -12px rgba(20, 28, 48, 0.3); }
+}

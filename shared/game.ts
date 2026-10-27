@@ -18,6 +18,8 @@ export interface Item {
   crit: number
   heal: number
   effect: string | null
+  /** 強化段階 (+1〜+5) */
+  plus?: number
 }
 
 /** 冒険職。倍率は最終ステータスにかかる */
@@ -63,6 +65,11 @@ export interface PlayerState {
   secretSkills: SecretSkillView[] // 解放済みの隠しスキル (条件を満たしたものだけ)
   bonus: Bonus // 習得済みの隠しスキルの効果の合計
   skin?: string | null // 見た目 (null = Google の写真)
+  title?: string | null // 名前の横に出す称号 (実績の ID)
+  streak?: number // 今の連続日数
+  achievements?: { id: string; at: number }[] // 取った実績
+  pet?: string | null // 連れているペット
+  boostLeft?: number // XP 2 倍チケットの残り回数
 }
 
 /** 隠しスキルの効果。中身 (名前・条件) はサーバーだけが知っていて、フロントには数値だけが届く */
@@ -450,6 +457,8 @@ export interface XpInput {
   skills: string[]
   effects?: string[] // 装備の効果
   bonus?: Pick<Bonus, 'xp' | 'gold'> // 隠しスキルの効果
+  /** ペット・季節イベント・XP 2 倍チケットなどの上乗せ (加算倍率) */
+  extras?: { label: string; xp?: number; gold?: number }[]
 }
 
 export function computeXp(x: XpInput) {
@@ -477,12 +486,14 @@ export function computeXp(x: XpInput) {
   add(has('scholar'), 0.15, '博識 +15%')
   add(fx.includes('xpup'), 0.1, '装備 XP+10%')
   add((x.bonus?.xp ?? 0) > 0, x.bonus?.xp ?? 0, `隠しスキル XP+${Math.round((x.bonus?.xp ?? 0) * 100)}%`)
+  for (const e of x.extras ?? []) add(!!e.xp, e.xp ?? 0, e.label)
   amount = Math.round(amount * mult)
   if (x.doneToday === 0) {
     amount += 5
     bonuses.push('今日の初完了 +5')
   }
-  const goldMult = 1 + (fx.includes('goldup') ? 0.2 : 0) + (has('goldsmith') ? 0.3 : 0) + (x.bonus?.gold ?? 0)
+  const goldMult =
+    1 + (fx.includes('goldup') ? 0.2 : 0) + (has('goldsmith') ? 0.3 : 0) + (x.bonus?.gold ?? 0) + (x.extras ?? []).reduce((a, e) => a + (e.gold ?? 0), 0)
   const gold = Math.ceil((amount / 2) * goldMult)
   return { amount, gold, bonuses }
 }
@@ -524,12 +535,32 @@ const EFFECT_POOL: Record<Slot, string[]> = {
   feet: ['dodge', 'first', 'goldup'],
 }
 
-/** レア度ごとに 1 段ずつ良い名前になる */
-const NAMES: Record<Slot, string[]> = {
-  head: ['革の帽子', '鉄の兜', '騎士の兜', '竜の兜', '王者の冠'],
-  body: ['布の服', '革の鎧', '鋼の鎧', '竜鱗の鎧', '聖なる鎧'],
-  feet: ['布の靴', '革のブーツ', '鉄の具足', '疾風の靴', '天馬の靴'],
-  weapon: ['木の剣', '鉄の剣', '炎の剣', '雷の槍', '勇者の剣'],
+/** 部位・レア度ごとの名前 (レア度が上がるほど良い名前になる) */
+const NAMES: Record<Slot, Record<Rarity, string[]>> = {
+  head: {
+    N: ['革の帽子', '鉄の兜', '布の頭巾', '木の兜'],
+    R: ['鉄の兜', '騎士の兜', '羽根付き帽子', '銀の髪飾り'],
+    SR: ['騎士の兜', '竜の兜', '魔導士の帽子', '月光のサークレット'],
+    SSR: ['竜の兜', '王者の冠', '天空の兜', '神々の冠'],
+  },
+  body: {
+    N: ['布の服', '革の鎧', '旅人のマント', '木の胸当て'],
+    R: ['革の鎧', '鋼の鎧', '鎖かたびら', '銀の胸当て'],
+    SR: ['鋼の鎧', '竜鱗の鎧', '魔法のローブ', '白銀の鎧'],
+    SSR: ['竜鱗の鎧', '聖なる鎧', '星屑のローブ', '神鉄の鎧'],
+  },
+  feet: {
+    N: ['布の靴', '革のブーツ', 'わらじ', '木靴'],
+    R: ['革のブーツ', '鉄の具足', '銀の靴', '旅人のブーツ'],
+    SR: ['鉄の具足', '疾風の靴', '忍びの足袋', '雷光のブーツ'],
+    SSR: ['疾風の靴', '天馬の靴', '神速のサンダル', '天空のブーツ'],
+  },
+  weapon: {
+    N: ['木の剣', '鉄の剣', 'こんぼう', '銅のナイフ'],
+    R: ['鉄の剣', '炎の剣', '鋼の槍', '銀の斧'],
+    SR: ['炎の剣', '雷の槍', '氷の大剣', '魔弓アルテミス'],
+    SSR: ['雷の槍', '勇者の剣', '聖剣エクスカリバー', '神槍グングニル'],
+  },
 }
 
 /** 装備の強さはステージに比例して伸びる */
@@ -542,8 +573,8 @@ export function rollItem(seed: number, stage: number, forceRarity?: Rarity, forc
   const rarity = forceRarity ?? RARITY_RATE.find(([, p]) => roll < p)![0]
   const pick = (['head', 'body', 'feet', 'weapon'] as Slot[])[Math.floor(r() * 4)]
   const slot = forceSlot ?? pick
-  const tier = { N: [0, 1], R: [1, 2], SR: [2, 3], SSR: [3, 4] }[rarity]
-  const name = NAMES[slot][tier[0] + Math.floor(r() * (tier[1] - tier[0] + 1))]
+  const names = NAMES[slot][rarity]
+  const name = names[Math.floor(r() * names.length)]
   const power = gearPower(rarity, stage)
   const j = () => 0.85 + r() * 0.3
   const st = { atk: 0, hp: 0, crit: 0, heal: 0 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, useDragControls } from 'motion/react'
-import type { Task } from '../../shared/types'
+import { tagsOf, type Task } from '../../shared/types'
 import { WEIGHT_LABEL, jstToday } from '../../shared/game'
 import { api, HttpError } from '../api'
 import { SparkIcon } from './icons'
@@ -53,10 +53,10 @@ function rangeOf(p: Preset): [string, string] {
 const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
 
 function toCsv(tasks: Task[]) {
-  const head = ['完了日', '完了時刻', 'タスク', '詳細', '分解元', '大きさ', '獲得XP', '期限', '依頼した人']
+  const head = ['完了日', '完了時刻', 'タスク', '詳細', 'タグ', '分解元', '大きさ', '獲得XP', '期限', '依頼した人']
   const rows = tasks.map((t) => {
     const at = t.doneAt ?? t.updatedAt
-    return [jstDate(at), jstTime(at), t.title, t.note, t.parent?.title ?? '', t.weight ? WEIGHT_LABEL[t.weight] : '', t.xpAwarded ?? 0, t.due ?? '', t.requestedBy?.name ?? '']
+    return [jstDate(at), jstTime(at), t.title, t.note, tagsOf(t).map((x) => '#' + x).join(' '), t.parent?.title ?? '', t.weight ? WEIGHT_LABEL[t.weight] : '', t.xpAwarded ?? 0, t.due ?? '', t.requestedBy?.name ?? '']
   })
   // 先頭の BOM で Excel が UTF-8 と認識する
   return '﻿' + [head, ...rows].map((r) => r.map(cell).join(',')).join('\r\n')
@@ -66,19 +66,28 @@ function toCsv(tasks: Task[]) {
 export function History({ onClose, toast }: { onClose: () => void; toast: (text: string) => void }) {
   const [preset, setPreset] = useState<Preset>('today')
   const [[from, to], setRange] = useState<[string, string]>(() => rangeOf('today'))
-  const [tasks, setTasks] = useState<Task[] | null>(null)
+  const [all, setAll] = useState<Task[] | null>(null)
+  const [tag, setTag] = useState<string | null>(null)
+  const allTags = useMemo(() => [...new Set((all ?? []).flatMap((t) => tagsOf(t)))].sort((a, b) => a.localeCompare(b, 'ja')), [all])
+  // タグで絞り込むと、一覧・CSV・コピー・AI 日報すべてがそのタグの分だけになる
+  const tasks = useMemo(() => (all && tag && allTags.includes(tag) ? all.filter((t) => tagsOf(t).includes(tag)) : all), [all, tag, allTags])
   const [report, setReport] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const controls = useDragControls()
+  const [reports, setReports] = useState<{ id: number; from: string; to: string; text: string }[]>([])
+  const [openReport, setOpenReport] = useState<number | null>(null)
+  useEffect(() => {
+    api.reports().then((r) => setReports(r.reports), () => {})
+  }, [])
 
   useEffect(() => {
     let alive = true
-    setTasks(null)
+    setAll(null)
     setReport(null)
     if (from > to) return
     api.history(from, to).then(
-      (r) => alive && setTasks(r.tasks),
-      () => alive && setTasks([]),
+      (r) => alive && setAll(r.tasks),
+      () => alive && setAll([]),
     )
     return () => {
       alive = false
@@ -130,7 +139,7 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
   const makeReport = async () => {
     setBusy(true)
     try {
-      setReport((await api.report(from, to)).text)
+      setReport((await api.report(from, to, tag && allTags.includes(tag) ? tag : null)).text)
     } catch (e) {
       toast(e instanceof HttpError && e.reason && e.status === 400 ? e.reason : 'AIを利用できませんでした')
     } finally {
@@ -163,6 +172,28 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
           <div className="grabber" />
         </div>
         <h2 className="sheet-h">完了タスクの履歴</h2>
+        {reports.length > 0 && (
+          <section className="weekly" data-testid="weekly">
+            <h3>📝 週のふりかえり（毎週金曜の夕方にAIが作成）</h3>
+            <ul>
+              {reports.map((r) => (
+                <li key={r.id}>
+                  <button className="weekly-head" onClick={() => setOpenReport(openReport === r.id ? null : r.id)} data-testid="weekly-item">
+                    {md(r.from)} 〜 {md(r.to)} <span>{openReport === r.id ? '閉じる' : '開く'}</span>
+                  </button>
+                  {openReport === r.id && (
+                    <div className="report">
+                      <textarea readOnly value={r.text} rows={9} aria-label="週のふりかえり" />
+                      <button className="pill-btn primary small" onClick={() => copy(r.text)}>
+                        コピー
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <div className="preset-row">
           {PRESETS.map((p) => (
             <button key={p.key} className={`preset ${preset === p.key ? 'on' : ''}`} onClick={() => pick(p.key)} data-testid={`preset-${p.key}`}>
@@ -175,6 +206,18 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
             <input type="date" value={from} max={jstToday()} onChange={(e) => e.target.value && setRange([e.target.value, to])} aria-label="開始日" data-testid="range-from" />
             <span>〜</span>
             <input type="date" value={to} max={jstToday()} onChange={(e) => e.target.value && setRange([from, e.target.value])} aria-label="終了日" data-testid="range-to" />
+          </div>
+        )}
+        {allTags.length > 0 && (
+          <div className="tag-row" data-testid="history-tags">
+            <button className={`tag-filter ${tag && allTags.includes(tag) ? '' : 'on'}`} onClick={() => setTag(null)}>
+              すべて
+            </button>
+            {allTags.map((t) => (
+              <button key={t} className={`tag-filter ${tag === t ? 'on' : ''}`} onClick={() => setTag(tag === t ? null : t)}>
+                #{t}
+              </button>
+            ))}
           </div>
         )}
         <div className="history-bar">

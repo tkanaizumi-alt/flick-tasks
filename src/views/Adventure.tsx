@@ -29,8 +29,11 @@ import { StageMap } from '../components/StageMap'
 import { GearIcon } from '../components/GearIcon'
 import { Avatar } from '../components/Dock'
 import type { Celebration } from '../components/Rewards'
+import { Achievements } from '../components/Achievements'
+import { EventBanner, PetPanel, RaidPanel, ShopPanel } from '../components/GameExtras'
+import { EVENT_SKINS, hasEventSkin } from '../../shared/extras'
 
-type Tab = 'battle' | 'loot' | 'mission' | 'train'
+type Tab = 'battle' | 'loot' | 'mission' | 'train' | 'achieve'
 
 interface Props {
   player: PlayerState
@@ -88,11 +91,13 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
     { key: 'loot', label: '宝箱' },
     { key: 'mission', label: 'ミッション', badge: claimable },
     { key: 'train', label: '育成', badge: Math.max(0, sp.free) },
+    { key: 'achieve', label: '実績' },
   ]
 
   return (
     <div className="adv" data-testid="adventure">
       <CharacterHeader name={name} picture={picture} player={player} gold />
+      <EventBanner refresh={player.xp} />
 
       <div className="sub-tabs glass" role="tablist">
         {TABS.map((t) => (
@@ -106,6 +111,15 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
 
       {tab === 'battle' && (
         <>
+          <RaidPanel
+            refresh={player.xp}
+            toast={toast}
+            onReward={(r) => {
+              onPlayer(r.player)
+              if (r.item) setReveal(r.item)
+              toast(`💰${r.gold} を受け取りました`)
+            }}
+          />
           <section className="panel glass boss" data-testid="boss">
             <div className="boss-icon">{enemy.icon}</div>
             <div className="boss-body">
@@ -167,6 +181,17 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             </button>
           </section>
 
+          <ShopPanel
+            player={player}
+            busy={busy}
+            onBuy={async (id) => {
+              const r = await run(() => api.buy(id))
+              if (!r) return
+              if (r.item) setReveal(r.item)
+              else toast('XP2倍チケットを手に入れました')
+            }}
+          />
+
           <section className="panel glass">
             <div className="panel-head">
               <h2>装備中</h2>
@@ -204,6 +229,8 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           </section>
         </>
       )}
+
+      {tab === 'achieve' && <Achievements player={player} busy={busy} onTitle={(id) => run(() => api.setTitle(id))} />}
 
       {tab === 'mission' && (
         <section className="panel glass" data-testid="missions">
@@ -245,6 +272,8 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
 
       {tab === 'train' && (
         <>
+          <PetPanel player={player} busy={busy} onPet={(id) => run(() => api.setPet(id))} />
+
           <section className="panel glass" data-testid="skins">
             <div className="panel-head">
               <h2>スキン</h2>
@@ -269,6 +298,16 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                   >
                     {open ? <Avatar name={s.name} skin={s.id} size={44} /> : <span className="skin-lock">🔒</span>}
                     <span className="skin-name">{open ? s.name : skinCondition(s)}</span>
+                  </button>
+                )
+              })}
+              {EVENT_SKINS.map((s) => {
+                const open = hasEventSkin((player.achievements ?? []).map((a) => a.id), s.event)
+                const on = player.skin === s.id
+                return (
+                  <button key={s.id} className={`skin event ${on ? 'on' : ''} ${open ? '' : 'locked'}`} disabled={busy || on || !open} onClick={() => run(() => api.setSkin(s.id))} data-testid={`skin-${s.id}`}>
+                    {open ? <Avatar name={s.name} skin={s.id} size={44} /> : <span className="skin-lock">{s.emoji}</span>}
+                    <span className="skin-name">{open ? s.name : `${s.eventName}限定`}</span>
                   </button>
                 )
               })}
@@ -447,6 +486,15 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             }}
             onSell={async () => {
               if (await run(() => api.sell(openItem.id))) setOpenItem(null)
+            }}
+            materials={player.items.filter((i) => i.id !== openItem.id && i.slot === openItem.slot && i.rarity === openItem.rarity && !Object.values(player.equipped).includes(i.id)).length}
+            onEnhance={async () => {
+              const r = await run(() => api.enhance(openItem.id))
+              if (r) {
+                const next = r.player.items.find((i) => i.id === openItem.id)
+                if (next) setOpenItem(next)
+                toast('強化しました')
+              }
             }}
           />
         )}

@@ -5,6 +5,8 @@ import './styles.css'
 import './game.css'
 import './jobs.css'
 import './links.css'
+import './features.css'
+import './desktop.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

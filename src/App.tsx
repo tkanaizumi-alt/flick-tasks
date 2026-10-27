@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { STATUSES, type Flag, type Status, type Task, type User } from '../shared/types'
+import { STATUSES, tagsOf, type Flag, type Status, type Task, type User } from '../shared/types'
 import { spInfo, type PlayerState, type Weight } from '../shared/game'
+import type { AchievementDef } from '../shared/achievements'
 import { api, HttpError, pending, STATUS_LABEL, type PendingMemo, type XpChange } from './api'
 import { Background } from './components/Background'
 import { Skeleton } from './components/Skeleton'
@@ -14,9 +15,17 @@ import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
 import { LevelUp, XpPops, type Celebration, type XpPopData } from './components/Rewards'
 import { CheckCircleIcon, CircleIcon, PlayIcon } from './components/icons'
-import { History } from './components/History'
-import { People } from './views/People'
-import { Adventure } from './views/Adventure'
+import { ReorderList } from './components/ReorderList'
+// 開いた瞬間のメモを速くするため、みんな・冒険・履歴は使うときに読み込む
+const People = lazy(() => import('./views/People').then((m) => ({ default: m.People })))
+const Adventure = lazy(() => import('./views/Adventure').then((m) => ({ default: m.Adventure })))
+const History = lazy(() => import('./components/History').then((m) => ({ default: m.History })))
+const ViewSkeleton = () => (
+  <div className="skel-list">
+    <div className="skel skel-card tall" />
+    <div className="skel skel-card tall" />
+  </div>
+)
 
 export type UITask = Task & { syncing?: boolean; ai?: boolean }
 type Phase = 'loading' | 'guest' | 'ready'
@@ -26,10 +35,10 @@ const TAB_KEY = 'flick.tab'
 const VIEW_KEY = 'flick.view'
 const HINT_KEY = 'flick.hint.select'
 const SORT_KEY = 'flick.sort'
-/** 並び順: 新しい順 / 重要度順 / 期日順 */
+/** 並び順: 手動 (新しいものが上・ドラッグで並べ替え) / 重要度順 / 期日順 */
 type SortMode = 'new' | 'priority' | 'due'
 const SORTS: { key: SortMode; label: string }[] = [
-  { key: 'new', label: '新しい順' },
+  { key: 'new', label: '手動' },
   { key: 'priority', label: '重要度順' },
   { key: 'due', label: '期日順' },
 ]
@@ -64,6 +73,19 @@ const store = {
       localStorage.removeItem(k)
     } catch {}
   },
+}
+
+/** PC など横に広い画面: 未着手・進行中・完了を 3 列で並べる */
+const WIDE_QUERY = '(min-width: 1000px)'
+function useWide() {
+  const [wide, setWide] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(WIDE_QUERY).matches)
+  useEffect(() => {
+    const m = matchMedia(WIDE_QUERY)
+    const on = () => setWide(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return wide
 }
 
 const inflight = new Set<string>()
@@ -109,6 +131,10 @@ export function App() {
     store.set(SORT_KEY, v)
   }
   const unreadRef = useRef(0)
+  const wide = useWide()
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  // 並べ替えモード (null = していない)。ステータスごとの新しい並び (上から順の ID)
+  const [reorder, setReorder] = useState<Partial<Record<Status, string[]>> | null>(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const tabRef = useRef(tab)
@@ -146,6 +172,21 @@ export function App() {
   }, [])
   const removeLocal = useCallback((ids: string[]) => setTasks((prev) => prev.filter((t) => !ids.includes(t.id))), [])
 
+  /** 新しく取れた実績のお祝い (レベルアップのお祝いと重ならないよう少し遅らせる) */
+  const celebrateAchievements = useCallback((list: AchievementDef[] | undefined, delay: number) => {
+    if (!list?.length) return
+    const a = list[list.length - 1]
+    setTimeout(
+      () =>
+        setLevelUp({
+          label: 'ACHIEVEMENT',
+          title: `${a.icon} ${a.name}`,
+          sub: list.length > 1 ? `ほか${list.length - 1}個の実績を獲得。冒険の「実績」で称号にできます` : `${a.desc}。冒険の「実績」で称号にできます`,
+        }),
+      delay,
+    )
+  }, [])
+
   const onXp = useCallback((xp: XpChange | null) => {
     if (!xp || xp.amount === 0) return
     const id = Date.now() + Math.random()
@@ -153,7 +194,10 @@ export function App() {
     setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), 1800)
     setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount), gold: Math.max(0, p.gold + xp.gold) } : p))
     // 職業 XP なども変わるのでサーバーの状態で取り直す
-    api.player().then((r) => setPlayer(r.player), () => {})
+    api.player().then((r) => {
+      setPlayer(r.player)
+      celebrateAchievements(r.unlocked, 2600)
+    }, () => {})
     if (xp.unlocked) {
       navigator.vibrate?.([20, 60, 20, 60, 20])
       const u = xp.unlocked
@@ -169,7 +213,8 @@ export function App() {
     let cancelled = false
     ;(async () => {
       try {
-        const [{ user }, { tasks }, { player }] = await Promise.all([api.me(), api.list(), api.player()])
+        const [{ user }, { tasks }, { player, unlocked }] = await Promise.all([api.me(), api.list(), api.player()])
+        celebrateAchievements(unlocked, 1200)
         if (cancelled) return
         setUser(user)
         setTasks(tasks)
@@ -559,11 +604,16 @@ export function App() {
     setPhase('guest')
   }, [setView])
 
+  // #タグ: 使われているタグの一覧と、選んだタグでの絞り込み
+  const allTags = useMemo(() => [...new Set(tasks.flatMap((t) => tagsOf(t)))].sort((a, b) => a.localeCompare(b, 'ja')), [tasks])
+  const activeTag = tagFilter && allTags.includes(tagFilter) ? tagFilter : null
+  const shown = useMemo(() => (activeTag ? tasks.filter((t) => tagsOf(t).includes(activeTag)) : tasks), [tasks, activeTag])
+
   const counts = useMemo(() => {
     const c = { todo: 0, doing: 0, done: 0 }
-    for (const t of tasks) c[t.status]++
+    for (const t of shown) c[t.status]++
     return c
-  }, [tasks])
+  }, [shown])
 
   const q = query?.trim().toLowerCase() ?? ''
   const visible = useMemo(() => {
@@ -571,17 +621,39 @@ export function App() {
     const pinned = (t: UITask) => (t.requestedBy && t.status !== 'done' ? 1 : 0)
     if (q) {
       // 検索中は全ステータスから。未着手 → 進行中 → 完了 の順
-      return tasks
+      return shown
         .filter((t) => t.title.toLowerCase().includes(q) || t.note.toLowerCase().includes(q))
         .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status) || pinned(b) - pinned(a) || SORT_CMP[sort](a, b))
     }
-    // 完了タブは完了した順のまま
-    const cmp = tab === 'done' ? SORT_CMP.new : SORT_CMP[sort]
-    return tasks.filter((t) => t.status === tab).sort((a, b) => pinned(b) - pinned(a) || cmp(a, b))
-  }, [tasks, tab, q, sort])
+    // 完了は完了した順のまま
+    const column = (s: Status) => {
+      const cmp = s === 'done' ? SORT_CMP.new : SORT_CMP[sort]
+      return shown.filter((t) => t.status === s).sort((a, b) => pinned(b) - pinned(a) || cmp(a, b))
+    }
+    // 横に広い画面では 3 列すべてを並べる
+    return wide ? ORDER.flatMap(column) : column(tab)
+  }, [shown, tab, q, sort, wide])
+  const board = wide && !q
+  const canReorder = !q && !activeTag && (board || tab !== 'done')
+
+  const saveReorder = async () => {
+    const changes = Object.entries(reorder ?? {}) as [Status, string[]][]
+    setReorder(null)
+    for (const [, ids] of changes) {
+      // 上から順に新しい位置 (サーバーと同じ付け方)
+      const base = Date.now()
+      setTasks((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, position: base - ids.indexOf(t.id) } : t)))
+      try {
+        await api.reorder(ids)
+      } catch {
+        showToast('並び順を保存できませんでした')
+      }
+    }
+    if (changes.length) showToast('並び順を保存しました')
+  }
   const selectedTasks = selected ? visible.filter((t) => selected.has(t.id)) : []
   const selStatuses = new Set(selectedTasks.map((t) => t.status))
-  const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q ? tab : null
+  const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q && !board ? tab : null
   const openTask = tasks.find((t) => t.id === openId) ?? null
   const EmptyIcon = EMPTY_ICON[tab]
   const freeSp = player ? Math.max(0, spInfo(player).free) : 0
@@ -598,7 +670,7 @@ export function App() {
         {phase === 'ready' && (
           <motion.div key="app" className="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
             {/* 画面切り替えは退場アニメーションを待たず即座に描画する (フェードインのみ) */}
-            <motion.main key={view} className={`view view-${view}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
+            <motion.main key={view} className={`view view-${view} ${board && view === 'me' ? 'board-mode' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
                 {view === 'me' && (
                   <>
                     <MeToolbar
@@ -626,16 +698,105 @@ export function App() {
                         </button>
                       </div>
                     )}
-                    {(tab !== 'done' || q) && visible.length > 1 && (
-                      <div className="sort-row" role="radiogroup" aria-label="並び順" data-testid="sort-row">
-                        {SORTS.map((s) => (
-                          <button key={s.key} role="radio" aria-checked={sort === s.key} className={`sort-btn ${sort === s.key ? 'on' : ''}`} onClick={() => setSort(s.key)} data-testid={`sort-${s.key}`}>
-                            {s.label}
+                    {allTags.length > 0 && (
+                      <div className="tag-row" data-testid="tag-row">
+                        <button className={`tag-filter ${activeTag ? '' : 'on'}`} onClick={() => setTagFilter(null)} data-testid="tag-all">
+                          すべて
+                        </button>
+                        {allTags.map((t) => (
+                          <button key={t} className={`tag-filter ${activeTag === t ? 'on' : ''}`} onClick={() => setTagFilter(activeTag === t ? null : t)} data-testid="tag-filter">
+                            #{t}
                           </button>
                         ))}
                       </div>
                     )}
+                    {(tab !== 'done' || q || board) && visible.length > 1 && (
+                      <div className="sort-row" role="radiogroup" aria-label="並び順" data-testid="sort-row">
+                        {reorder ? (
+                          <>
+                            <span className="reorder-hint">≡ をドラッグして並べ替え</span>
+                            <button className="sort-btn" onClick={() => setReorder(null)} data-testid="reorder-cancel">
+                              やめる
+                            </button>
+                            <button className="sort-btn on" onClick={saveReorder} data-testid="reorder-save">
+                              完了
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {SORTS.map((s) => (
+                              <button key={s.key} role="radio" aria-checked={sort === s.key} className={`sort-btn ${sort === s.key ? 'on' : ''}`} onClick={() => setSort(s.key)} data-testid={`sort-${s.key}`}>
+                                {s.label}
+                              </button>
+                            ))}
+                            {canReorder && (
+                              <button
+                                className="sort-btn reorder-btn"
+                                onClick={() => {
+                                  setSort('new')
+                                  setSelected(null)
+                                  setReorder({})
+                                }}
+                                data-testid="reorder-start"
+                              >
+                                ↕ 並べ替え
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {board ? (
+                      <LayoutGroup>
+                        <div className="board-cols" data-testid="board">
+                          {ORDER.map((s) => {
+                            const col = visible.filter((t) => t.status === s)
+                            const Icon = EMPTY_ICON[s]
+                            return (
+                              <section key={s} className={`board-col t-${s}`}>
+                                <h2 className="board-col-head">
+                                  {STATUS_LABEL[s]} <span>{col.length}</span>
+                                </h2>
+                                {reorder && s !== 'done' ? (
+                                  <ReorderList tasks={col} onChange={(ids) => setReorder((r) => ({ ...r, [s]: ids }))} />
+                                ) : (
+                                <ul className="list" data-testid={`list-${s}`}>
+                                  <AnimatePresence mode="popLayout">
+                                    {col.map((t, i) => (
+                                      <TaskCard
+                                        key={t.id}
+                                        task={t}
+                                        index={i}
+                                        onSwipe={onSwipe}
+                                        onOpen={(x) => setOpenId(x.id)}
+                                        selecting={!!selected}
+                                        selected={!!selected?.has(t.id)}
+                                        onSelect={onSelect}
+                                      />
+                                    ))}
+                                  </AnimatePresence>
+                                </ul>
+                                )}
+                                {col.length === 0 && (
+                                  <div className={`board-empty t-${s}`}>
+                                    <Icon />
+                                  </div>
+                                )}
+                                {s === 'done' && (
+                                  <button className="history-link" onClick={() => setHistoryOpen(true)} data-testid="history-open">
+                                    📒 7日より前の完了・エクスポート・AI日報は「履歴」へ
+                                  </button>
+                                )}
+                              </section>
+                            )
+                          })}
+                        </div>
+                      </LayoutGroup>
+                    ) : (
                     <section className="list-page">
+                      {reorder && tab !== 'done' ? (
+                        <ReorderList tasks={visible} onChange={(ids) => setReorder((r) => ({ ...r, [tab]: ids }))} />
+                      ) : (
                       <LayoutGroup>
                         <ul className="list" data-testid={`list-${tab}`}>
                           <AnimatePresence mode="popLayout">
@@ -655,6 +816,7 @@ export function App() {
                           </AnimatePresence>
                         </ul>
                       </LayoutGroup>
+                      )}
                       {visible.length === 0 && (
                         <div className={`empty t-${tab}`} data-testid="empty">
                           {q ? <span className="empty-text">見つかりません</span> : <EmptyIcon />}
@@ -666,9 +828,11 @@ export function App() {
                         </button>
                       )}
                     </section>
+                    )}
                   </>
                 )}
 
+                <Suspense fallback={<ViewSkeleton />}>
                 {view === 'people' && (
                   <People
                     onXp={onXp}
@@ -699,6 +863,7 @@ export function App() {
                       <div className="skel skel-card tall" />
                     </div>
                   ))}
+                </Suspense>
             </motion.main>
 
             {selected && view === 'me' ? (
@@ -740,6 +905,21 @@ export function App() {
                   onFlag={(flag, note, to) => onFlag(openTask, flag, note, to)}
                   onWeight={(w) => onWeight(openTask, w)}
                   onPriority={(priority) => patchTask(openTask, { priority })}
+                  onRecurring={async (rule) => {
+                    try {
+                      if (rule) {
+                        const { task } = await api.setRecurring(openTask.id, rule)
+                        upsert([task])
+                        showToast('繰り返しにしました')
+                      } else if (openTask.recurring) {
+                        await api.stopRecurring(openTask.recurring.id)
+                        upsert([{ ...openTask, recurring: null }])
+                        showToast('繰り返しをやめました')
+                      }
+                    } catch {
+                      showToast('保存できませんでした')
+                    }
+                  }}
                   toast={showToast}
                   onDue={async (due) => {
                     const prev = openTask
@@ -756,7 +936,9 @@ export function App() {
               )}
             </AnimatePresence>
 
-            <AnimatePresence>{historyOpen && <History onClose={() => setHistoryOpen(false)} toast={showToast} />}</AnimatePresence>
+            <Suspense fallback={null}>
+              <AnimatePresence>{historyOpen && <History onClose={() => setHistoryOpen(false)} toast={showToast} />}</AnimatePresence>
+            </Suspense>
 
             <AnimatePresence>
               {levelUp && (

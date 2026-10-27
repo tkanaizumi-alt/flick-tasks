@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'motion/react'
 import { FLAGS, PRIORITIES, STATUSES, san, type Flag, type Person, type Priority, type Status } from '../../shared/types'
-import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_LABEL, WEIGHT_XP, weightChoices, type Weight } from '../../shared/game'
+import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_LABEL, WEIGHT_XP, jstToday, weightChoices, type Weight } from '../../shared/game'
 import type { UITask } from '../App'
 import { api, HttpError, STATUS_LABEL } from '../api'
 import { SparkIcon, TrashIcon } from './icons'
 import { DueField } from './DueField'
 import { TaskLinks, XpChip } from './TaskMeta'
 import { XpGuide } from './XpGuide'
+import { Comments } from './Comments'
+import { ruleChoices, ruleLabel } from '../../shared/recurring'
 
 interface Props {
   task: UITask
@@ -20,10 +22,11 @@ interface Props {
   onFlag: (flag: Flag | null, note?: string, to?: string | null) => Promise<void>
   onWeight: (w: Weight) => void
   onPriority: (p: Priority | null) => void
+  onRecurring: (rule: string | null) => void
   toast: (text: string) => void
 }
 
-export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue, onFlag, onWeight, onPriority, toast }: Props) {
+export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue, onFlag, onWeight, onPriority, onRecurring, toast }: Props) {
   const [title, setTitle] = useState(task.title)
   const [note, setNote] = useState(task.note)
   const [busy, setBusy] = useState(false)
@@ -139,6 +142,29 @@ export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue,
         <DueField due={task.due ?? null} dueBy={task.dueBy?.name} onChange={onDue} />
 
         {task.status !== 'done' && <FlagField task={task} editing={flagEdit} onEdit={setFlagEdit} onFlag={onFlag} />}
+
+        {(task.recurring || (task.status !== 'done' && !task.parent && !task.requestedBy)) && (
+          <div className="weight-field recur-field" data-testid="recur-field">
+            <span className="due-label">🔁 繰り返し</span>
+            {task.recurring ? (
+              <>
+                <b className="recur-now">{ruleLabel(task.recurring.rule)}</b>
+                <button className="due-chip clear" onClick={() => onRecurring(null)} data-testid="recur-stop">
+                  やめる
+                </button>
+              </>
+            ) : (
+              ruleChoices(jstToday()).map((c) => (
+                <button key={c.rule} className="weight-btn" onClick={() => onRecurring(c.rule)} data-testid={`recur-${c.rule.split(':')[0]}`}>
+                  {c.label}
+                </button>
+              ))
+            )}
+            <span className="weight-note">{task.recurring ? '次の日から自動で未着手に追加されます' : '選ぶと、その日になるたびに同じタスクが未着手に追加されます'}</span>
+          </div>
+        )}
+
+        <Comments taskId={task.id} toast={toast} />
 
         <div className="seg" role="radiogroup">
           {STATUSES.map((s) => (

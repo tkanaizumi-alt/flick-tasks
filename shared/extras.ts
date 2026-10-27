@@ -1,0 +1,109 @@
+/** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
+import { MAX_TURNS, type BattleResult, type Rarity } from './game'
+
+const DAY = 86400000
+const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10)
+/** その日を含む週の月曜 (YYYY-MM-DD) */
+export const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7))
+export const shiftDay = addDays
+
+// ---------- 週替わりのレイドボス (全員の今週の XP がダメージになる) ----------
+const RAIDS = [
+  { name: '締切の魔王', icon: '😈' },
+  { name: '会議の巨人', icon: '🗿' },
+  { name: '書類の大蛇', icon: '🐍' },
+  { name: 'メールの竜', icon: '🐲' },
+  { name: '残業の亡霊', icon: '👻' },
+  { name: '散らかりゴーレム', icon: '🪨' },
+  { name: '先延ばしの怪鳥', icon: '🦤' },
+  { name: '属人化クラーケン', icon: '🦑' },
+]
+/** 1 人あたりの HP (1 週間で 1 人 15〜20 件ほど完了すれば倒せる) */
+export const RAID_HP_PER_PLAYER = 250
+export const RAID_GOLD = 150
+
+export function raidForWeek(monday: string, players: number) {
+  const n = Math.floor(Date.parse(`${monday}T00:00:00Z`) / (7 * DAY))
+  const b = RAIDS[((n % RAIDS.length) + RAIDS.length) % RAIDS.length]
+  return { ...b, hp: Math.max(1, players) * RAID_HP_PER_PLAYER }
+}
+
+// ---------- ペット (実績の数で仲間になる。連れているとXP・ゴールドに少しボーナス) ----------
+export interface PetDef {
+  id: string
+  name: string
+  emoji: string
+  need: number // 必要な実績の数
+  xp: number // タスク XP (加算倍率)
+  gold: number // タスクのゴールド (加算倍率)
+}
+export const PETS: PetDef[] = [
+  { id: 'chick', name: 'ぴよ', emoji: '🐣', need: 1, xp: 0.03, gold: 0 },
+  { id: 'kitten', name: 'にゃん', emoji: '🐈', need: 3, xp: 0, gold: 0.1 },
+  { id: 'puppy', name: 'わん', emoji: '🐕', need: 5, xp: 0.05, gold: 0 },
+  { id: 'owlet', name: 'ほっほ', emoji: '🦉', need: 8, xp: 0.05, gold: 0.05 },
+  { id: 'drake', name: 'こりゅう', emoji: '🐲', need: 12, xp: 0.08, gold: 0.05 },
+  { id: 'bird', name: 'ことり', emoji: '🐦', need: 16, xp: 0.1, gold: 0.1 },
+]
+export const PET_MAP: Record<string, PetDef> = Object.fromEntries(PETS.map((p) => [p.id, p]))
+export const petEffect = (p: PetDef) => [p.xp && `XP+${Math.round(p.xp * 100)}%`, p.gold && `ゴールド+${Math.round(p.gold * 100)}%`].filter(Boolean).join('・')
+
+// ---------- ショップ ----------
+export const SHOP = [
+  { id: 'boost', name: 'XP2倍チケット', desc: '次の3回の完了でXPが2倍', icon: '🎫', price: 200 },
+  { id: 'srchest', name: 'SR以上確定の宝箱', desc: 'SR 80% ・ SSR 20%', icon: '💎', price: 400 },
+] as const
+export type ShopId = (typeof SHOP)[number]['id']
+export const BOOST_COUNT = 3
+export const srChestRarity = (r: number): Rarity => (r < 0.2 ? 'SSR' : 'SR')
+
+// ---------- 装備の強化 (同じ部位・同じレア度の装備を 1 つ使って +1。最大 +5) ----------
+export const PLUS_MAX = 5
+/** 強化 1 回で各ステータス +10% (最低 +1) */
+export const plusUp = (v: number) => (v > 0 ? v + Math.max(1, Math.round(v * 0.1)) : 0)
+
+// ---------- 季節イベント (期間中は XP+10%、10 件完了で限定スキン) ----------
+export interface EventDef {
+  id: string
+  name: string
+  icon: string
+  from: string // MM-DD
+  to: string // MM-DD (両端を含む)
+  skin: { id: string; name: string; emoji: string; bg: string }
+}
+export const EVENT_GOAL = 10
+export const EVENT_XP = 0.1
+export const EVENTS: EventDef[] = [
+  { id: 'newyear', name: 'お正月', icon: '🎍', from: '01-01', to: '01-07', skin: { id: 'ev_daruma', name: 'だるま', emoji: '🎎', bg: 'linear-gradient(135deg,#ff9a9e,#fad0c4)' } },
+  { id: 'setsubun', name: '節分', icon: '👹', from: '02-01', to: '02-04', skin: { id: 'ev_oni', name: 'おに', emoji: '👹', bg: 'linear-gradient(135deg,#ff6a6a,#ffb199)' } },
+  { id: 'hanami', name: 'お花見', icon: '🌸', from: '03-25', to: '04-10', skin: { id: 'ev_sakura', name: 'さくら', emoji: '🌸', bg: 'linear-gradient(135deg,#fde2f3,#f9b8d6)' } },
+  { id: 'tsuyu', name: '梅雨', icon: '☔', from: '06-10', to: '06-30', skin: { id: 'ev_snail', name: 'かたつむり', emoji: '🐌', bg: 'linear-gradient(135deg,#c2e9fb,#a1c4fd)' } },
+  { id: 'natsu', name: '夏祭り', icon: '🎆', from: '07-20', to: '08-20', skin: { id: 'ev_suika', name: 'すいか', emoji: '🍉', bg: 'linear-gradient(135deg,#d4fc79,#ff9a9e)' } },
+  { id: 'tsukimi', name: 'お月見', icon: '🎑', from: '09-10', to: '09-25', skin: { id: 'ev_moon', name: 'おつきさま', emoji: '🌕', bg: 'linear-gradient(135deg,#2c3e50,#4ca1af)' } },
+  { id: 'halloween', name: 'ハロウィン', icon: '🎃', from: '10-25', to: '10-31', skin: { id: 'ev_pumpkin', name: 'かぼちゃ', emoji: '🎃', bg: 'linear-gradient(135deg,#f7971e,#ffd200)' } },
+  { id: 'xmas', name: 'クリスマス', icon: '🎄', from: '12-18', to: '12-25', skin: { id: 'ev_santa', name: 'サンタ', emoji: '🎅', bg: 'linear-gradient(135deg,#ff416c,#ff4b2b)' } },
+  { id: 'oosouji', name: '年末の大掃除', icon: '🧹', from: '12-26', to: '12-31', skin: { id: 'ev_broom', name: 'ほうき', emoji: '🧹', bg: 'linear-gradient(135deg,#e0c3fc,#8ec5fc)' } },
+]
+/** その日に開催中のイベント (期間と、取ったかどうかの記録に使うキー) */
+export function activeEvent(day: string) {
+  const md = day.slice(5)
+  const ev = EVENTS.find((e) => e.from <= md && md <= e.to)
+  if (!ev) return null
+  const year = day.slice(0, 4)
+  return { ...ev, key: `ev_${ev.id}_${year}`, start: `${year}-${ev.from}`, end: `${year}-${ev.to}` }
+}
+export const EVENT_SKINS = EVENTS.map((e) => ({ ...e.skin, event: e.id, eventName: e.name }))
+/** 限定スキンを持っているか (どの年のイベントでも) */
+export const hasEventSkin = (achievementIds: string[], eventId: string) => achievementIds.some((a) => a.startsWith(`ev_${eventId}_`))
+
+// ---------- 負けたときのアドバイス ----------
+export function battleAdvice(r: BattleResult): string | null {
+  if (r.win) return null
+  const last = r.turns[r.turns.length - 1]
+  const left = last ? last.enemyHp / r.enemy.hp : 1
+  if (r.turns.length >= MAX_TURNS) return '時間切れ。攻撃が足りません。攻撃・会心にSPを振るか、武器を強化しましょう'
+  if (left > 0.6) return `ボスの体力が${Math.round(left * 100)}%残りました。攻撃が大きく不足しています。攻撃・会心を上げるか、強い武器を装備しましょう`
+  if (left > 0.25) return `ボスの体力が${Math.round(left * 100)}%残りました。攻撃か体力のどちらかをもう少し上げましょう`
+  return `あと一押し（残り${Math.round(left * 100)}%）！体力・回復を少し上げると勝てそうです`
+}
+export const EVENT_SKIN_MAP: Record<string, (typeof EVENT_SKINS)[number]> = Object.fromEntries(EVENT_SKINS.map((s) => [s.id, s]))

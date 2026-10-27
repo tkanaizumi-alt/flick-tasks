@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { EFFECTS, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
+import { PLUS_MAX } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
 const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
@@ -12,7 +13,10 @@ export function ItemCard({ item, equipped, onClick }: { item: Item; equipped?: b
     <button className={`item-card r-${item.rarity} ${equipped ? 'eq' : ''}`} onClick={onClick} data-testid="item" aria-label={`${item.rarity} ${item.name}`}>
       <span className="item-rarity">{item.rarity}</span>
       <GearIcon slot={item.slot} rarity={item.rarity} />
-      <span className="item-name">{item.name}</span>
+      <span className="item-name">
+        {item.name}
+        {item.plus ? <b className="item-plus">+{item.plus}</b> : null}
+      </span>
       {item.effect && <span className="item-fx">✦</span>}
       {equipped && <span className="item-eq">E</span>}
     </button>
@@ -81,10 +85,13 @@ interface SheetProps {
   onClose: () => void
   onEquip: (on: boolean) => void
   onSell: () => void
+  /** 強化に使える装備 (同じ部位・同じレア度・装備していない) の数 */
+  materials: number
+  onEnhance: () => void
 }
 
 /** アイテムの詳細と 装備 / 外す / 売る */
-export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell }: SheetProps) {
+export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, onEnhance }: SheetProps) {
   const diff = (k: 'atk' | 'hp' | 'crit' | 'heal') => item[k] - (current && current.id !== item.id ? current[k] : 0)
   return (
     <>
@@ -107,6 +114,7 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
           <div>
             <div className="is-name">
               <span className="item-rarity inline">{item.rarity}</span> {item.name}
+              {item.plus ? <b className="item-plus">+{item.plus}</b> : null}
             </div>
             <div className="muted">{slotLabel(item)}</div>
           </div>
@@ -126,6 +134,14 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
             })}
         </ul>
         {item.effect && <p className="is-fx">✦ {EFFECTS[item.effect]}</p>}
+        <div className="enhance-row">
+          <button className="pill-btn ghost small" disabled={busy || !materials || (item.plus ?? 0) >= PLUS_MAX} onClick={onEnhance} data-testid="enhance">
+            ⚒️ 強化 {(item.plus ?? 0) >= PLUS_MAX ? '(最大)' : `+${(item.plus ?? 0) + 1}`}
+          </button>
+          <span className="muted">
+            {(item.plus ?? 0) >= PLUS_MAX ? `+${PLUS_MAX}が最大です` : materials ? `同じ部位・${item.rarity}の装備を1つ使って全ステータス+10%（使える装備 ${materials}個）` : `同じ部位・${item.rarity}の装備がもう1つあると強化できます`}
+          </span>
+        </div>
         <div className="sheet-actions">
           <button className="pill-btn primary grow" disabled={busy} onClick={() => onEquip(!equipped)} data-testid="equip-toggle">
             {equipped ? '外す' : `${slotLabel(item)}に装備`}

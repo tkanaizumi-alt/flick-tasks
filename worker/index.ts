@@ -23,7 +23,15 @@ import {
   sellItem,
   setJob,
   setSkin,
+  setTitle,
+  setPet,
+  enhanceItem,
+  buyShop,
 } from './game'
+import { claimRaid, lastWeekMvp, raidState } from './raid'
+import type { ShopId } from '../shared/extras'
+import { eventProgress, streaks, syncAchievements } from './achievements'
+import { dueReminders, weeklyReviews } from './cron'
 import { JOB_MAP } from './jobs'
 import {
   FLAGS,
@@ -38,7 +46,9 @@ import {
   type Task,
   type User,
   san,
+  tagsOf,
 } from '../shared/types'
+import { isRule, ruleMatches } from '../shared/recurring'
 import { BREAKDOWN_MAX, HISTORY_KEEP_DAYS, helpXp, jstDayStart, jstToday, weightChoices, type StatKey, type Weight } from '../shared/game'
 
 /** 完了から 7 日経ったタスクはボードに返さない (履歴には残る) */
@@ -89,6 +99,8 @@ const toTask = (r: any): Task => ({
   flag: r.flag ? { kind: r.flag, note: r.flag_note ?? '', to: ref(r.flag_to, r.flag_to_name), at: r.flag_at ?? 0 } : null,
   requestedBy: ref(r.requested_by, r.requested_by_name),
   follow: r.follow_id && r.follow_title != null ? { id: r.follow_id, title: r.follow_title } : null,
+  recurring: r.recurring_id && r.recurring_rule ? { id: r.recurring_id, rule: r.recurring_rule } : null,
+  comments: r.comment_count ?? 0,
   waitingOn: r.wait_id ? { id: r.wait_id, title: r.wait_title, status: r.wait_status, owner: { id: r.wait_owner, name: r.wait_owner_name ?? '' } } : null,
 })
 
@@ -102,6 +114,7 @@ const TASK_SELECT = `SELECT t.*, ${nameOf('du')} AS due_by_name,
     (SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id) AS child_total,
     (SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id AND c.status = 'done') AS child_done,
     ${nameOf('fu')} AS flag_to_name, ${nameOf('ru')} AS requested_by_name, ft.title AS follow_title,
+    rc.rule AS recurring_rule, (SELECT COUNT(*) FROM comments cm WHERE cm.task_id = t.id) AS comment_count,
     w.id AS wait_id, w.title AS wait_title, w.status AS wait_status, w.user_id AS wait_owner, ${nameOf('wu')} AS wait_owner_name
   FROM tasks t
   LEFT JOIN users du ON du.id = t.due_by
@@ -110,7 +123,8 @@ const TASK_SELECT = `SELECT t.*, ${nameOf('du')} AS due_by_name,
   LEFT JOIN users ru ON ru.id = t.requested_by
   LEFT JOIN tasks ft ON ft.id = t.follow_id
   LEFT JOIN tasks w ON w.id = (SELECT r.id FROM tasks r WHERE r.follow_id = t.id ORDER BY r.created_at DESC LIMIT 1)
-  LEFT JOIN users wu ON wu.id = w.user_id`
+  LEFT JOIN users wu ON wu.id = w.user_id
+  LEFT JOIN recurring rc ON rc.id = t.recurring_id`
 const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))
 
 const cleanTitle = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 500) : '')
@@ -140,6 +154,9 @@ async function allowedUser(env: Env, id: unknown) {
 api.get('/me', (c) => c.json({ user: c.get('user') }))
 
 api.get('/tasks', async (c) => {
+  // 繰り返しタスクの今日の分を (まだなら) 作ってから返す。作業量の判定は裏で
+  const made = await ensureRecurring(c.env.DB, c.get('user').id)
+  if (made.length) c.executionCtx.waitUntil(classifyWeights(c.env, made))
   const { results } = await c.env.DB.prepare(`${TASK_SELECT} WHERE t.user_id = ? AND ${VISIBLE} ORDER BY t.position DESC`)
     .bind(c.get('user').id, doneCutoff())
     .all()
@@ -409,6 +426,141 @@ api.post('/tasks/:id/move', async (c) => {
   return c.json({ task: r.task, xp })
 })
 
+// ---------- 繰り返しタスク ----------
+/** 繰り返しのルールで、今日の分のタスクがまだなら作る (開いたときに作るので、毎日開かなくても溜まらない) */
+async function ensureRecurring(db: D1Database, userId: string) {
+  const today = jstToday()
+  const { results } = await db
+    .prepare('SELECT * FROM recurring WHERE user_id = ? AND (last_day IS NULL OR last_day < ?)')
+    .bind(userId, today)
+    .all<any>()
+  if (!results.length) return []
+  const now = Date.now()
+  const stmts: D1PreparedStatement[] = []
+  const made: { id: string; title: string }[] = []
+  for (const [i, r] of results.entries()) {
+    stmts.push(db.prepare('UPDATE recurring SET last_day = ? WHERE id = ?').bind(today, r.id))
+    if (!ruleMatches(r.rule, today)) continue
+    const id = crypto.randomUUID()
+    made.push({ id, title: r.title })
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source, priority, recurring_id)
+           VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, 'user', ?, ?)`,
+        )
+        .bind(id, userId, r.title, r.note, now - i, now, now, r.priority, r.id),
+      logActivity(db, userId, 'todo', r.title),
+    )
+  }
+  await db.batch(stmts)
+  return made
+}
+
+api.get('/recurring', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT id, title, rule FROM recurring WHERE user_id = ? ORDER BY created_at').bind(c.get('user').id).all()
+  return c.json({ recurring: results })
+})
+
+/** タスクを繰り返しにする (このタスクを今日の分として、次から自動で作る) */
+api.post('/tasks/:id/recurring', async (c) => {
+  const { rule } = await c.req.json<{ rule?: unknown }>().catch(() => ({ rule: null }))
+  if (!isRule(rule)) return c.json({ error: 'invalid rule' }, 400)
+  const userId = c.get('user').id
+  const id = c.req.param('id')
+  const t = await c.env.DB.prepare('SELECT title, note, priority, recurring_id FROM tasks WHERE id = ? AND user_id = ?').bind(id, userId).first<any>()
+  if (!t) return c.json({ error: 'not found' }, 404)
+  const db = c.env.DB
+  if (t.recurring_id) {
+    await db.prepare('UPDATE recurring SET rule = ? WHERE id = ? AND user_id = ?').bind(rule, t.recurring_id, userId).run()
+  } else {
+    const rid = crypto.randomUUID()
+    await db.batch([
+      db
+        .prepare('INSERT INTO recurring (id, user_id, title, note, rule, priority, last_day, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(rid, userId, t.title, t.note, rule, t.priority, jstToday(), Date.now()),
+      db.prepare('UPDATE tasks SET recurring_id = ? WHERE id = ?').bind(rid, id),
+    ])
+  }
+  return c.json({ task: await getTask(db, id) })
+})
+
+/** 繰り返しをやめる (作られたタスクはそのまま残す) */
+api.delete('/recurring/:id', async (c) => {
+  const userId = c.get('user').id
+  const rid = c.req.param('id')
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM recurring WHERE id = ? AND user_id = ?').bind(rid, userId),
+    c.env.DB.prepare('UPDATE tasks SET recurring_id = NULL WHERE recurring_id = ? AND user_id = ?').bind(rid, userId),
+  ])
+  return c.json({ ok: true })
+})
+
+// ---------- コメント ----------
+/** タスクを見られる人 (ログインできる人) なら誰でも読める・書ける */
+async function taskOwner(env: Env, id: string) {
+  const t = await env.DB.prepare('SELECT t.id, t.title, t.user_id, t.requested_by, u.email FROM tasks t JOIN users u ON u.id = t.user_id WHERE t.id = ?').bind(id).first<any>()
+  return t && isAllowed(env, t.email) ? t : null
+}
+
+api.get('/tasks/:id/comments', async (c) => {
+  const t = await taskOwner(c.env, c.req.param('id'))
+  if (!t) return c.json({ error: 'not found' }, 404)
+  const me = c.get('user').id
+  const { results } = await c.env.DB.prepare(
+    `SELECT cm.*, ${nameOf('u')} AS u_name, u.picture AS u_picture, p.skin AS u_skin
+       FROM comments cm JOIN users u ON u.id = cm.user_id LEFT JOIN players p ON p.user_id = cm.user_id
+      WHERE cm.task_id = ? ORDER BY cm.created_at LIMIT 200`,
+  )
+    .bind(t.id)
+    .all<any>()
+  return c.json({
+    comments: results.map((r) => ({
+      id: r.id,
+      user: { id: r.user_id, name: r.u_name, picture: r.u_picture, skin: r.u_skin },
+      text: r.text,
+      createdAt: r.created_at,
+      mine: r.user_id === me,
+    })),
+  })
+})
+
+/** コメントを書く。持ち主・依頼した人・これまでにコメントした人に通知 (自分は除く) */
+api.post('/tasks/:id/comments', async (c) => {
+  const { text } = await c.req.json<{ text?: unknown }>().catch(() => ({ text: '' }))
+  const body = typeof text === 'string' ? text.trim().slice(0, 1000) : ''
+  if (!body) return c.json({ error: 'text required' }, 400)
+  const t = await taskOwner(c.env, c.req.param('id'))
+  if (!t) return c.json({ error: 'not found' }, 404)
+  const me = c.get('user')
+  const db = c.env.DB
+  const { results } = await db.prepare('SELECT DISTINCT user_id FROM comments WHERE task_id = ?').bind(t.id).all<{ user_id: string }>()
+  const to = new Set([t.user_id, t.requested_by, ...results.map((r) => r.user_id)].filter((u): u is string => !!u && u !== me.id))
+  const short = body.length > 40 ? body.slice(0, 40) + '…' : body
+  await db.batch([
+    db.prepare('INSERT INTO comments (task_id, user_id, text, created_at) VALUES (?, ?, ?, ?)').bind(t.id, me.id, body, Date.now()),
+    ...[...to].map((u) => notify(db, u, me.id, 'comment', t.id, `${san(me.name)}が「${t.title}」にコメント: ${short}`)),
+  ])
+  return c.json({ ok: true }, 201)
+})
+
+/** 自分のコメントを消す */
+api.delete('/comments/:id', async (c) => {
+  await c.env.DB.prepare('DELETE FROM comments WHERE id = ? AND user_id = ?').bind(Number(c.req.param('id')), c.get('user').id).run()
+  return c.json({ ok: true })
+})
+
+/** 手動の並べ替え: ids の順 (上から) に位置を付け直す。自分のタスクだけ */
+api.post('/tasks/reorder', async (c) => {
+  const { ids } = await c.req.json<{ ids?: unknown }>().catch(() => ({ ids: [] }))
+  const list = Array.isArray(ids) ? ids.filter(isId).slice(0, 300) : []
+  if (!list.length) return c.json({ error: 'ids required' }, 400)
+  const base = Date.now()
+  const userId = c.get('user').id
+  await c.env.DB.batch(list.map((id, i) => c.env.DB.prepare('UPDATE tasks SET position = ? WHERE id = ? AND user_id = ?').bind(base - i, id, userId)))
+  return c.json({ ok: true })
+})
+
 /** 選択した複数タスクのステータス変更・削除 */
 api.post('/tasks/bulk', async (c) => {
   const body = await c.req.json<{ ids?: unknown; status?: unknown; delete?: boolean }>().catch(() => ({}) as any)
@@ -536,8 +688,8 @@ api.get('/notifications', async (c) => {
   const me = c.get('user').id
   const [list, count] = await c.env.DB.batch([
     c.env.DB.prepare(
-      `SELECT n.*, ${nameOf('u')} AS a_name, u.picture AS a_picture, p.skin AS a_skin
-         FROM notifications n JOIN users u ON u.id = n.actor_id LEFT JOIN players p ON p.user_id = n.actor_id
+      `SELECT n.*, COALESCE(${nameOf('u')}, 'Flick') AS a_name, COALESCE(u.picture, '') AS a_picture, p.skin AS a_skin
+         FROM notifications n LEFT JOIN users u ON u.id = n.actor_id LEFT JOIN players p ON p.user_id = n.actor_id
         WHERE n.user_id = ? ORDER BY n.created_at DESC LIMIT 30`,
     ).bind(me),
     c.env.DB.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL').bind(me),
@@ -574,6 +726,14 @@ async function history(c: any, from: unknown, to: unknown) {
   return results.map(toTask)
 }
 
+/** 週のふりかえり (新しい順に最大 12 週) */
+api.get('/reports', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT id, period_from, period_to, text, created_at FROM reports WHERE user_id = ? ORDER BY created_at DESC LIMIT 12')
+    .bind(c.get('user').id)
+    .all<any>()
+  return c.json({ reports: results.map((r) => ({ id: r.id, from: r.period_from, to: r.period_to, text: r.text, createdAt: r.created_at })) })
+})
+
 api.get('/history', async (c) => {
   const tasks = await history(c, c.req.query('from'), c.req.query('to'))
   return tasks ? c.json({ tasks }) : c.json({ error: 'invalid range' }, 400)
@@ -581,9 +741,11 @@ api.get('/history', async (c) => {
 
 /** 期間の完了タスクから AI で日報・月次報告の下書きを作る */
 api.post('/history/report', async (c) => {
-  const { from, to } = await c.req.json<{ from?: string; to?: string }>().catch(() => ({}) as any)
-  const tasks = await history(c, from, to)
-  if (!tasks) return c.json({ error: 'invalid range' }, 400)
+  const { from, to, tag } = await c.req.json<{ from?: string; to?: string; tag?: string | null }>().catch(() => ({}) as any)
+  const all = await history(c, from, to)
+  if (!all) return c.json({ error: 'invalid range' }, 400)
+  // タグで絞り込んだ日報 (例: #A社 の分だけ)
+  const tasks = typeof tag === 'string' && tag ? all.filter((t: Task) => tagsOf(t).includes(tag)) : all
   if (!tasks.length) return c.json({ error: 'この期間に完了したタスクはありません' }, 400)
   const day = (t: number) => new Date(t + 9 * 3600000).toISOString().slice(5, 10).replace('-', '/')
   const lines = tasks.slice(-200).map((t: Task) => `${day(t.doneAt ?? t.updatedAt)} ${t.parent ? `${t.parent.title} > ` : ''}${t.title}${t.note ? `（${t.note.slice(0, 60)}）` : ''}`)
@@ -599,7 +761,17 @@ api.post('/history/report', async (c) => {
 const gameResponse = (c: any, r: { error?: string; player?: unknown }) =>
   r.error ? c.json({ error: r.error }, 400) : c.json({ player: r.player })
 
-api.get('/player', async (c) => c.json({ player: await getPlayer(c.env.DB, c.get('user').id) }))
+/** 自分の状態。新しく取れた実績があれば unlocked で返す (お祝い表示用) */
+api.get('/player', async (c) => {
+  const userId = c.get('user').id
+  const { stats, fresh } = await syncAchievements(c.env.DB, userId)
+  return c.json({ player: await getPlayer(c.env.DB, userId), stats, unlocked: fresh })
+})
+
+api.post('/player/title', async (c) => {
+  const { title } = await c.req.json<{ title?: string | null }>().catch(() => ({ title: null }))
+  return gameResponse(c, await setTitle(c.env.DB, c.get('user').id, typeof title === 'string' ? title : null))
+})
 
 api.post('/player/stat', async (c) => {
   const { stat } = await c.req.json<{ stat?: StatKey }>().catch(() => ({ stat: undefined }))
@@ -626,6 +798,31 @@ api.post('/player/skin', async (c) => {
 
 api.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)))
 
+api.post('/player/pet', async (c) => {
+  const { pet } = await c.req.json<{ pet?: string | null }>().catch(() => ({ pet: null }))
+  return gameResponse(c, await setPet(c.env.DB, c.get('user').id, typeof pet === 'string' ? pet : null))
+})
+
+api.post('/items/:id/enhance', async (c) => gameResponse(c, await enhanceItem(c.env.DB, c.get('user').id, c.req.param('id'))))
+
+api.post('/shop/:id', async (c) => {
+  const r = await buyShop(c.env.DB, c.get('user').id, c.req.param('id') as ShopId)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 今週のレイドボス */
+api.get('/raid', async (c) => c.json(await raidState(c.env, c.get('user').id)))
+api.post('/raid/claim', async (c) => {
+  const r = await claimRaid(c.env, c.get('user').id)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 先週の MVP */
+api.get('/mvp', async (c) => c.json(await lastWeekMvp(c.env)))
+
+/** 開催中の季節イベントと自分の進み具合 */
+api.get('/event', async (c) => c.json({ event: await eventProgress(c.env.DB, c.get('user').id) }))
+
 api.post('/chest', async (c) => {
   const r = await openChest(c.env.DB, c.get('user').id)
   return r.error ? c.json({ error: r.error }, 400) : c.json(r)
@@ -649,7 +846,7 @@ api.post('/missions/:id/claim', async (c) => {
 api.get('/people', async (c) => {
   const now = Date.now()
   const { results } = await c.env.DB.prepare(
-    `SELECT u.id, u.name, u.display_name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage, p.job AS job, p.skin AS skin,
+    `SELECT u.id, u.name, u.display_name, u.email, u.picture, COALESCE(p.xp, 0) AS xp, COALESCE(p.stage, 1) AS stage, p.job AS job, p.skin AS skin, p.title AS title,
             SUM(t.status = 'todo') AS todo, SUM(t.status = 'doing') AS doing,
             SUM(t.status = 'done' AND COALESCE(t.done_at, t.updated_at) >= ?) AS done,
             SUM(t.done_at >= ? AND t.xp_awarded > 0) AS today, SUM(t.done_at >= ? AND t.xp_awarded > 0) AS week
@@ -661,6 +858,7 @@ api.get('/people', async (c) => {
     .bind(doneCutoff(), jstDayStart(now), jstDayStart(now) - 6 * 86400000)
     .all()
   const me = c.get('user').id
+  const streak = await streaks(c.env.DB)
   const people: Person[] = (results as any[])
     .filter((r) => isAllowed(c.env, r.email))
     .map((r) => ({
@@ -668,6 +866,8 @@ api.get('/people', async (c) => {
       name: displayName(r),
       picture: r.picture,
       skin: r.skin ?? null,
+      title: r.title ?? null,
+      streak: streak.get(r.id) ?? 0,
       xp: r.xp,
       stage: r.stage,
       jobName: (JOB_MAP[r.job] ?? JOB_MAP.warrior).name,
@@ -775,8 +975,12 @@ app.notFound((c) => c.json({ error: 'not found' }, 404))
 
 export default {
   fetch: app.fetch,
-  // 毎日 3:00 (JST) に古い履歴・ログ・通知を整理
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(purgeOldDone(env.DB).then((n) => console.log('purged done tasks', n)))
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    // 毎朝 8:00 (JST): 期限のお知らせ
+    if (event.cron === '0 23 * * *') ctx.waitUntil(dueReminders(env).then((n) => console.log('due reminders', n)))
+    // 金曜 17:00 (JST): 今週のふりかえり
+    else if (event.cron === '0 8 * * 5') ctx.waitUntil(weeklyReviews(env).then((n) => console.log('weekly reviews', n)))
+    // 毎日 3:00 (JST): 古い履歴・ログ・通知を整理
+    else ctx.waitUntil(purgeOldDone(env.DB).then((n) => console.log('purged done tasks', n)))
   },
 } satisfies ExportedHandler<Env>

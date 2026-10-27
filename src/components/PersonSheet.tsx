@@ -8,6 +8,7 @@ import { GearIcon } from './GearIcon'
 import { DueBadge } from './DueBadge'
 import { DueField } from './DueField'
 import { TaskLinks } from './TaskMeta'
+import { Comments } from './Comments'
 
 interface Data {
   person: { id: string; name: string; picture: string; isMe?: boolean }
@@ -229,6 +230,9 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, onXp
                           {dueOpen === t.id && (
                             <>
                               <DueField due={t.due ?? null} dueBy={t.dueBy?.name} onChange={(due) => saveDue(t, due)} disabled={savingDue} compact />
+                              <div className="ps-comments">
+                                <Comments taskId={t.id} toast={toast} />
+                              </div>
                               {!data.person.isMe && t.status !== 'done' && (
                                 <div className="move-row">
                                   {t.status === 'todo' && (

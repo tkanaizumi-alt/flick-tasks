@@ -1,6 +1,21 @@
 import type { Env } from './env'
 import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
 import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
+import { doneDays, jstDayNo } from './achievements'
+import { ACHIEVEMENT_MAP, streakOf } from '../shared/achievements'
+import {
+  BOOST_COUNT,
+  EVENT_SKIN_MAP,
+  EVENT_XP,
+  PET_MAP,
+  PLUS_MAX,
+  SHOP,
+  activeEvent,
+  hasEventSkin,
+  plusUp,
+  srChestRarity,
+  type ShopId,
+} from '../shared/extras'
 import {
   DEFAULT_JOB,
   EARLY_HOUR,
@@ -22,6 +37,7 @@ import {
   enemyForStage,
   equippedItems,
   jstDayStart,
+  jstToday,
   levelInfo,
   missionProgress,
   rollItem,
@@ -51,16 +67,19 @@ const toItem = (r: any): Item => ({
   crit: r.crit,
   heal: r.heal,
   effect: r.effect ?? null,
+  plus: r.plus ?? 0,
 })
 
 export async function getPlayer(db: D1Database, userId: string): Promise<PlayerState> {
   await db.prepare('INSERT OR IGNORE INTO players (user_id, updated_at) VALUES (?, ?)').bind(userId, Date.now()).run()
-  const [row, skills, items, jobRows] = await db.batch([
+  const [row, skills, items, jobRows, achRows] = await db.batch([
     db.prepare('SELECT * FROM players WHERE user_id = ?').bind(userId),
     db.prepare('SELECT skill_id FROM player_skills WHERE user_id = ?').bind(userId),
     db.prepare('SELECT * FROM items WHERE user_id = ? ORDER BY created_at DESC').bind(userId),
     db.prepare('SELECT job_id, xp FROM player_jobs WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT achievement_id, unlocked_at FROM player_achievements WHERE user_id = ? ORDER BY unlocked_at').bind(userId),
   ])
+  const achievements = (achRows.results as any[]).map((a) => ({ id: a.achievement_id as string, at: a.unlocked_at as number }))
   const r = row.results[0] as any
   const equipped: PlayerState['equipped'] = {}
   for (const s of SLOTS) if (r[SLOT_COL[s.key]]) equipped[s.key] = r[SLOT_COL[s.key]]
@@ -91,7 +110,12 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
     })),
     secretSkills: visibleSecrets(ownedSkills),
     bonus: bonusOf(ownedSkills),
-    skin: r.skin && SKIN_MAP[r.skin] ? r.skin : null,
+    skin: r.skin && (SKIN_MAP[r.skin] || EVENT_SKIN_MAP[r.skin]) ? r.skin : null,
+    pet: r.pet && PET_MAP[r.pet] ? r.pet : null,
+    boostLeft: r.boost_left ?? 0,
+    title: r.title && achievements.some((a) => a.id === r.title) ? r.title : null,
+    streak: streakOf(await doneDays(db, userId), jstDayNo(Date.now())),
+    achievements,
   }
 }
 
@@ -136,6 +160,7 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       skills: player.skills,
       effects: effectsOf(player),
       bonus: player.bonus,
+      extras: taskExtras(player),
     })
     const level = levelInfo(player.xp + amount).level
     // 今の職業にも同じだけ職業 XP が入る。基本職が規定レベルに届いたら上位職が解放される
@@ -147,7 +172,10 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
         ? { name: adv.name, icon: adv.icon }
         : null
     const stmts = [
-      db.prepare('UPDATE players SET xp = xp + ?, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(amount, gold, now, userId),
+      // XP 2 倍チケットを使ったら 1 回分減らす
+      db
+        .prepare('UPDATE players SET xp = xp + ?, gold = gold + ?, boost_left = MAX(0, boost_left - ?), updated_at = ? WHERE user_id = ?')
+        .bind(amount, gold, (player.boostLeft ?? 0) > 0 && amount > 0 ? 1 : 0, now, userId),
       db
         .prepare('INSERT INTO player_jobs (user_id, job_id, xp) VALUES (?, ?, ?) ON CONFLICT(user_id, job_id) DO UPDATE SET xp = xp + excluded.xp')
         .bind(userId, jobId, amount),
@@ -171,6 +199,70 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
     db.prepare('UPDATE tasks SET xp_awarded = 0, gold_awarded = 0, xp_job = NULL, done_at = NULL WHERE id = ?').bind(before.id),
   ])
   return { amount: -amount, gold: -gold, bonuses: [], level: levelInfo(Math.max(0, player.xp - amount)).level, leveledUp: false }
+}
+
+/** ペット・開催中の季節イベント・XP 2 倍チケットの上乗せ */
+function taskExtras(p: PlayerState) {
+  const list: { label: string; xp?: number; gold?: number }[] = []
+  const pet = p.pet ? PET_MAP[p.pet] : undefined
+  if (pet && (pet.xp || pet.gold)) list.push({ label: `${pet.emoji}${pet.name}`, xp: pet.xp, gold: pet.gold })
+  const ev = activeEvent(jstToday())
+  if (ev) list.push({ label: `${ev.icon}${ev.name} +${Math.round(EVENT_XP * 100)}%`, xp: EVENT_XP })
+  if ((p.boostLeft ?? 0) > 0) list.push({ label: '🎫XP2倍', xp: 1 })
+  return list
+}
+
+/** 取った実績の数 (ペットの解放に使う。季節イベントの記録は数えない) */
+const achievementCount = (p: PlayerState) => (p.achievements ?? []).filter((a) => ACHIEVEMENT_MAP[a.id]).length
+
+/** 連れていくペットの変更 (null で連れていかない) */
+export async function setPet(db: D1Database, userId: string, pet: string | null) {
+  const p = await getPlayer(db, userId)
+  if (pet !== null) {
+    const def = PET_MAP[pet]
+    if (!def) return { error: '存在しないペット' }
+    if (achievementCount(p) < def.need) return { error: `実績を${def.need}個取ると仲間になります` }
+  }
+  await db.prepare('UPDATE players SET pet = ?, updated_at = ? WHERE user_id = ?').bind(pet, Date.now(), userId).run()
+  return { player: await getPlayer(db, userId) }
+}
+
+/** 装備の強化: 同じ部位・同じレア度の (装備していない) 装備を 1 つ使って +1 */
+export async function enhanceItem(db: D1Database, userId: string, itemId: string) {
+  const p = await getPlayer(db, userId)
+  const item = p.items.find((i) => i.id === itemId)
+  if (!item) return { error: 'アイテムがありません' }
+  if ((item.plus ?? 0) >= PLUS_MAX) return { error: `+${PLUS_MAX}が最大です` }
+  const equipped = new Set(Object.values(p.equipped))
+  const material = p.items
+    .filter((i) => i.id !== item.id && i.slot === item.slot && i.rarity === item.rarity && !equipped.has(i.id))
+    .sort((a, b) => (a.plus ?? 0) - (b.plus ?? 0))[0]
+  if (!material) return { error: '同じ部位・同じレア度の装備がもう1つ必要です' }
+  await db.batch([
+    db.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(material.id, userId),
+    db
+      .prepare('UPDATE items SET plus = plus + 1, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ?')
+      .bind(plusUp(item.atk), plusUp(item.hp), plusUp(item.crit), plusUp(item.heal), item.id, userId),
+  ])
+  return { player: await getPlayer(db, userId) }
+}
+
+/** ショップ: XP 2 倍チケット / SR 以上確定の宝箱 */
+export async function buyShop(db: D1Database, userId: string, id: ShopId) {
+  const def = SHOP.find((s) => s.id === id)
+  if (!def) return { error: '売っていません' }
+  const p = await getPlayer(db, userId)
+  if (p.gold < def.price) return { error: 'ゴールドが足りません' }
+  const pay = db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(def.price, Date.now(), userId, def.price)
+  if (id === 'boost') {
+    await db.batch([pay, db.prepare('UPDATE players SET boost_left = boost_left + ? WHERE user_id = ?').bind(BOOST_COUNT, userId)])
+    return { player: await getPlayer(db, userId), item: null }
+  }
+  if (p.items.length >= INVENTORY_MAX) return { error: '持ち物がいっぱいです' }
+  const r = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
+  const ins = insertItem(db, userId, rollItem(seed(), p.stage, srChestRarity(r)))
+  await db.batch([pay, ins.stmt, ...itemActivity(db, userId, ins.item)])
+  return { player: await getPlayer(db, userId), item: ins.item }
 }
 
 /** 分解まわりの基本 XP。分解済みの元タスクは 0、子タスクは元タスクの XP を兄弟の数で割った値 */
@@ -211,13 +303,28 @@ export async function awardHelp(db: D1Database, userId: string, taskId: string, 
   return { amount, gold, bonuses: ['手伝いボーナス'], level, leveledUp: level > prevLevel }
 }
 
+/** 称号の変更 (null で外す)。取った実績のものだけ */
+export async function setTitle(db: D1Database, userId: string, title: string | null) {
+  if (title !== null) {
+    const has = await db.prepare('SELECT 1 FROM player_achievements WHERE user_id = ? AND achievement_id = ?').bind(userId, title).first()
+    if (!has) return { error: 'まだ取っていない実績です' }
+  }
+  await db.prepare('UPDATE players SET title = ?, updated_at = ? WHERE user_id = ?').bind(title, Date.now(), userId).run()
+  return { player: await getPlayer(db, userId) }
+}
+
 /** スキンの変更 (null で Google の写真に戻す)。解放済みのものだけ */
 export async function setSkin(db: D1Database, userId: string, skin: string | null) {
   const p = await getPlayer(db, userId)
   if (skin !== null) {
-    const def = SKIN_MAP[skin]
-    if (!def) return { error: '存在しないスキン' }
-    if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage)) return { error: 'まだ解放されていません' }
+    const ev = EVENT_SKIN_MAP[skin]
+    if (ev) {
+      if (!hasEventSkin((p.achievements ?? []).map((a) => a.id), ev.event)) return { error: `${ev.eventName}のイベントで手に入るスキンです` }
+    } else {
+      const def = SKIN_MAP[skin]
+      if (!def) return { error: '存在しないスキン' }
+      if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage)) return { error: 'まだ解放されていません' }
+    }
   }
   await db.prepare('UPDATE players SET skin = ?, updated_at = ? WHERE user_id = ?').bind(skin, Date.now(), userId).run()
   return { player: await getPlayer(db, userId) }
@@ -286,6 +393,9 @@ function insertItem(db: D1Database, userId: string, item: Omit<Item, 'id'>) {
       .bind(id, userId, item.slot, item.name, item.icon, item.rarity, item.atk, item.hp, item.crit, item.heal, item.effect, Date.now()),
   }
 }
+
+/** 他のファイル (レイド) から装備を作るとき用 */
+export const insertItemFor = (db: D1Database, userId: string, item: Omit<Item, 'id'>) => insertItem(db, userId, item)
 
 /** SR 以上を引いたらみんなの「最近の動き」に流す */
 const itemActivity = (db: D1Database, userId: string, item: Item) =>
