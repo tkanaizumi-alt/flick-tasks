@@ -127,6 +127,46 @@ if (sameKind) {
   }
 }
 
+// ゴールドの使い道: 持ち物の枠・スキン・ゴールドで強化・差し入れ (お金が足りないときは断られることを確かめる)
+const now = async () => (await A.call('/api/player')).player
+check('買っていないスキンは着られない', (await A.call('/api/player/skin', 'POST', { skin: 'crown' })).status === 400)
+check('売っていないスキンは買えない', (await A.call('/api/shop/skin/rabbit', 'POST', {})).status === 400)
+let g = await now()
+const bagCost = 300 * (Math.floor((g.invExtra ?? 0) / 10) + 1)
+if ((g.invExtra ?? 0) >= 30) check('持ち物の枠は +30 まで', (await A.call('/api/shop/bag', 'POST', {})).status === 400)
+else if (g.gold >= bagCost) {
+  const r = await A.call('/api/shop/bag', 'POST', {})
+  check('持ち物の枠 +10', r.player?.invExtra === (g.invExtra ?? 0) + 10 && r.player.gold === g.gold - bagCost, r.player)
+} else check('お金が足りないと枠を買えない', (await A.call('/api/shop/bag', 'POST', {})).status === 400)
+g = await now()
+if (g.ownedSkins?.includes('ghost')) check('買ったスキンは二度買えない', (await A.call('/api/shop/skin/ghost', 'POST', {})).status === 400)
+else if (g.gold >= 300) {
+  const r = await A.call('/api/shop/skin/ghost', 'POST', {})
+  check('スキンを買う', r.player?.ownedSkins?.includes('ghost') && r.player.skin === 'ghost' && r.player.gold === g.gold - 300, r.player)
+  check('買ったスキンは二度買えない', (await A.call('/api/shop/skin/ghost', 'POST', {})).status === 400)
+} else check('お金が足りないとスキンを買えない', (await A.call('/api/shop/skin/ghost', 'POST', {})).status === 400)
+g = await now()
+const cheap = g.items.find((i) => (i.plus ?? 0) < 5)
+if (cheap) {
+  const cost = { N: 30, R: 60, SR: 120, SSR: 250, UR: 500 }[cheap.rarity] * ((cheap.plus ?? 0) + 1)
+  const r = await A.call(`/api/items/${cheap.id}/enhance`, 'POST', { by: 'gold' })
+  if (g.gold >= cost) check('ゴールドで強化', r.player?.items.find((i) => i.id === cheap.id)?.plus === (cheap.plus ?? 0) + 1 && r.player.gold === g.gold - cost, r)
+  else check('お金が足りないとゴールドで強化できない', r.status === 400, r)
+}
+// 差し入れは本当のメンバーにもゴールドが配られるので、ローカルだけで試す
+if (!process.env.E2E_TOKEN_A) {
+  g = await now()
+  const b0 = (await B.call('/api/player')).player
+  if (g.treated) check('差し入れは1日1回', (await A.call('/api/shop/treat', 'POST', {})).status === 400)
+  else if (g.gold >= 300) {
+    const r = await A.call('/api/shop/treat', 'POST', {})
+    const b1 = (await B.call('/api/player')).player
+    const note = (await B.call('/api/notifications')).notices?.find((n) => n.kind === 'treat')
+    check('みんなに差し入れ', r.player?.treated && r.player.gold === g.gold - 300 && b1.gold === b0.gold + 30 && !!note, { r: r.player?.gold, b0: b0.gold, b1: b1.gold, note })
+    check('差し入れは1日1回', (await A.call('/api/shop/treat', 'POST', {})).status === 400)
+  }
+}
+
 // @名前 のコメント・お知らせのさかのぼり・エラーの報告・管理者の集計
 await A.call(`/api/tasks/${t2.id}/comments`, 'POST', { text: `@${meB.name} 確認お願いします` })
 const mentionB = (await B.call('/api/notifications')).notices?.find((n) => n.kind === 'comment' && n.text.includes('あなた宛て'))

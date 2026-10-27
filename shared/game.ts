@@ -70,7 +70,13 @@ export interface PlayerState {
   achievements?: { id: string; at: number }[] // 取った実績
   pet?: string | null // 連れているペット
   boostLeft?: number // XP 2 倍チケットの残り回数
+  invExtra?: number // ショップで増やした持ち物の枠
+  ownedSkins?: string[] // ゴールドで買ったスキン
+  treated?: boolean // 今日もう差し入れをした
 }
+
+/** 持てる装備の数 (ショップで増やした分を含む) */
+export const invMax = (p: Pick<PlayerState, 'invExtra'>) => INVENTORY_MAX + (p.invExtra ?? 0)
 
 /** 隠しスキルの効果。中身 (名前・条件) はサーバーだけが知っていて、フロントには数値だけが届く */
 export interface Bonus {
@@ -715,6 +721,8 @@ export interface SkinDef {
   bg: string
   level?: number
   stage?: number
+  /** ゴールドで買うスキン */
+  price?: number
 }
 export const SKINS: SkinDef[] = [
   // 最初から選べる
@@ -744,7 +752,16 @@ export const SKINS: SkinDef[] = [
   { id: 'unicorn', name: 'ユニコーン', emoji: '🦄', bg: 'linear-gradient(135deg,#fbc2eb,#a6c1ee)', level: 20 },
   { id: 'dragon', name: 'ドラゴン', emoji: '🐉', bg: 'linear-gradient(135deg,#43e97b,#38f9d7)', stage: 20 },
   { id: 'king', name: 'おうさま', emoji: '🤴', bg: 'linear-gradient(135deg,#f7b733,#fc4a1a)', stage: 30 },
+  // ゴールドで買う
+  { id: 'ghost', name: 'おばけ', emoji: '👻', bg: 'linear-gradient(135deg,#e0eafc,#cfdef3)', price: 300 },
+  { id: 'sushi', name: 'おすし', emoji: '🍣', bg: 'linear-gradient(135deg,#ffecd2,#ff9a8b)', price: 300 },
+  { id: 'alien', name: 'うちゅうじん', emoji: '👽', bg: 'linear-gradient(135deg,#a8ff78,#78ffd6)', price: 500 },
+  { id: 'rocket', name: 'ロケット', emoji: '🚀', bg: 'linear-gradient(135deg,#0f2027,#2c5364)', price: 600 },
+  { id: 'dino', name: 'きょうりゅう', emoji: '🦖', bg: 'linear-gradient(135deg,#b4ec51,#429321)', price: 800 },
+  { id: 'crown', name: 'ゴールドクラウン', emoji: '👑', bg: 'linear-gradient(135deg,#fceabb,#f8b500)', price: 1200 },
 ]
 export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((s) => [s.id, s]))
-export const skinUnlocked = (s: SkinDef, level: number, stage: number) => (s.level ?? 0) <= level && (s.stage ?? 0) <= stage
+/** 選べるスキンか (買うスキンは買ったものだけ) */
+export const skinUnlocked = (s: SkinDef, level: number, stage: number, owned: string[] = []) =>
+  (s.level ?? 0) <= level && (s.stage ?? 0) <= stage && (!s.price || owned.includes(s.id))
 export const skinCondition = (s: SkinDef) => [s.level && `Lv${s.level}`, s.stage && `ステージ${s.stage}到達`].filter(Boolean).join('・')

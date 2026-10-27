@@ -186,3 +186,7 @@ kbd { display: inline-block; min-width: 24px; padding: 2px 8px; border-radius: 6
 
 /* 持ち物の並び順 */
 .inv-sort { justify-content: flex-start; margin: -2px 0 10px; }
+
+/* ゴールドで買うスキン */
+.skin.shop .skin-name { color: #b7791f; font-weight: 700; }
+.enhance-row + .enhance-row { margin-top: 6px; }

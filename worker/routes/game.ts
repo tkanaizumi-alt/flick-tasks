@@ -1,10 +1,10 @@
 /** 冒険 (ミニゲーム) */
-import { addStat, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop } from '../game'
+import { addStat, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
 import type { ShopId } from '../../shared/extras'
 import { eventProgress, syncAchievements } from '../achievements'
 import type { StatKey } from '../../shared/game'
-import { router } from '../lib'
+import { allowedUsers, router } from '../lib'
 
 export const game = router()
 
@@ -54,10 +54,16 @@ game.post('/player/pet', async (c) => {
   return gameResponse(c, await setPet(c.env.DB, c.get('user').id, typeof pet === 'string' ? pet : null))
 })
 
-game.post('/items/:id/enhance', async (c) => gameResponse(c, await enhanceItem(c.env.DB, c.get('user').id, c.req.param('id'))))
+game.post('/items/:id/enhance', async (c) => {
+  const { by } = await c.req.json<{ by?: string }>().catch(() => ({ by: 'item' }))
+  return gameResponse(c, await enhanceItem(c.env.DB, c.get('user').id, c.req.param('id'), by === 'gold' ? 'gold' : 'item'))
+})
+
+game.post('/shop/skin/:id', async (c) => gameResponse(c, await buySkin(c.env.DB, c.get('user').id, c.req.param('id'))))
 
 game.post('/shop/:id', async (c) => {
-  const r = await buyShop(c.env.DB, c.get('user').id, c.req.param('id') as ShopId)
+  const id = c.req.param('id') as ShopId
+  const r = await buyShop(c.env.DB, c.get('user').id, id, id === 'treat' ? await allowedUsers(c.env) : [])
   return r.error ? c.json({ error: r.error }, 400) : c.json(r)
 })
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { EFFECTS, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
-import { PLUS_MAX } from '../../shared/extras'
+import { PLUS_MAX, enhanceGold } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
 const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
@@ -88,11 +88,15 @@ interface SheetProps {
   onSell: () => void
   /** 強化に使える装備 (同じ部位・同じレア度・装備していない) の数 */
   materials: number
-  onEnhance: () => void
+  /** 持っているゴールド (ゴールドで強化できるか) */
+  gold: number
+  onEnhance: (by: 'item' | 'gold') => void
 }
 
 /** アイテムの詳細と 装備 / 外す / 売る */
-export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, onEnhance }: SheetProps) {
+export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, gold, onEnhance }: SheetProps) {
+  const maxed = (item.plus ?? 0) >= PLUS_MAX
+  const cost = enhanceGold(item.rarity, item.plus ?? 0)
   const diff = (k: 'atk' | 'hp' | 'crit' | 'heal') => item[k] - (current && current.id !== item.id ? current[k] : 0)
   return (
     <>
@@ -136,13 +140,21 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
         </ul>
         {item.effect && <p className="is-fx">✦ {EFFECTS[item.effect]}</p>}
         <div className="enhance-row">
-          <button className="pill-btn ghost small" disabled={busy || !materials || (item.plus ?? 0) >= PLUS_MAX} onClick={onEnhance} data-testid="enhance">
-            ⚒️ 強化 {(item.plus ?? 0) >= PLUS_MAX ? '(最大)' : `+${(item.plus ?? 0) + 1}`}
+          <button className="pill-btn ghost small" disabled={busy || !materials || maxed} onClick={() => onEnhance('item')} data-testid="enhance">
+            ⚒️ 強化 {maxed ? '(最大)' : `+${(item.plus ?? 0) + 1}`}
           </button>
           <span className="muted">
-            {(item.plus ?? 0) >= PLUS_MAX ? `+${PLUS_MAX}が最大です` : materials ? `同じ部位・${item.rarity}の装備を1つ使って全ステータス+10%（使える装備 ${materials}個）` : `同じ部位・${item.rarity}の装備がもう1つあると強化できます`}
+            {maxed ? `+${PLUS_MAX}が最大です` : materials ? `同じ部位・${item.rarity}の装備を1つ使って全ステータス+10%（使える装備 ${materials}個）` : `同じ部位・${item.rarity}の装備がもう1つあると強化できます`}
           </span>
         </div>
+        {!maxed && (
+          <div className="enhance-row">
+            <button className="pill-btn ghost small" disabled={busy || gold < cost} onClick={() => onEnhance('gold')} data-testid="enhance-gold">
+              💰{cost}で強化
+            </button>
+            <span className="muted">装備を使わずにゴールドで +{(item.plus ?? 0) + 1}（持っている 💰{gold}）</span>
+          </div>
+        )}
         <div className="sheet-actions">
           <button className="pill-btn primary grow" disabled={busy} onClick={() => onEquip(!equipped)} data-testid="equip-toggle">
             {equipped ? '外す' : `${slotLabel(item)}に装備`}

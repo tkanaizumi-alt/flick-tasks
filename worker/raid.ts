@@ -1,6 +1,6 @@
 import { displayName, isAllowed, type Env } from './env'
 import { getPlayer, insertItemFor } from './game'
-import { INVENTORY_MAX, jstDayStart, jstToday, rollItem } from '../shared/game'
+import { invMax, jstDayStart, jstToday, rollItem } from '../shared/game'
 import { RAID_GOLD, mondayOf, raidForWeek, shiftDay } from '../shared/extras'
 
 const DAY = 86400000
@@ -54,7 +54,7 @@ export async function claimRaid(env: Env, me: string) {
   const p = await getPlayer(env.DB, me)
   const stmts: D1PreparedStatement[] = [env.DB.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(RAID_GOLD, Date.now(), me)]
   let item = null
-  if (p.items.length < INVENTORY_MAX) {
+  if (p.items.length < invMax(p)) {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]
     const rolled = rollItem(seed, p.stage)
     const x = insertItemFor(env.DB, me, rolled.rarity === 'N' ? rollItem(seed + 1, p.stage, 'R') : rolled)

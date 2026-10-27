@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import {
   BRANCHES,
   CHEST_COST,
-  INVENTORY_MAX,
+  invMax,
   RARITY_ORDER,
   SKILLS,
   SKINS,
@@ -199,7 +199,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             </div>
             <button
               className="pill-btn primary"
-              disabled={busy || player.gold < CHEST_COST || player.items.length >= INVENTORY_MAX}
+              disabled={busy || player.gold < CHEST_COST || player.items.length >= invMax(player)}
               data-testid="open-chest"
               onClick={async () => {
                 const r = await run(api.chest)
@@ -217,7 +217,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
               const r = await run(() => api.buy(id))
               if (!r) return
               if (r.item) setReveal(r.item)
-              else toast('XP2倍チケットを手に入れました')
+              else toast(id === 'boost' ? 'XP2倍チケットを手に入れました' : id === 'bag' ? '持ち物の枠が増えました' : 'みんなに差し入れしました 🍩')
             }}
           />
 
@@ -243,7 +243,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             <div className="panel-head">
               <h2>持ち物</h2>
               <span className="muted">
-                {player.items.length}/{INVENTORY_MAX}
+                {player.items.length}/{invMax(player)}
               </span>
             </div>
             {player.items.length > 1 && (
@@ -315,7 +315,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <section className="panel glass" data-testid="skins">
             <div className="panel-head">
               <h2>スキン</h2>
-              <span className="muted">レベル・ステージでさらに解放</span>
+              <span className="muted">レベル・ステージで解放、💰で買えるものも</span>
             </div>
             <div className="skin-grid">
               <button className={`skin ${!player.skin ? 'on' : ''}`} disabled={busy || !player.skin} onClick={() => run(() => api.setSkin(null))} data-testid="skin-photo">
@@ -323,8 +323,26 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                 <span className="skin-name">写真</span>
               </button>
               {SKINS.map((s) => {
-                const open = skinUnlocked(s, levelInfo(player.xp).level, player.stage)
+                const open = skinUnlocked(s, levelInfo(player.xp).level, player.stage, player.ownedSkins)
                 const on = player.skin === s.id
+                // ゴールドで買うスキン: 買う前は値段を出し、押すと買ってそのまま着替える
+                if (s.price && !open) {
+                  return (
+                    <button
+                      key={s.id}
+                      className="skin shop"
+                      disabled={busy || player.gold < s.price}
+                      onClick={async () => {
+                        if (await run(() => api.buySkin(s.id))) toast(`スキン「${s.name}」を買いました`)
+                      }}
+                      data-testid={`skin-${s.id}`}
+                      title={`💰${s.price}で買う`}
+                    >
+                      <Avatar name={s.name} skin={s.id} size={44} />
+                      <span className="skin-name">💰{s.price}</span>
+                    </button>
+                  )
+                }
                 return (
                   <button
                     key={s.id}
@@ -526,8 +544,9 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
               if (await run(() => api.sell(openItem.id))) setOpenItem(null)
             }}
             materials={player.items.filter((i) => i.id !== openItem.id && i.slot === openItem.slot && i.rarity === openItem.rarity && !Object.values(player.equipped).includes(i.id)).length}
-            onEnhance={async () => {
-              const r = await run(() => api.enhance(openItem.id))
+            gold={player.gold}
+            onEnhance={async (by) => {
+              const r = await run(() => api.enhance(openItem.id, by))
               if (r) {
                 const next = r.player.items.find((i) => i.id === openItem.id)
                 if (next) setOpenItem(next)

@@ -41,12 +41,12 @@ export interface PetDef {
 }
 const ach = (goal: number) => ({ stat: 'achievements' as const, goal, label: `実績${goal}個` })
 export const PETS: PetDef[] = [
-  { id: 'chick', name: 'ぴよ', emoji: '🐣', need: ach(1), xp: 0.03, gold: 0 },
-  { id: 'kitten', name: 'にゃん', emoji: '🐈', need: ach(3), xp: 0, gold: 0.1 },
-  { id: 'puppy', name: 'わん', emoji: '🐕', need: ach(5), xp: 0.05, gold: 0 },
-  { id: 'owlet', name: 'ほっほ', emoji: '🦉', need: ach(8), xp: 0.05, gold: 0.05 },
-  { id: 'drake', name: 'こりゅう', emoji: '🐲', need: ach(12), xp: 0.08, gold: 0.05 },
-  { id: 'bird', name: 'ことり', emoji: '🐦', need: ach(16), xp: 0.1, gold: 0.1 },
+  { id: 'chick', name: 'イナムル', emoji: '🐣', need: ach(1), xp: 0.03, gold: 0 },
+  { id: 'kitten', name: 'クロエ', emoji: '🐈', need: ach(3), xp: 0, gold: 0.1 },
+  { id: 'puppy', name: 'マックス', emoji: '🐕', need: ach(5), xp: 0.05, gold: 0 },
+  { id: 'owlet', name: 'オリバー', emoji: '🦉', need: ach(8), xp: 0.05, gold: 0.05 },
+  { id: 'drake', name: 'アーサー', emoji: '🐲', need: ach(12), xp: 0.08, gold: 0.05 },
+  { id: 'bird', name: 'ルーシー', emoji: '🐦', need: ach(16), xp: 0.1, gold: 0.1 },
   // 実績の数ではなく、働き方で仲間になる
   { id: 'andre', name: 'アンドレ', emoji: '🦁', need: { stat: 'big', goal: 10, label: '「大」以上を10件完了' }, xp: 0.06, gold: 0 },
   { id: 'mike', name: 'マイク', emoji: '🐒', need: { stat: 'early', goal: 10, label: '朝10時までに10件完了' }, xp: 0, gold: 0.08 },
@@ -68,10 +68,24 @@ export const petEffect = (p: PetDef) => [p.xp && `XP+${Math.round(p.xp * 100)}%`
 export const SHOP = [
   { id: 'boost', name: 'XP2倍チケット', desc: '次の3回の完了でXPが2倍', icon: '🎫', price: 200 },
   { id: 'srchest', name: 'SR以上確定の宝箱', desc: 'SR 78% ・ SSR 20% ・ UR 2%', icon: '💎', price: 400 },
+  { id: 'bag', name: '持ち物の枠 +10', desc: '持てる装備が10個増える', icon: '🎒', price: 300 },
+  { id: 'treat', name: 'みんなに差し入れ', desc: 'ほかのメンバー全員に💰30（1日1回）', icon: '🍩', price: 300 },
 ] as const
 export type ShopId = (typeof SHOP)[number]['id']
 export const BOOST_COUNT = 3
 export const srChestRarity = (r: number): Rarity => (r < 0.02 ? 'UR' : r < 0.22 ? 'SSR' : 'SR')
+/** 持ち物の枠: 1 回 +10、3 回 (+30) まで。値段は 300 → 600 → 900 */
+export const BAG_STEP = 10
+export const BAG_MAX_BUYS = 3
+export const bagPrice = (extra: number) => 300 * (Math.floor(extra / BAG_STEP) + 1)
+/** 差し入れで 1 人が受け取るゴールド */
+export const TREAT_GOLD = 30
+/** ショップの値段 (持ち物の枠は買った回数で上がる) */
+export const shopPrice = (id: ShopId, invExtra = 0) => (id === 'bag' ? bagPrice(invExtra) : SHOP.find((s) => s.id === id)!.price)
+
+/** ゴールドで強化 (素材の装備なし)。レア度ごとの値段 × 次の段階 */
+const ENHANCE_GOLD: Record<Rarity, number> = { N: 30, R: 60, SR: 120, SSR: 250, UR: 500 }
+export const enhanceGold = (rarity: Rarity, plus: number) => ENHANCE_GOLD[rarity] * (plus + 1)
 
 // ---------- 装備の強化 (同じ部位・同じレア度の装備を 1 つ使って +1。最大 +5) ----------
 export const PLUS_MAX = 5

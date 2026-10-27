@@ -1,10 +1,16 @@
 import type { Env } from './env'
+import { san } from '../shared/types'
 import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
 import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
 import { achievementStats, doneDays, jstDayNo } from './achievements'
 import { ACHIEVEMENT_MAP, streakOf } from '../shared/achievements'
 import {
+  BAG_MAX_BUYS,
+  BAG_STEP,
   BOOST_COUNT,
+  TREAT_GOLD,
+  enhanceGold,
+  shopPrice,
   EVENT_SKIN_MAP,
   EVENT_XP,
   PET_MAP,
@@ -28,7 +34,7 @@ import {
   SKIN_MAP,
   childXp,
   skinUnlocked,
-  INVENTORY_MAX,
+  invMax,
   RARITY_SELL,
   SLOTS,
   bossGold,
@@ -73,12 +79,14 @@ const toItem = (r: any): Item => ({
 
 export async function getPlayer(db: D1Database, userId: string): Promise<PlayerState> {
   await db.prepare('INSERT OR IGNORE INTO players (user_id, updated_at) VALUES (?, ?)').bind(userId, Date.now()).run()
-  const [row, skills, items, jobRows, achRows] = await db.batch([
+  const [row, skills, items, jobRows, achRows, skinRows, treatRow] = await db.batch([
     db.prepare('SELECT * FROM players WHERE user_id = ?').bind(userId),
     db.prepare('SELECT skill_id FROM player_skills WHERE user_id = ?').bind(userId),
     db.prepare('SELECT * FROM items WHERE user_id = ? ORDER BY created_at DESC').bind(userId),
     db.prepare('SELECT job_id, xp FROM player_jobs WHERE user_id = ?').bind(userId),
     db.prepare('SELECT achievement_id, unlocked_at FROM player_achievements WHERE user_id = ? ORDER BY unlocked_at').bind(userId),
+    db.prepare('SELECT skin_id FROM owned_skins WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT 1 FROM treats WHERE user_id = ? AND day = ?').bind(userId, jstToday()),
   ])
   const achievements = (achRows.results as any[]).map((a) => ({ id: a.achievement_id as string, at: a.unlocked_at as number }))
   const r = row.results[0] as any
@@ -114,6 +122,9 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
     skin: r.skin && (SKIN_MAP[r.skin] || EVENT_SKIN_MAP[r.skin]) ? r.skin : null,
     pet: r.pet && PET_MAP[r.pet] ? r.pet : null,
     boostLeft: r.boost_left ?? 0,
+    invExtra: r.inv_extra ?? 0,
+    ownedSkins: (skinRows.results as any[]).map((s) => s.skin_id as string),
+    treated: treatRow.results.length > 0,
     title: r.title && achievements.some((a) => a.id === r.title) ? r.title : null,
     streak: streakOf(await doneDays(db, userId), jstDayNo(Date.now())),
     achievements,
@@ -229,38 +240,78 @@ export async function setPet(db: D1Database, userId: string, pet: string | null)
   return { player: await getPlayer(db, userId) }
 }
 
-/** 装備の強化: 同じ部位・同じレア度の (装備していない) 装備を 1 つ使って +1 */
-export async function enhanceItem(db: D1Database, userId: string, itemId: string) {
+/**
+ * 装備の強化 (+1)。同じ部位・同じレア度の (装備していない) 装備を 1 つ使うか、
+ * by = 'gold' ならゴールドを払う (値段はレア度 × 次の段階)
+ */
+export async function enhanceItem(db: D1Database, userId: string, itemId: string, by: 'item' | 'gold' = 'item') {
   const p = await getPlayer(db, userId)
   const item = p.items.find((i) => i.id === itemId)
   if (!item) return { error: 'アイテムがありません' }
   if ((item.plus ?? 0) >= PLUS_MAX) return { error: `+${PLUS_MAX}が最大です` }
+  const up = db
+    .prepare('UPDATE items SET plus = plus + 1, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ?')
+    .bind(plusUp(item.atk), plusUp(item.hp), plusUp(item.crit), plusUp(item.heal), item.id, userId)
+  if (by === 'gold') {
+    const price = enhanceGold(item.rarity, item.plus ?? 0)
+    if (p.gold < price) return { error: 'ゴールドが足りません' }
+    // 払えたときだけ強化する (同時に押しても二重に払わない)
+    const pay = await db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(price, Date.now(), userId, price).run()
+    if (!pay.meta.changes) return { error: 'ゴールドが足りません' }
+    await up.run()
+    return { player: await getPlayer(db, userId) }
+  }
   const equipped = new Set(Object.values(p.equipped))
   const material = p.items
     .filter((i) => i.id !== item.id && i.slot === item.slot && i.rarity === item.rarity && !equipped.has(i.id))
     .sort((a, b) => (a.plus ?? 0) - (b.plus ?? 0))[0]
   if (!material) return { error: '同じ部位・同じレア度の装備がもう1つ必要です' }
-  await db.batch([
-    db.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(material.id, userId),
-    db
-      .prepare('UPDATE items SET plus = plus + 1, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ?')
-      .bind(plusUp(item.atk), plusUp(item.hp), plusUp(item.crit), plusUp(item.heal), item.id, userId),
-  ])
+  await db.batch([db.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(material.id, userId), up])
   return { player: await getPlayer(db, userId) }
 }
 
-/** ショップ: XP 2 倍チケット / SR 以上確定の宝箱 */
-export async function buyShop(db: D1Database, userId: string, id: ShopId) {
+/**
+ * ショップ: XP 2 倍チケット / SR 以上確定の宝箱 / 持ち物の枠 / みんなへの差し入れ。
+ * 差し入れはほかのメンバー (members) に配る
+ */
+export async function buyShop(db: D1Database, userId: string, id: ShopId, members: { id: string; name: string }[] = []) {
   const def = SHOP.find((s) => s.id === id)
   if (!def) return { error: '売っていません' }
   const p = await getPlayer(db, userId)
-  if (p.gold < def.price) return { error: 'ゴールドが足りません' }
-  const pay = db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(def.price, Date.now(), userId, def.price)
+  const price = shopPrice(id, p.invExtra)
+  if (p.gold < price) return { error: 'ゴールドが足りません' }
+  const now = Date.now()
+  const pay = db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(price, now, userId, price)
   if (id === 'boost') {
     await db.batch([pay, db.prepare('UPDATE players SET boost_left = boost_left + ? WHERE user_id = ?').bind(BOOST_COUNT, userId)])
     return { player: await getPlayer(db, userId), item: null }
   }
-  if (p.items.length >= INVENTORY_MAX) return { error: '持ち物がいっぱいです' }
+  if (id === 'bag') {
+    if ((p.invExtra ?? 0) >= BAG_STEP * BAG_MAX_BUYS) return { error: `持ち物の枠は+${BAG_STEP * BAG_MAX_BUYS}までです` }
+    // 値段は買った回数で決まるので、回数が変わっていないときだけ増やす
+    const r = await db
+      .prepare('UPDATE players SET gold = gold - ?, inv_extra = inv_extra + ?, updated_at = ? WHERE user_id = ? AND gold >= ? AND inv_extra = ?')
+      .bind(price, BAG_STEP, now, userId, price, p.invExtra ?? 0)
+      .run()
+    if (!r.meta.changes) return { error: 'もう一度お試しください' }
+    return { player: await getPlayer(db, userId), item: null }
+  }
+  if (id === 'treat') {
+    const me = members.find((m) => m.id === userId)
+    const others = members.filter((m) => m.id !== userId)
+    if (!others.length) return { error: 'ほかのメンバーがいません' }
+    const ins = await db.prepare('INSERT OR IGNORE INTO treats (user_id, day, created_at) VALUES (?, ?, ?)').bind(userId, jstToday(), now).run()
+    if (!ins.meta.changes) return { error: '差し入れは1日1回です' }
+    await db.batch([
+      pay,
+      ...others.map((m) => db.prepare('INSERT OR IGNORE INTO players (user_id, updated_at) VALUES (?, ?)').bind(m.id, now)),
+      ...others.map((m) => db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(TREAT_GOLD, now, m.id)),
+      ...others.map((m) => notify(db, m.id, userId, 'treat', null, `${san(me?.name ?? '')}から差し入れ 🍩 💰${TREAT_GOLD}`)),
+      logActivity(db, userId, 'treat', 'みんなに差し入れ 🍩'),
+    ])
+    return { player: await getPlayer(db, userId), item: null }
+  }
+  if (p.items.length >= invMax(p)) return { error: '持ち物がいっぱいです' }
   const r = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
   const ins = insertItem(db, userId, rollItem(seed(), p.stage, srChestRarity(r)))
   await db.batch([pay, ins.stmt, ...itemActivity(db, userId, ins.item)])
@@ -325,10 +376,27 @@ export async function setSkin(db: D1Database, userId: string, skin: string | nul
     } else {
       const def = SKIN_MAP[skin]
       if (!def) return { error: '存在しないスキン' }
-      if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage)) return { error: 'まだ解放されていません' }
+      if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage, p.ownedSkins)) return { error: def.price ? 'まだ買っていないスキンです' : 'まだ解放されていません' }
     }
   }
   await db.prepare('UPDATE players SET skin = ?, updated_at = ? WHERE user_id = ?').bind(skin, Date.now(), userId).run()
+  return { player: await getPlayer(db, userId) }
+}
+
+/** ゴールドでスキンを買う (買うとすぐ着替える) */
+export async function buySkin(db: D1Database, userId: string, skin: string) {
+  const def = SKIN_MAP[skin]
+  if (!def?.price) return { error: '売っていないスキンです' }
+  const p = await getPlayer(db, userId)
+  if (p.ownedSkins?.includes(skin)) return { error: 'もう持っています' }
+  if (p.gold < def.price) return { error: 'ゴールドが足りません' }
+  const now = Date.now()
+  const pay = await db
+    .prepare('UPDATE players SET gold = gold - ?, skin = ?, updated_at = ? WHERE user_id = ? AND gold >= ? AND NOT EXISTS (SELECT 1 FROM owned_skins WHERE user_id = ? AND skin_id = ?)')
+    .bind(def.price, skin, now, userId, def.price, userId, skin)
+    .run()
+  if (!pay.meta.changes) return { error: 'ゴールドが足りません' }
+  await db.prepare('INSERT OR IGNORE INTO owned_skins (user_id, skin_id, created_at) VALUES (?, ?, ?)').bind(userId, skin, now).run()
   return { player: await getPlayer(db, userId) }
 }
 
@@ -427,7 +495,7 @@ export async function fight(db: D1Database, userId: string) {
     const gold = bossGold(enemy.stage)
     // 宝箱は R 以上確定。持ち物がいっぱいならゴールドのみ
     let item: Item | null = null
-    if (p.items.length < INVENTORY_MAX) {
+    if (p.items.length < invMax(p)) {
       const rolled = rollItem(seed(), enemy.stage)
       const ins = insertItem(db, userId, rolled.rarity === 'N' ? { ...rollItem(seed(), enemy.stage, 'R') } : rolled)
       item = ins.item
@@ -446,7 +514,7 @@ export async function fight(db: D1Database, userId: string) {
 export async function openChest(db: D1Database, userId: string) {
   const p = await getPlayer(db, userId)
   if (p.gold < CHEST_COST) return { error: 'ゴールドが足りません' }
-  if (p.items.length >= INVENTORY_MAX) return { error: '持ち物がいっぱいです' }
+  if (p.items.length >= invMax(p)) return { error: '持ち物がいっぱいです' }
   const ins = insertItem(db, userId, rollItem(seed(), p.stage))
   const day = jstDayStart(Date.now())
   await ensureDaily(db, userId, day)
@@ -535,7 +603,7 @@ export async function claimMission(db: D1Database, userId: string, missionId: st
     db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(m.gold, Date.now(), userId),
   ]
   let item: Item | null = null
-  if (m.chest && p.items.length < INVENTORY_MAX) {
+  if (m.chest && p.items.length < invMax(p)) {
     const ins = insertItem(db, userId, rollItem(seed(), p.stage))
     item = ins.item
     stmts.push(ins.stmt, ...itemActivity(db, userId, item))

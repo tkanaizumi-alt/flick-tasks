@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, battleAdvice, hasEventSkin, mondayOf, plusUp, raidForWeek, srChestRarity } from '../shared/extras'
-import { computeXp, enemyForStage, type BattleResult } from '../shared/game'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, hasEventSkin, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { INVENTORY_MAX, SKINS, computeXp, enemyForStage, invMax, skinUnlocked, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
   it('レイド: 週ごとに決まったボス、HP は人数 × 250', () => {
@@ -57,5 +57,17 @@ describe('ゲームの追加要素', () => {
     expect(battleAdvice(lose(enemy.hp * 0.4))).toContain('もう少し')
     expect(battleAdvice(lose(enemy.hp * 0.1))).toContain('あと一押し')
     expect(battleAdvice(lose(enemy.hp * 0.5, 30))).toContain('時間切れ')
+  })
+  it('ゴールドの使い道: 持ち物の枠・強化・スキン', () => {
+    expect([0, 10, 20].map(bagPrice)).toEqual([300, 600, 900])
+    expect(shopPrice('bag', 10)).toBe(600)
+    expect(shopPrice('treat')).toBe(300)
+    expect(invMax({ invExtra: 20 })).toBe(INVENTORY_MAX + 20)
+    expect(enhanceGold('N', 0)).toBe(30)
+    expect(enhanceGold('UR', 4)).toBe(2500)
+    const ghost = SKINS.find((s) => s.id === 'ghost')!
+    expect(skinUnlocked(ghost, 99, 99)).toBe(false)
+    expect(skinUnlocked(ghost, 1, 1, ['ghost'])).toBe(true)
+    expect(PETS.find((p) => p.id === 'chick')!.name).toBe('イナムル')
   })
 })

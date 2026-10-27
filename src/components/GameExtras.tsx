@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, type ShopId } from '../../shared/extras'
+import { BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
 import { ACHIEVEMENT_MAP, type AchievementStats } from '../../shared/achievements'
 import type { Item, PlayerState } from '../../shared/game'
 import { api, HttpError, type EventState, type Mvp, type RaidState } from '../api'
@@ -103,18 +103,25 @@ export function ShopPanel({ player, busy, onBuy }: { player: PlayerState; busy: 
         {(player.boostLeft ?? 0) > 0 && <span className="muted">🎫 XP2倍 残り{player.boostLeft}回</span>}
       </div>
       <ul className="shop-list">
-        {SHOP.map((s) => (
-          <li key={s.id} className="shop-item">
-            <span className="shop-icon">{s.icon}</span>
-            <span className="shop-body">
-              <b>{s.name}</b>
-              <span className="muted">{s.id === 'boost' ? `次の${BOOST_COUNT}回の完了でXPが2倍` : s.desc}</span>
-            </span>
-            <button className="pill-btn primary small" disabled={busy || player.gold < s.price} onClick={() => onBuy(s.id)} data-testid={`buy-${s.id}`}>
-              💰{s.price}
-            </button>
-          </li>
-        ))}
+        {SHOP.map((s) => {
+          const price = shopPrice(s.id, player.invExtra)
+          const bagFull = s.id === 'bag' && (player.invExtra ?? 0) >= BAG_STEP * BAG_MAX_BUYS
+          const treated = s.id === 'treat' && player.treated
+          const desc =
+            s.id === 'boost' ? `次の${BOOST_COUNT}回の完了でXPが2倍` : s.id === 'bag' ? `持てる装備が${BAG_STEP}個増える（今 +${player.invExtra ?? 0} / 最大 +${BAG_STEP * BAG_MAX_BUYS}）` : s.desc
+          return (
+            <li key={s.id} className="shop-item">
+              <span className="shop-icon">{s.icon}</span>
+              <span className="shop-body">
+                <b>{s.name}</b>
+                <span className="muted">{desc}</span>
+              </span>
+              <button className="pill-btn primary small" disabled={busy || bagFull || treated || player.gold < price} onClick={() => onBuy(s.id)} data-testid={`buy-${s.id}`}>
+                {bagFull ? '最大' : treated ? '今日は済み' : `💰${price}`}
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </section>
   )
