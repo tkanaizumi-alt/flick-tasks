@@ -9,6 +9,7 @@ import { DueBadge } from './DueBadge'
 import { DueField } from './DueField'
 import { TaskLinks } from './TaskMeta'
 import { Comments } from './Comments'
+import { doneLabel } from './TaskCard'
 
 interface Data {
   person: { id: string; name: string; picture: string; isMe?: boolean }
@@ -222,6 +223,7 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, onXp
                             <span className="ps-task-body">
                               {t.parent?.title && <span className="ps-parent">↳ {t.parent.title}</span>}
                               <span className="ps-task-title">{t.title}</span>
+                              {t.status === 'done' && <span className="done-at">✓ {doneLabel(t.doneAt ?? t.updatedAt)} 完了</span>}
                               <TaskLinks task={t} showFlagNote />
                               <DueBadge task={t} />
                             </span>

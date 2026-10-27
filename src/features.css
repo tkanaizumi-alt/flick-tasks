@@ -119,3 +119,7 @@
 .mvp-label { width: 100px; flex: none; color: var(--ink-2); font-weight: 700; }
 .mvp-who { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .mvp-person { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+
+/* ---------- 完了日・完了の並び順 ---------- */
+.done-at { display: inline-flex; align-items: center; font-size: 11px; font-weight: 750; padding: 1px 7px; border-radius: 8px; white-space: nowrap; color: #0f8a5f; background: rgba(22, 199, 132, 0.1); }
+.board-col .done-sort { justify-content: flex-start; margin: -4px 4px 10px; flex-wrap: wrap; }

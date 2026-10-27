@@ -52,6 +52,20 @@ const SORT_CMP: Record<SortMode, (a: Task, b: Task) => number> = {
   priority: (a, b) => prioRank(b) - prioRank(a) || dueKey(a).localeCompare(dueKey(b)) || b.position - a.position,
   due: (a, b) => dueKey(a).localeCompare(dueKey(b)) || prioRank(b) - prioRank(a) || b.position - a.position,
 }
+/** 完了の並び順: 完了日が新しい順 / 古い順 / 重要度順 */
+type DoneSort = 'recent' | 'oldest' | 'priority'
+const DONE_SORT_KEY = 'flick.sort.done'
+const DONE_SORTS: { key: DoneSort; label: string }[] = [
+  { key: 'recent', label: '完了が新しい順' },
+  { key: 'oldest', label: '古い順' },
+  { key: 'priority', label: '重要度順' },
+]
+const doneAt = (t: Task) => t.doneAt ?? t.updatedAt
+const DONE_CMP: Record<DoneSort, (a: Task, b: Task) => number> = {
+  recent: (a, b) => doneAt(b) - doneAt(a),
+  oldest: (a, b) => doneAt(a) - doneAt(b),
+  priority: (a, b) => prioRank(b) - prioRank(a) || doneAt(b) - doneAt(a),
+}
 const NOTICE_POLL_MS = 60_000
 const ORDER: Status[] = ['todo', 'doing', 'done']
 const EMPTY_ICON = { todo: CircleIcon, doing: PlayIcon, done: CheckCircleIcon }
@@ -120,6 +134,23 @@ export function App() {
     setSortState(v)
     store.set(SORT_KEY, v)
   }
+  const [doneSort, setDoneSortState] = useState<DoneSort>(() => {
+    const v = store.get<DoneSort>(DONE_SORT_KEY, 'recent')
+    return v in DONE_CMP ? v : 'recent'
+  })
+  const setDoneSort = (v: DoneSort) => {
+    setDoneSortState(v)
+    store.set(DONE_SORT_KEY, v)
+  }
+  const doneSortRow = (
+    <div className="sort-row done-sort" role="radiogroup" aria-label="完了の並び順" data-testid="done-sort">
+      {DONE_SORTS.map((s) => (
+        <button key={s.key} role="radio" aria-checked={doneSort === s.key} className={`sort-btn ${doneSort === s.key ? 'on' : ''}`} onClick={() => setDoneSort(s.key)} data-testid={`done-sort-${s.key}`}>
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
   const unreadRef = useRef(0)
   // 画面ごとの見え方 (スマホ / PC)。PC 表示の「自分」は未着手・進行中・完了の 3 列
   const { isPc, setLayout, canToggle } = useLayouts()
@@ -630,12 +661,12 @@ export function App() {
     }
     // 完了は完了した順のまま
     const column = (s: Status) => {
-      const cmp = s === 'done' ? SORT_CMP.new : SORT_CMP[sort]
+      const cmp = s === 'done' ? DONE_CMP[doneSort] : SORT_CMP[sort]
       return shown.filter((t) => t.status === s).sort((a, b) => pinned(b) - pinned(a) || cmp(a, b))
     }
     // 横に広い画面では 3 列すべてを並べる
     return wide ? ORDER.flatMap(column) : column(tab)
-  }, [shown, tab, q, sort, wide])
+  }, [shown, tab, q, sort, doneSort, wide])
   const board = wide && !q
   const canReorder = !q && !activeTag && (board || tab !== 'done')
 
@@ -750,6 +781,7 @@ export function App() {
                         )}
                       </div>
                     )}
+                    {!board && !q && tab === 'done' && visible.length > 1 && doneSortRow}
                     {board ? (
                       <LayoutGroup>
                         <div className="board-cols" data-testid="board">
@@ -761,6 +793,7 @@ export function App() {
                                 <h2 className="board-col-head">
                                   {STATUS_LABEL[s]} <span>{col.length}</span>
                                 </h2>
+                                {s === 'done' && col.length > 1 && doneSortRow}
                                 {reorder && s !== 'done' ? (
                                   <ReorderList tasks={col} onChange={(ids) => setReorder((r) => ({ ...r, [s]: ids }))} />
                                 ) : (

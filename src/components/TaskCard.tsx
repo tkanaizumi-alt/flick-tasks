@@ -8,6 +8,18 @@ import { DueBadge } from './DueBadge'
 import type { UITask } from '../App'
 import { CheckIcon, PlayIcon, SparkIcon, TrashIcon, UndoIcon, CloudIcon } from './icons'
 
+/** 完了した日時: 今日 14:05 / 昨日 9:30 / 10/24（金）18:00 */
+export function doneLabel(t: number) {
+  const JST = 9 * 3600000
+  const day = (x: number) => Math.floor((x + JST) / 86400000)
+  const d = new Date(t + JST)
+  const time = `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  const diff = day(Date.now()) - day(t)
+  if (diff === 0) return `今日 ${time}`
+  if (diff === 1) return `昨日 ${time}`
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日月火水木金土'[d.getUTCDay()]}）${time}`
+}
+
 /** #タグの部分だけ色を付けて表示 */
 function Tagged({ text }: { text: string }) {
   const parts = text.split(/([#＃][^\s#＃、。,.!?！？「」()（）]+)/g)
@@ -225,6 +237,11 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
             <TaskLinks task={task} />
             <DueBadge task={task} />
             {!task.ai && !task.syncing && <XpChip task={task} />}
+            {task.status === 'done' && (
+              <span className="done-at" data-testid="done-at">
+                ✓ {doneLabel(task.doneAt ?? task.updatedAt)} 完了
+              </span>
+            )}
             {daysLeft !== null && <span data-testid="days-left">{daysLeft === 0 ? '今日で履歴へ' : `あと${daysLeft}日で履歴へ`}</span>}
           </div>
         </div>
