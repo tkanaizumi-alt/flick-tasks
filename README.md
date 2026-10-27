@@ -75,6 +75,7 @@ npm run dev
 ```bash
 npm test            # 共通ロジック (XP・ミッション・繰り返し・連続日数・タグ など) の単体テスト
 npm run test:e2e    # npm run dev を起動した状態で、API の通しテスト (開発用ログインの 2 人で操作)
+node tests/weights-probe.mjs   # npm run dev を起動した状態で、AI の作業量判定 (小・中・大・特大) が期待どおりか確認
 ```
 
 ### Google OAuth

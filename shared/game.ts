@@ -410,7 +410,7 @@ export const weightChoices = (ai: Weight | null | undefined): Weight[] =>
   ai ? WEIGHTS.filter((w) => Math.abs(WEIGHTS.indexOf(w) - WEIGHTS.indexOf(ai)) <= 1 && (w !== 'XL' || ai === 'XL')) : []
 
 /** AI が作業量を判定するときの基準 (説明画面にもそのまま出す) */
-export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程', XL: '数日がかりの大型案件（めったに出ない）' }
+export const WEIGHT_GUIDE: Record<Weight, string> = { S: '15分以内で終わる', M: '1〜2時間ほど', L: '半日以上・複数の工程', XL: '数週間〜数か月の案件そのもの（制度の見直し・補助金・事業計画・システム移管など）' }
 
 /** 他の人のタスクを進めたときの手伝い XP: 進行中にしたら固定、完了にしたら持ち主が得た XP の半分 (どちらもタスクごとに 1 回) */
 export const HELP_DOING_XP = 3
