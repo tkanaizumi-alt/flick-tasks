@@ -122,6 +122,8 @@ export interface Notice {
   kind: 'request' | 'request_done' | 'request_deleted' | 'wait' | 'help' | 'moved' | 'comment' | 'due' | 'weekly'
   text: string
   taskId: string | null
+  /** タスクの持ち主 (タスクが消えていれば null) */
+  taskOwner?: string | null
   actor: Ref & { picture: string; skin?: string | null }
   createdAt: number
   read: boolean
@@ -150,6 +152,14 @@ export interface RequestItem {
 
 /** 「○○さん」(名前がすでに さん・様 などで終わっていれば付けない) */
 export const san = (name: string) => (/(さん|様|さま|くん|ちゃん)$/.test(name) ? name : `${name}さん`)
+
+/**
+ * コメントの中の「@名前」で呼ばれた人の ID。名前は空白を含むこともあるので、メンバーの名前と前から照らし合わせる (全角の＠も可)
+ */
+export function mentionsIn(text: string, people: { id: string; name: string }[]) {
+  const t = text.replace(/＠/g, '@').toLowerCase()
+  return people.filter((p) => p.name && t.includes('@' + p.name.toLowerCase())).map((p) => p.id)
+}
 
 /** タイトル・詳細の中の #タグ (例: #A社 #社内)。全角の＃も使える */
 export const TAG_RE = /[#＃]([^\s#＃、。,.!?！？「」()（）]+)/g

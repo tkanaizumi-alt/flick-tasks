@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { Comment } from '../../shared/types'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Comment, Person } from '../../shared/types'
 import { api } from '../api'
 import { Avatar } from './Dock'
 
@@ -14,6 +14,18 @@ export function Comments({ taskId, onCount, toast }: { taskId: string; onCount?:
   const [list, setList] = useState<Comment[] | null>(null)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [people, setPeople] = useState<Person[]>([])
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    api.people().then((r) => setPeople(r.people), () => {})
+  }, [])
+  // 入力中の「@○○」(カーソルの直前) → 候補
+  const at = text.match(/[@＠]([^@＠\s]*)$/)
+  const candidates = at ? people.filter((p) => !p.isMe && p.name.toLowerCase().startsWith(at[1].toLowerCase())).slice(0, 6) : []
+  const pick = (p: Person) => {
+    setText(text.replace(/[@＠][^@＠\s]*$/, `@${p.name} `))
+    input.current?.focus()
+  }
 
   const load = () =>
     api.comments(taskId).then(
@@ -70,11 +82,20 @@ export function Comments({ taskId, onCount, toast }: { taskId: string; onCount?:
                     </button>
                   )}
                 </div>
-                <div className="comment-text">{c.text}</div>
+                <div className="comment-text">{highlight(c.text, people)}</div>
               </div>
             </li>
           ))}
         </ul>
+      )}
+      {candidates.length > 0 && (
+        <div className="mention-list" data-testid="mention-list">
+          {candidates.map((p) => (
+            <button key={p.id} type="button" className="who" onClick={() => pick(p)} data-testid="mention-pick">
+              @{p.name}
+            </button>
+          ))}
+        </div>
       )}
       <form
         className="comment-form"
@@ -83,11 +104,36 @@ export function Comments({ taskId, onCount, toast }: { taskId: string; onCount?:
           send()
         }}
       >
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder="ひとこと書く" aria-label="コメント" data-testid="comment-input" />
+        <input
+          ref={input}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={1000}
+          placeholder="ひとこと書く（@名前 でその人に知らせる）"
+          aria-label="コメント"
+          data-testid="comment-input"
+        />
         <button type="submit" className="pill-btn primary small" disabled={sending || !text.trim()} data-testid="comment-send">
           送信
         </button>
       </form>
     </div>
+  )
+}
+
+/** コメントの中の「@名前」だけ色を付ける */
+function highlight(text: string, people: Person[]): ReactNode {
+  const names = people.map((p) => p.name).filter(Boolean).sort((a, b) => b.length - a.length)
+  if (!names.length) return text
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`([@＠](?:${names.map(esc).join('|')}))`, 'g')
+  return text.split(re).map((part, i) =>
+    i % 2 ? (
+      <span key={i} className="mention">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
   )
 }

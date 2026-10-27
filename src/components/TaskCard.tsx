@@ -234,15 +234,16 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
           {task.note ? <div className="card-note">{task.note}</div> : null}
           <div className="card-meta">
             {showStatus && <span className={`meta-status t-${task.status}`}>{STATUS_LABEL[task.status]}</span>}
-            <TaskLinks task={task} />
+            <TaskLinks task={task} compact />
             <DueBadge task={task} />
             {!task.ai && !task.syncing && <XpChip task={task} />}
             {task.status === 'done' && (
               <span className="done-at" data-testid="done-at">
-                ✓ {doneLabel(task.doneAt ?? task.updatedAt)} 完了
+                ✓ {doneLabel(task.doneAt ?? task.updatedAt)}
               </span>
             )}
-            {daysLeft !== null && <span data-testid="days-left">{daysLeft === 0 ? '今日で履歴へ' : `あと${daysLeft}日で履歴へ`}</span>}
+            {/* 履歴へ移る案内は直前 (残り 1 日以内) だけ */}
+            {daysLeft !== null && daysLeft <= 1 && <span data-testid="days-left">{daysLeft === 0 ? '今日で履歴へ' : '明日で履歴へ'}</span>}
           </div>
         </div>
         {task.ai ? (

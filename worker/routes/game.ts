@@ -1,0 +1,94 @@
+/** 冒険 (ミニゲーム) */
+import { addStat, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop } from '../game'
+import { claimRaid, lastWeekMvp, raidState } from '../raid'
+import type { ShopId } from '../../shared/extras'
+import { eventProgress, syncAchievements } from '../achievements'
+import type { StatKey } from '../../shared/game'
+import { router } from '../lib'
+
+export const game = router()
+
+// ---------- ゲーム ----------
+const gameResponse = (c: any, r: { error?: string; player?: unknown }) =>
+  r.error ? c.json({ error: r.error }, 400) : c.json({ player: r.player })
+
+/** 自分の状態。新しく取れた実績があれば unlocked で返す (お祝い表示用) */
+game.get('/player', async (c) => {
+  const userId = c.get('user').id
+  const { stats, fresh } = await syncAchievements(c.env.DB, userId)
+  return c.json({ player: await getPlayer(c.env.DB, userId), stats, unlocked: fresh })
+})
+
+game.post('/player/title', async (c) => {
+  const { title } = await c.req.json<{ title?: string | null }>().catch(() => ({ title: null }))
+  return gameResponse(c, await setTitle(c.env.DB, c.get('user').id, typeof title === 'string' ? title : null))
+})
+
+game.post('/player/stat', async (c) => {
+  const { stat } = await c.req.json<{ stat?: StatKey }>().catch(() => ({ stat: undefined }))
+  return gameResponse(c, await addStat(c.env.DB, c.get('user').id, stat as StatKey))
+})
+
+game.post('/player/skill', async (c) => {
+  const { id } = await c.req.json<{ id?: string }>().catch(() => ({ id: '' }))
+  const r = await learnSkill(c.env.DB, c.get('user').id, id ?? '')
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+game.post('/player/reset', async (c) => gameResponse(c, await resetBuild(c.env.DB, c.get('user').id)))
+
+game.post('/player/job', async (c) => {
+  const { job } = await c.req.json<{ job?: string }>().catch(() => ({ job: '' }))
+  return gameResponse(c, await setJob(c.env.DB, c.get('user').id, job ?? ''))
+})
+
+game.post('/player/skin', async (c) => {
+  const { skin } = await c.req.json<{ skin?: string | null }>().catch(() => ({ skin: null }))
+  return gameResponse(c, await setSkin(c.env.DB, c.get('user').id, typeof skin === 'string' ? skin : null))
+})
+
+game.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)))
+
+game.post('/player/pet', async (c) => {
+  const { pet } = await c.req.json<{ pet?: string | null }>().catch(() => ({ pet: null }))
+  return gameResponse(c, await setPet(c.env.DB, c.get('user').id, typeof pet === 'string' ? pet : null))
+})
+
+game.post('/items/:id/enhance', async (c) => gameResponse(c, await enhanceItem(c.env.DB, c.get('user').id, c.req.param('id'))))
+
+game.post('/shop/:id', async (c) => {
+  const r = await buyShop(c.env.DB, c.get('user').id, c.req.param('id') as ShopId)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 今週のレイドボス */
+game.get('/raid', async (c) => c.json(await raidState(c.env, c.get('user').id)))
+game.post('/raid/claim', async (c) => {
+  const r = await claimRaid(c.env, c.get('user').id)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 先週の MVP */
+game.get('/mvp', async (c) => c.json(await lastWeekMvp(c.env)))
+
+/** 開催中の季節イベントと自分の進み具合 */
+game.get('/event', async (c) => c.json({ event: await eventProgress(c.env.DB, c.get('user').id) }))
+
+game.post('/chest', async (c) => {
+  const r = await openChest(c.env.DB, c.get('user').id)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+game.post('/items/:id/equip', async (c) => {
+  const { on } = await c.req.json<{ on?: boolean }>().catch(() => ({ on: true }))
+  return gameResponse(c, await equipItem(c.env.DB, c.get('user').id, c.req.param('id'), on !== false))
+})
+
+game.post('/items/:id/sell', async (c) => gameResponse(c, await sellItem(c.env.DB, c.get('user').id, c.req.param('id'))))
+
+game.get('/missions', async (c) => c.json(await getMissions(c.env.DB, c.get('user').id)))
+
+game.post('/missions/:id/claim', async (c) => {
+  const r = await claimMission(c.env.DB, c.get('user').id, c.req.param('id'))
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})

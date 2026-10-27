@@ -22,9 +22,18 @@ interface Props {
   /** みんなタブの未読 (自分宛ての通知) */
   peopleBadge?: number
   onHistory: () => void
+  onHelp: () => void
+  /** 管理者だけ: 集計 */
+  onStats?: () => void
+  theme: Theme
+  onTheme: (t: Theme) => void
 }
 
-export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory }: Props) {
+export type Theme = 'auto' | 'light' | 'dark'
+const THEME_LABEL: Record<Theme, string> = { auto: '自動', light: 'ライト', dark: 'ダーク' }
+const NEXT_THEME: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' }
+
+export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onStats, theme, onTheme }: Props) {
   const [menu, setMenu] = useState(false)
   return (
     <div className="dock">
@@ -80,6 +89,31 @@ export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, o
                 >
                   📒 履歴・エクスポート
                 </button>
+                <button
+                  className="menu-item"
+                  data-testid="menu-help"
+                  onClick={() => {
+                    setMenu(false)
+                    onHelp()
+                  }}
+                >
+                  ❓ 使い方
+                </button>
+                <button className="menu-item" data-testid="menu-theme" onClick={() => onTheme(NEXT_THEME[theme])}>
+                  🌓 見た目: {THEME_LABEL[theme]}
+                </button>
+                {onStats && (
+                  <button
+                    className="menu-item"
+                    data-testid="menu-stats"
+                    onClick={() => {
+                      setMenu(false)
+                      onStats()
+                    }}
+                  >
+                    📊 集計（管理者）
+                  </button>
+                )}
                 <button
                   className="menu-item danger"
                   data-testid="logout"

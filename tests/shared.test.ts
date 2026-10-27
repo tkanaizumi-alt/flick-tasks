@@ -18,7 +18,7 @@ import {
 } from '../shared/game'
 import { bestStreakOf, streakOf } from '../shared/achievements'
 import { isRule, ruleLabel, ruleMatches } from '../shared/recurring'
-import { san, tagsOf } from '../shared/types'
+import { mentionsIn, san, tagsOf } from '../shared/types'
 
 const now = Date.UTC(2026, 9, 27, 3, 0) // JST 12:00
 const xp = (over: Partial<Parameters<typeof computeXp>[0]> = {}) =>
@@ -127,5 +127,17 @@ describe('タグ・名前', () => {
   it('さん を重ねない', () => {
     expect(san('ともや')).toBe('ともやさん')
     expect(san('よしおさん')).toBe('よしおさん')
+  })
+})
+
+describe('@名前', () => {
+  it('空白を含む名前・全角の＠も拾う', () => {
+    const people = [
+      { id: 'a', name: 'tomoya kanaizumi' },
+      { id: 'b', name: 'よしお' },
+      { id: 'c', name: 'ともや☆' },
+    ]
+    expect(mentionsIn('@tomoya kanaizumi 確認お願いします ＠よしお', people)).toEqual(['a', 'b'])
+    expect(mentionsIn('メールアドレス a@example.com', people)).toEqual([])
   })
 })

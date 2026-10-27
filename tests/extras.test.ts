@@ -31,7 +31,11 @@ describe('ゲームの追加要素', () => {
     const now = Date.UTC(2026, 9, 27, 3)
     const base = { weight: 'M' as const, createdAt: now - 3600_000, now, doneToday: 1, doneYesterday: false, source: 'user', skills: [] }
     expect(computeXp(base).amount).toBe(20)
-    expect(computeXp({ ...base, extras: [{ label: '🎫XP2倍', xp: 1 }] }).amount).toBe(40)
+    expect(computeXp({ ...base, extras: [{ label: '🎫XP2倍', double: true }] }).amount).toBe(40)
+    // 上乗せは合計 +100% まで。2 倍チケットはその後にかかる
+    const many = [0.3, 0.3, 0.3, 0.3].map((xp, i) => ({ label: `b${i}`, xp }))
+    expect(computeXp({ ...base, extras: many }).amount).toBe(40)
+    expect(computeXp({ ...base, extras: [...many, { label: '🎫XP2倍', double: true }] }).amount).toBe(80)
     const pet = PETS.find((p) => p.id === 'kitten')!
     expect(computeXp({ ...base, extras: [{ label: pet.name, gold: pet.gold }] }).gold).toBe(11)
     expect(PETS.map((p) => p.need)).toEqual([...PETS.map((p) => p.need)].sort((a, b) => a - b))

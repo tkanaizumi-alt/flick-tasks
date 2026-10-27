@@ -60,6 +60,8 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
   } | null>(null)
   const [reqTab, setReqTab] = useState<'received' | 'sent'>('received')
   const [notices, setNotices] = useState<Notice[]>([])
+  const [noticeMore, setNoticeMore] = useState(false)
+  const [showAllNotices, setShowAllNotices] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [requestTo, setRequestTo] = useState<string | null | undefined>(undefined) // undefined = 閉じている
   const [confirmClear, setConfirmClear] = useState(false)
@@ -93,7 +95,8 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
   useEffect(() => {
     api.notices().then(
       (r) => {
-        setNotices(r.notices.slice(0, 8))
+        setNotices(r.notices)
+        setNoticeMore(r.more)
         if (r.unread)
           api.readNotices().then(
             () => readRef.current?.(),
@@ -178,16 +181,47 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
         <section className="panel glass notices" data-testid="notices">
           <div className="panel-head">
             <h2>あなたへのお知らせ</h2>
+            {notices.some((n) => !n.read) && (
+              <button className="rename-btn" onClick={() => setNotices((l) => l.map((n) => ({ ...n, read: true })))} data-testid="notices-read">
+                すべて既読
+              </button>
+            )}
           </div>
           <ul>
-            {notices.map((n) => (
+            {(showAllNotices ? notices : notices.slice(0, 6)).map((n) => (
               <li key={n.id} className={n.read ? '' : 'unread'} data-testid="notice">
-                <Avatar name={n.actor.name} picture={n.actor.picture} skin={n.actor.skin} size={26} />
-                <span className="feed-text">{n.text}</span>
-                <time>{ago(n.createdAt)}</time>
+                <button
+                  className="notice-btn"
+                  disabled={!n.taskOwner && n.actor.id === 'system'}
+                  onClick={() => {
+                    // タップでそのタスクを開く (自分のタスクは自分の画面、他の人のタスクはその人の画面)
+                    if (n.taskId && n.taskOwner) openTask(n.taskOwner, n.taskId)
+                    else if (n.actor.id !== 'system') setOpenId(n.actor.id)
+                  }}
+                >
+                  <Avatar name={n.actor.name} picture={n.actor.picture} skin={n.actor.skin} size={26} />
+                  <span className="feed-text">{n.text}</span>
+                  <time>{ago(n.createdAt)}</time>
+                </button>
               </li>
             ))}
           </ul>
+          {((!showAllNotices && notices.length > 6) || (showAllNotices && noticeMore)) && (
+            <button
+              className="more-btn"
+              data-testid="notices-more"
+              onClick={async () => {
+                if (!showAllNotices) return setShowAllNotices(true)
+                const r = await api.notices(notices[notices.length - 1]?.createdAt).catch(() => null)
+                if (r) {
+                  setNotices((l) => [...l, ...r.notices.map((n) => ({ ...n, read: true }))])
+                  setNoticeMore(r.more)
+                }
+              }}
+            >
+              {showAllNotices ? 'さらに前のお知らせ' : 'もっと見る'}
+            </button>
+          )}
         </section>
       )}
     </>

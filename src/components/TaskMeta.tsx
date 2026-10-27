@@ -26,9 +26,9 @@ export function XpChip({ task }: { task: Task }) {
   )
 }
 
-/** 重要度 (普通のときは出さない) */
-export function PriorityBadge({ task }: { task: Pick<Task, 'priority' | 'status'> }) {
-  if (!task.priority || task.status === 'done') return null
+/** 重要度 (普通のときは出さない。compact ではカードを詰めるため「低」も出さない) */
+export function PriorityBadge({ task, compact = false }: { task: Pick<Task, 'priority' | 'status'>; compact?: boolean }) {
+  if (!task.priority || task.status === 'done' || (compact && task.priority === 'low')) return null
   return (
     <span className={`prio-chip p-${task.priority}`} data-testid="prio-chip">
       {task.priority === 'high' ? '重要度 高' : '重要度 低'}
@@ -36,20 +36,23 @@ export function PriorityBadge({ task }: { task: Pick<Task, 'priority' | 'status'
   )
 }
 
-/** 重要度・子タスクの進み具合・フラグ・依頼のつながり */
-export function TaskLinks({ task, showFlagNote = false }: { task: Task; showFlagNote?: boolean }) {
+/**
+ * 重要度・子タスクの進み具合・フラグ・依頼のつながり。
+ * compact (カード用) では、すぐ動く必要のあるものだけを目立たせ、繰り返し・コメントは小さなアイコンにする
+ */
+export function TaskLinks({ task, showFlagNote = false, compact = false }: { task: Task; showFlagNote?: boolean; compact?: boolean }) {
   const f = task.flag
   return (
     <>
-      <PriorityBadge task={task} />
+      <PriorityBadge task={task} compact={compact} />
       {task.recurring && (
-        <span className="recur-chip" data-testid="recur-chip">
-          🔁 {ruleLabel(task.recurring.rule)}
+        <span className={`recur-chip ${compact ? 'mini' : ''}`} data-testid="recur-chip" title={ruleLabel(task.recurring.rule)}>
+          🔁{compact ? '' : ` ${ruleLabel(task.recurring.rule)}`}
         </span>
       )}
       {!!task.comments && (
-        <span className="comment-chip" data-testid="comment-chip">
-          💬 {task.comments}
+        <span className={`comment-chip ${compact ? 'mini' : ''}`} data-testid="comment-chip">
+          💬{task.comments}
         </span>
       )}
       {task.children?.total ? (

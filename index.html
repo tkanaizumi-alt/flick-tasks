@@ -12,6 +12,14 @@
     <link rel="apple-touch-icon" href="/icon-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Flick</title>
+    <script>
+      ;(function () {
+        var t = 'auto'
+        try { t = JSON.parse(localStorage.getItem('flick.theme') || '"auto"') } catch (e) {}
+        var dark = t === 'dark' || (t !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      })()
+    </script>
     <style>
       /* 初回描画用の最小スタイル (JS 読込前にメモ入力とスケルトンを出す) */
       :root {
@@ -26,6 +34,15 @@
         --safe-t: env(safe-area-inset-top, 0px);
         --safe-b: env(safe-area-inset-bottom, 0px);
         color-scheme: light;
+      }
+      :root[data-theme='dark'] {
+        --bg: #0e1118;
+        --ink: #e9ecf5;
+        --ink-2: rgba(233, 236, 245, 0.64);
+        --ink-3: rgba(233, 236, 245, 0.38);
+        --glass: linear-gradient(145deg, rgba(36, 40, 54, 0.78), rgba(24, 27, 38, 0.6));
+        --glass-edge: inset 0 1px 1px rgba(255, 255, 255, 0.08), inset 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 14px 36px -10px rgba(0, 0, 0, 0.6);
+        color-scheme: dark;
       }
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       html, body { margin: 0; height: 100%; color: var(--ink); }

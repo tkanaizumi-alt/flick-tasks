@@ -1,0 +1,88 @@
+/* ダークモード (自動生成: node scripts/gen-dark.mjs。手で直すときは src/dark-tokens.css へ) */
+/* ---- src/styles.css ---- */
+:root[data-theme='dark'] .bg { background: radial-gradient(70% 45% at 0% 0%, hsla(229, 35%, 17%, 0.698), transparent 70%),
+    radial-gradient(60% 45% at 100% 35%, hsla(269, 35%, 16%, 0.653), transparent 70%),
+    radial-gradient(70% 45% at 15% 100%, hsla(158, 35%, 18%, 0.653), transparent 70%),
+    radial-gradient(50% 35% at 100% 100%, hsla(340, 35%, 15%, 0.63), transparent 70%),
+    var(--bg); }
+:root[data-theme='dark'] .card-surface { background: linear-gradient(160deg, hsla(0, 0%, 12%, 0.855), hsla(0, 0%, 12%, 0.765)); }
+:root[data-theme='dark'] .stab-pill { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .card.is-ai > .card-body::after { background: linear-gradient(100deg, transparent 20%, hsla(232, 35%, 19%, 0.608) 45%, hsla(320, 35%, 15%, 0.585) 55%, transparent 80%); }
+:root[data-theme='dark'] .empty { color: var(--accent, hsla(224, 31%, 83%, 0.16)); }
+:root[data-theme='dark'] .tab-pill { background: linear-gradient(160deg, hsla(0, 0%, 12%, 1), hsla(0, 0%, 12%, 0.72)); }
+:root[data-theme='dark'] .tab-count { background: hsla(0, 0%, 12%, 0.81); }
+:root[data-theme='dark'] .menu-item { background: hsla(0, 0%, 12%, 0.675); }
+:root[data-theme='dark'] .scrim { background: hsla(228, 35%, 13%, 0.608); }
+:root[data-theme='dark'] .sheet { --glass: linear-gradient(160deg, hsla(0, 0%, 12%, 0.855), hsla(0, 0%, 12%, 0.765)); }
+:root[data-theme='dark'] .sheet .sheet-note { background: hsla(0, 0%, 12%, 0.675) !important; }
+:root[data-theme='dark'] .toast { --glass: linear-gradient(160deg, hsla(0, 0%, 12%, 0.833), hsla(0, 0%, 12%, 0.72)); }
+:root[data-theme='dark'] .boss-icon { background: hsla(0, 0%, 12%, 0.765); }
+:root[data-theme='dark'] .stat-row { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .skill { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .battle { --glass: linear-gradient(160deg, hsla(0, 0%, 12%, 1), hsla(0, 0%, 12%, 0.819)); }
+:root[data-theme='dark'] .ps-task { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .levelup { --glass: linear-gradient(160deg, hsla(0, 0%, 12%, 1), hsla(0, 0%, 12%, 0.833)); }
+
+/* ---- src/game.css ---- */
+:root[data-theme='dark'] .stage-node.current { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .equip-slot { background: hsla(0, 0%, 12%, 0.743); }
+:root[data-theme='dark'] .item-card { background: hsla(0, 0%, 12%, 0.765); }
+:root[data-theme='dark'] .item-card.r-SSR { background: linear-gradient(160deg, hsla(46, 35%, 14%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .chip.gear { background: hsla(0, 0%, 12%, 0.81); }
+:root[data-theme='dark'] .reveal-card { --glass: linear-gradient(160deg, hsla(0, 0%, 12%, 1), hsla(0, 0%, 12%, 0.846)); }
+:root[data-theme='dark'] .is-icon { background: hsla(0, 0%, 12%, 0.81); }
+:root[data-theme='dark'] .is-stats li { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .mission { background: hsla(0, 0%, 12%, 0.72); }
+
+/* ---- src/jobs.css ---- */
+:root[data-theme='dark'] .job { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .job.on { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .job.adv { background: linear-gradient(160deg, hsla(46, 35%, 14%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .secret-skill { background: linear-gradient(160deg, hsla(40, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .feed-pill { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .due-field { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .due-field input[type='date'] { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .rename-form input { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .stage-node.tower { background: hsla(0, 0%, 12%, 1); }
+
+/* ---- src/links.css ---- */
+:root[data-theme='dark'] .req-chip { color: hsla(175, 77%, 64%, 1); }
+:root[data-theme='dark'] .history-link { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .flag-field { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .flag-form input { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .draft { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .draft input { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .guide { --glass: linear-gradient(160deg, hsla(0, 0%, 12%, 1), hsla(0, 0%, 12%, 0.855)); }
+:root[data-theme='dark'] .request-form input:not([type='date']), :root[data-theme='dark'] .request-form textarea, :root[data-theme='dark'] .request-form select { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .request-form input[type='date'] { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .range-row input[type='date'] { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .report textarea { background: hsla(0, 0%, 12%, 1) !important; }
+:root[data-theme='dark'] .history-day li { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .att-item, :root[data-theme='dark'] .req-item { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .skin { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .skin.on { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .rare-flash.f-SSR { background: radial-gradient(circle, hsla(0, 0%, 12%, 1) 0%, #ffe08a 45%, rgba(240, 164, 0, 0.4) 100%); }
+:root[data-theme='dark'] .rare-flash.f-SR { background: radial-gradient(circle, hsla(0, 0%, 12%, 1) 0%, rgba(166, 91, 255, 0.35) 100%); }
+:root[data-theme='dark'] .weight-field { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .sort-btn { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .move-btn.done { color: hsla(159, 80%, 60%, 1); }
+
+/* ---- src/features.css ---- */
+:root[data-theme='dark'] .tag-filter { background: hsla(0, 0%, 12%, 0.72); color: hsla(175, 77%, 64%, 1); }
+:root[data-theme='dark'] .tag-inline { color: hsla(175, 77%, 64%, 1); }
+:root[data-theme='dark'] .title-chip { color: hsla(39, 100%, 63%, 1); background: linear-gradient(135deg, hsla(48, 35%, 16%, 1), #ffe08a); }
+:root[data-theme='dark'] .ach { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .ach.got { background: linear-gradient(160deg, hsla(40, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .comments { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .comment-form input { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .weekly-head { background: hsla(0, 0%, 12%, 0.765); }
+:root[data-theme='dark'] .raid-icon { background: hsla(0, 0%, 12%, 0.765); }
+:root[data-theme='dark'] .event-banner { background: linear-gradient(135deg, hsla(45, 35%, 17%, 0.833), hsla(0, 0%, 12%, 0.72)); }
+:root[data-theme='dark'] .shop-item { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .pet { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .pet.on { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .done-at { color: hsla(159, 80%, 60%, 1); }
+
+/* ---- src/desktop.css ---- */
+:root[data-theme='dark'] .lt-pill { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .board-col { background: hsla(0, 0%, 12%, 0.594); }

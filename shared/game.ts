@@ -458,8 +458,11 @@ export interface XpInput {
   effects?: string[] // 装備の効果
   bonus?: Pick<Bonus, 'xp' | 'gold'> // 隠しスキルの効果
   /** ペット・季節イベント・XP 2 倍チケットなどの上乗せ (加算倍率) */
-  extras?: { label: string; xp?: number; gold?: number }[]
+  extras?: { label: string; xp?: number; gold?: number; double?: boolean }[]
 }
+
+/** XP の上乗せ (スキル・装備・ペット・イベントなど) の合計の上限 */
+export const BONUS_CAP = 1
 
 export function computeXp(x: XpInput) {
   const bonuses: string[] = []
@@ -486,8 +489,19 @@ export function computeXp(x: XpInput) {
   add(has('scholar'), 0.15, '博識 +15%')
   add(fx.includes('xpup'), 0.1, '装備 XP+10%')
   add((x.bonus?.xp ?? 0) > 0, x.bonus?.xp ?? 0, `隠しスキル XP+${Math.round((x.bonus?.xp ?? 0) * 100)}%`)
-  for (const e of x.extras ?? []) add(!!e.xp, e.xp ?? 0, e.label)
+  for (const e of x.extras ?? []) if (!e.double) add(!!e.xp, e.xp ?? 0, e.label)
+  // スキル・装備・ペット・イベントなどの上乗せは合計 BONUS_CAP (+100%) まで (重なりすぎてレベルが上がりすぎないように)
+  if (mult > 1 + BONUS_CAP) {
+    mult = 1 + BONUS_CAP
+    bonuses.push(`上乗せは最大+${Math.round(BONUS_CAP * 100)}%`)
+  }
   amount = Math.round(amount * mult)
+  // XP 2 倍チケットは上限とは別に、最後に 2 倍
+  const double = (x.extras ?? []).find((e) => e.double)
+  if (double) {
+    amount *= 2
+    bonuses.push(double.label)
+  }
   if (x.doneToday === 0) {
     amount += 5
     bonuses.push('今日の初完了 +5')

@@ -203,12 +203,12 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
 
 /** ペット・開催中の季節イベント・XP 2 倍チケットの上乗せ */
 function taskExtras(p: PlayerState) {
-  const list: { label: string; xp?: number; gold?: number }[] = []
+  const list: { label: string; xp?: number; gold?: number; double?: boolean }[] = []
   const pet = p.pet ? PET_MAP[p.pet] : undefined
   if (pet && (pet.xp || pet.gold)) list.push({ label: `${pet.emoji}${pet.name}`, xp: pet.xp, gold: pet.gold })
   const ev = activeEvent(jstToday())
   if (ev) list.push({ label: `${ev.icon}${ev.name} +${Math.round(EVENT_XP * 100)}%`, xp: EVENT_XP })
-  if ((p.boostLeft ?? 0) > 0) list.push({ label: '🎫XP2倍', xp: 1 })
+  if ((p.boostLeft ?? 0) > 0) list.push({ label: '🎫XP2倍', double: true })
   return list
 }
 
@@ -555,6 +555,7 @@ export async function purgeOldDone(db: D1Database) {
   await db.batch([
     db.prepare('DELETE FROM activity WHERE created_at < ?').bind(now - ACTIVITY_KEEP_DAYS * 86400000),
     db.prepare('DELETE FROM notifications WHERE created_at < ?').bind(now - 30 * 86400000),
+    db.prepare('DELETE FROM errors WHERE created_at < ?').bind(now - 30 * 86400000),
   ])
   return res.meta.changes ?? 0
 }

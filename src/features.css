@@ -123,3 +123,41 @@
 /* ---------- 完了日・完了の並び順 ---------- */
 .done-at { display: inline-flex; align-items: center; font-size: 11px; font-weight: 750; padding: 1px 7px; border-radius: 8px; white-space: nowrap; color: #0f8a5f; background: rgba(22, 199, 132, 0.1); }
 .board-col .done-sort { justify-content: flex-start; margin: -4px 4px 10px; flex-wrap: wrap; }
+
+/* ---------- カードを詰める: 繰り返し・コメントは小さなアイコンで最後に ---------- */
+.recur-chip.mini, .comment-chip.mini { order: 10; padding: 1px 5px; background: none; color: var(--ink-3); }
+
+/* ---------- お知らせ: タップでタスクを開く ---------- */
+.notices li { padding: 0; }
+.notice-btn { width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 6px 8px; border-radius: 12px; cursor: pointer; }
+.notice-btn:disabled { cursor: default; }
+.notices li.unread .notice-btn { background: rgba(111, 124, 255, 0.1); font-weight: 650; }
+
+/* ---------- @名前 ---------- */
+.mention { color: var(--c-todo); font-weight: 750; }
+.mention-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* ---------- 使い方 ---------- */
+.help-sec { margin-top: 12px; }
+.help-sec h3 { margin: 0 0 6px; font-size: 14px; }
+.help-sec ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.help-sec li { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+.help-keys { border-collapse: collapse; font-size: 13.5px; }
+.help-keys th, .help-keys td { padding: 4px 10px 4px 0; text-align: left; font-weight: 600; }
+kbd { display: inline-block; min-width: 24px; padding: 2px 8px; border-radius: 6px; background: rgba(20, 28, 48, 0.07); box-shadow: inset 0 -1px 0 rgba(20, 28, 48, 0.12); font: inherit; font-size: 12px; font-weight: 800; text-align: center; }
+
+/* ---------- 集計 (管理者) ---------- */
+.admin-stats { max-width: 980px !important; }
+.stats-table-wrap { overflow-x: auto; margin: 10px -4px 0; }
+.stats-table { border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
+.stats-table th, .stats-table td { padding: 6px 8px; border-bottom: 1px solid rgba(20, 28, 48, 0.06); text-align: right; }
+.stats-table thead th { font-size: 11px; color: var(--ink-3); font-weight: 800; }
+.stats-table tbody th { text-align: left; font-weight: 750; }
+.stats-h { margin: 16px 0 6px; font-size: 14px; }
+.error-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.error-list li { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 77, 106, 0.06); }
+.error-list time { flex: none; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.err-src { flex: none; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; color: #fff; background: var(--c-danger); }
+.err-src.client { background: var(--c-doing); }
+.err-msg { flex: 1; min-width: 0; word-break: break-word; }
+.err-msg small { display: block; color: var(--ink-3); }

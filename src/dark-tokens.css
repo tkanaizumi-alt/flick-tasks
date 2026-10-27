@@ -1,0 +1,34 @@
+/* ダークモードの基本の色 (手で調整する部分)。白っぽい背景などの細かい上書きは src/dark.css (自動生成) */
+:root[data-theme='dark'] {
+  --bg: #0e1118;
+  --ink: #e9ecf5;
+  --ink-2: rgba(233, 236, 245, 0.64);
+  --ink-3: rgba(233, 236, 245, 0.38);
+  --glass: linear-gradient(145deg, rgba(36, 40, 54, 0.78), rgba(24, 27, 38, 0.6));
+  --glass-edge: inset 0 1px 1px rgba(255, 255, 255, 0.08), inset 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 36px -10px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+:root[data-theme='dark'] body { color: var(--ink); }
+/* ガラスの光沢は控えめに */
+:root[data-theme='dark'] .glass::before { opacity: 0.12; }
+:root[data-theme='dark'] .glass::after,
+:root[data-theme='dark'] .composer::after { opacity: 0.18; }
+/* 入力欄 */
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] textarea,
+:root[data-theme='dark'] select { color: var(--ink); }
+:root[data-theme='dark'] input::placeholder,
+:root[data-theme='dark'] textarea::placeholder { color: var(--ink-3); }
+/* 細い区切り線・薄い面 (暗い色の半透明) は明るい色の半透明に */
+:root[data-theme='dark'] .guide-table th,
+:root[data-theme='dark'] .guide-table td { border-color: rgba(255, 255, 255, 0.08); }
+:root[data-theme='dark'] .xp-bar,
+:root[data-theme='dark'] .mission-bar,
+:root[data-theme='dark'] .raid-bar,
+:root[data-theme='dark'] .rate-bar,
+:root[data-theme='dark'] .kids-bar,
+:root[data-theme='dark'] .ach-bar,
+:root[data-theme='dark'] .job-bar { background: rgba(255, 255, 255, 0.1); }
+:root[data-theme='dark'] .sort-btn.on { background: var(--ink); color: #11141c; }
+:root[data-theme='dark'] .skel { background: rgba(255, 255, 255, 0.06); }
+:root[data-theme='dark'] kbd { background: rgba(255, 255, 255, 0.1); color: var(--ink); }

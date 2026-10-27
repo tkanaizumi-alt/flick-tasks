@@ -100,7 +100,7 @@ export const api = {
     req<{ task: Task }>('/api/requests', { method: 'POST', json: body }),
   requests: () => req<{ sent: RequestItem[]; received: RequestItem[] }>('/api/requests'),
   attention: () => req<{ items: AttentionItem[] }>('/api/attention'),
-  notices: () => req<{ notices: Notice[]; unread: number }>('/api/notifications'),
+  notices: (before?: number) => req<{ notices: Notice[]; unread: number; more: boolean }>(`/api/notifications${before ? `?before=${before}` : ''}`),
   readNotices: () => req<{ ok: true }>('/api/notifications/read', { method: 'POST', json: {} }),
   reports: () => req<{ reports: { id: number; from: string; to: string; text: string; createdAt: number }[] }>('/api/reports'),
   history: (from: string, to: string) => req<{ tasks: Task[] }>(`/api/history?from=${from}&to=${to}`),
@@ -109,12 +109,15 @@ export const api = {
   /** 期限の設定 (自分・他の人のタスクどちらも可。null で解除) */
   setDue: (id: string, due: string | null) => req<{ task: Task }>(`/api/tasks/${id}/due`, { method: 'PUT', json: { due } }),
   // 管理者のみ
+  adminStats: () => req<AdminStats>('/api/admin/stats'),
   renamePerson: (id: string, name: string) => req<{ name: string }>(`/api/admin/people/${id}/name`, { method: 'PATCH', json: { name } }),
   deleteActivity: (id: number) => req<{ ok: true }>(`/api/admin/activity/${id}`, { method: 'DELETE' }),
   clearActivity: (kind: FeedKind) => req<{ ok: true; deleted: number }>(`/api/admin/activity?kind=${kind}`, { method: 'DELETE' }),
   remove: (id: string) => req<{ ok: true }>(`/api/tasks/${id}`, { method: 'DELETE' }),
   ai: (kind: 'split' | 'breakdown', text: string) =>
     req<{ tasks: string[] }>(`/api/ai/${kind}`, { method: 'POST', json: { text } }),
+  /** 画面で起きたエラーをサーバーに記録する */
+  log: (message: string, stack = '', path = location.pathname) => req<{ ok: boolean }>('/api/log', { method: 'POST', json: { message, stack, path } }),
   logout: () => req<{ ok: true }>('/auth/logout', { method: 'POST' }),
 }
 
@@ -122,6 +125,27 @@ export const api = {
 export type FeedKind = 'all' | Status
 
 type Who = { id: string; name: string; picture: string; skin: string | null }
+export interface AdminStats {
+  people: {
+    id: string
+    name: string
+    level: number
+    stage: number
+    done7: number
+    done30: number
+    xp7: number
+    added7: number
+    open: number
+    flags: number
+    helps7: number
+    comments7: number
+    split30: number
+    requested30: number
+    recurring: number
+  }[]
+  totals: { done7: number; xpPerDone: number }
+  errors: { id: number; source: 'server' | 'client'; path: string; message: string; who: string; at: number }[]
+}
 export interface RaidState {
   week: string
   until: string

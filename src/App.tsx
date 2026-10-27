@@ -1,27 +1,30 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { STATUSES, tagsOf, type Flag, type Status, type Task, type User } from '../shared/types'
 import { spInfo, type PlayerState, type Weight } from '../shared/game'
 import type { AchievementDef } from '../shared/achievements'
 import { api, HttpError, pending, STATUS_LABEL, type PendingMemo, type XpChange } from './api'
 import { Background } from './components/Background'
 import { Skeleton } from './components/Skeleton'
-import { TaskCard, exitDir } from './components/TaskCard'
-import { Dock, type View } from './components/Dock'
+import { exitDir } from './components/TaskCard'
+import { Dock, type Theme, type View } from './components/Dock'
 import { MeToolbar } from './components/StatusTabs'
 import { SelectBar } from './components/SelectBar'
 import { Sheet } from './components/Sheet'
 import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
 import { LevelUp, XpPops, type Celebration, type XpPopData } from './components/Rewards'
-import { CheckCircleIcon, CircleIcon, PlayIcon } from './components/icons'
-import { ReorderList } from './components/ReorderList'
+import { TaskBoard } from './components/TaskBoard'
+import { store } from './store'
+import { DONE_CMP, DONE_SORTS, DONE_SORT_KEY, SORTS, SORT_CMP, SORT_KEY, type DoneSort, type SortMode } from './sorting'
 import { LayoutGuide, LayoutToggle } from './components/LayoutToggle'
 import { useLayouts } from './layout'
 // 開いた瞬間のメモを速くするため、みんな・冒険・履歴は使うときに読み込む
 const People = lazy(() => import('./views/People').then((m) => ({ default: m.People })))
 const Adventure = lazy(() => import('./views/Adventure').then((m) => ({ default: m.Adventure })))
 const History = lazy(() => import('./components/History').then((m) => ({ default: m.History })))
+const Help = lazy(() => import('./components/Help').then((m) => ({ default: m.Help })))
+const AdminStats = lazy(() => import('./components/AdminStats').then((m) => ({ default: m.AdminStats })))
 const ViewSkeleton = () => (
   <div className="skel-list">
     <div className="skel skel-card tall" />
@@ -36,61 +39,9 @@ const CACHE_KEY = 'flick.cache'
 const TAB_KEY = 'flick.tab'
 const VIEW_KEY = 'flick.view'
 const HINT_KEY = 'flick.hint.select'
-const SORT_KEY = 'flick.sort'
-/** 並び順: 手動 (新しいものが上・ドラッグで並べ替え) / 重要度順 / 期日順 */
-type SortMode = 'new' | 'priority' | 'due'
-const SORTS: { key: SortMode; label: string }[] = [
-  { key: 'new', label: '手動' },
-  { key: 'priority', label: '重要度順' },
-  { key: 'due', label: '期日順' },
-]
-const prioRank = (t: Task) => (t.priority === 'high' ? 2 : t.priority === 'low' ? 0 : 1)
-/** 期日なしは最後 */
-const dueKey = (t: Task) => t.due ?? '9999-12-31'
-const SORT_CMP: Record<SortMode, (a: Task, b: Task) => number> = {
-  new: (a, b) => b.position - a.position,
-  priority: (a, b) => prioRank(b) - prioRank(a) || dueKey(a).localeCompare(dueKey(b)) || b.position - a.position,
-  due: (a, b) => dueKey(a).localeCompare(dueKey(b)) || prioRank(b) - prioRank(a) || b.position - a.position,
-}
-/** 完了の並び順: 完了日が新しい順 / 古い順 / 重要度順 */
-type DoneSort = 'recent' | 'oldest' | 'priority'
-const DONE_SORT_KEY = 'flick.sort.done'
-const DONE_SORTS: { key: DoneSort; label: string }[] = [
-  { key: 'recent', label: '完了が新しい順' },
-  { key: 'oldest', label: '古い順' },
-  { key: 'priority', label: '重要度順' },
-]
-const doneAt = (t: Task) => t.doneAt ?? t.updatedAt
-const DONE_CMP: Record<DoneSort, (a: Task, b: Task) => number> = {
-  recent: (a, b) => doneAt(b) - doneAt(a),
-  oldest: (a, b) => doneAt(a) - doneAt(b),
-  priority: (a, b) => prioRank(b) - prioRank(a) || doneAt(b) - doneAt(a),
-}
 const NOTICE_POLL_MS = 60_000
+const THEME_KEY = 'flick.theme'
 const ORDER: Status[] = ['todo', 'doing', 'done']
-const EMPTY_ICON = { todo: CircleIcon, doing: PlayIcon, done: CheckCircleIcon }
-
-const store = {
-  get<T>(k: string, fallback: T): T {
-    try {
-      const v = localStorage.getItem(k)
-      return v ? (JSON.parse(v) as T) : fallback
-    } catch {
-      return fallback
-    }
-  },
-  set(k: string, v: unknown) {
-    try {
-      localStorage.setItem(k, JSON.stringify(v))
-    } catch {}
-  },
-  del(k: string) {
-    try {
-      localStorage.removeItem(k)
-    } catch {}
-  },
-}
-
 
 const inflight = new Set<string>()
 const composer = () => document.getElementById('composer')
@@ -125,6 +76,13 @@ export function App() {
   const [query, setQuery] = useState<string | null>(null) // null = 検索を閉じている
   const [unread, setUnread] = useState(0)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [theme, setThemeState] = useState<Theme>(() => store.get<Theme>(THEME_KEY, 'auto'))
+  const setTheme = (t: Theme) => {
+    setThemeState(t)
+    store.set(THEME_KEY, t)
+  }
   const [hint, setHint] = useState(() => !store.get<boolean>(HINT_KEY, false))
   const [sort, setSortState] = useState<SortMode>(() => {
     const v = store.get<SortMode>(SORT_KEY, 'new')
@@ -185,6 +143,46 @@ export function App() {
     // サイドバーなど画面全体の見え方は、今の画面の設定に合わせる
     document.body.dataset.layout = phase === 'ready' && isPc(view) ? 'pc' : 'mobile'
   }, [view, phase, isPc])
+
+  // 見た目: 自動なら端末の設定 (ダークモード) に合わせる
+  useEffect(() => {
+    const m = matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => {
+      const dark = theme === 'dark' || (theme === 'auto' && m.matches)
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0e1118' : '#f6f7fb')
+    }
+    apply()
+    m.addEventListener('change', apply)
+    return () => m.removeEventListener('change', apply)
+  }, [theme])
+
+  // PC のキーボード操作: N 新しいタスク / 「/」検索 / 1・2・3 画面 / ? 使い方 (入力中は効かない)
+  useEffect(() => {
+    if (phase !== 'ready') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      const k = e.key.toLowerCase()
+      if (k === 'n') {
+        e.preventDefault()
+        setView('me')
+        setTimeout(() => (document.getElementById('memo') as HTMLTextAreaElement | null)?.focus(), 50)
+      } else if (k === '/') {
+        e.preventDefault()
+        setView('me')
+        setQuery('')
+      } else if (k === '1' || k === '2' || k === '3') {
+        setView((['me', 'people', 'game'] as const)[Number(k) - 1])
+      } else if (k === '?') {
+        setHelpOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [phase, setView])
 
   // 見え方を切り替えられることを、メンバーごとに最初の 1 回だけ案内する
   useEffect(() => {
@@ -689,7 +687,6 @@ export function App() {
   const selStatuses = new Set(selectedTasks.map((t) => t.status))
   const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q && !board ? tab : null
   const openTask = tasks.find((t) => t.id === openId) ?? null
-  const EmptyIcon = EMPTY_ICON[tab]
   const freeSp = player ? Math.max(0, spInfo(player).free) : 0
 
   return (
@@ -782,90 +779,20 @@ export function App() {
                       </div>
                     )}
                     {!board && !q && tab === 'done' && visible.length > 1 && doneSortRow}
-                    {board ? (
-                      <LayoutGroup>
-                        <div className="board-cols" data-testid="board">
-                          {ORDER.map((s) => {
-                            const col = visible.filter((t) => t.status === s)
-                            const Icon = EMPTY_ICON[s]
-                            return (
-                              <section key={s} className={`board-col t-${s}`}>
-                                <h2 className="board-col-head">
-                                  {STATUS_LABEL[s]} <span>{col.length}</span>
-                                </h2>
-                                {s === 'done' && col.length > 1 && doneSortRow}
-                                {reorder && s !== 'done' ? (
-                                  <ReorderList tasks={col} onChange={(ids) => setReorder((r) => ({ ...r, [s]: ids }))} />
-                                ) : (
-                                <ul className="list" data-testid={`list-${s}`}>
-                                  <AnimatePresence mode="popLayout">
-                                    {col.map((t, i) => (
-                                      <TaskCard
-                                        key={t.id}
-                                        task={t}
-                                        index={i}
-                                        onSwipe={onSwipe}
-                                        onOpen={(x) => setOpenId(x.id)}
-                                        selecting={!!selected}
-                                        selected={!!selected?.has(t.id)}
-                                        onSelect={onSelect}
-                                      />
-                                    ))}
-                                  </AnimatePresence>
-                                </ul>
-                                )}
-                                {col.length === 0 && (
-                                  <div className={`board-empty t-${s}`}>
-                                    <Icon />
-                                  </div>
-                                )}
-                                {s === 'done' && (
-                                  <button className="history-link" onClick={() => setHistoryOpen(true)} data-testid="history-open">
-                                    📒 7日より前の完了・エクスポート・AI日報は「履歴」へ
-                                  </button>
-                                )}
-                              </section>
-                            )
-                          })}
-                        </div>
-                      </LayoutGroup>
-                    ) : (
-                    <section className="list-page">
-                      {reorder && tab !== 'done' ? (
-                        <ReorderList tasks={visible} onChange={(ids) => setReorder((r) => ({ ...r, [tab]: ids }))} />
-                      ) : (
-                      <LayoutGroup>
-                        <ul className="list" data-testid={`list-${tab}`}>
-                          <AnimatePresence mode="popLayout">
-                            {visible.map((t, i) => (
-                              <TaskCard
-                                key={t.id}
-                                task={t}
-                                index={i}
-                                onSwipe={onSwipe}
-                                onOpen={(x) => setOpenId(x.id)}
-                                selecting={!!selected}
-                                selected={!!selected?.has(t.id)}
-                                onSelect={onSelect}
-                                showStatus={!!q}
-                              />
-                            ))}
-                          </AnimatePresence>
-                        </ul>
-                      </LayoutGroup>
-                      )}
-                      {visible.length === 0 && (
-                        <div className={`empty t-${tab}`} data-testid="empty">
-                          {q ? <span className="empty-text">見つかりません</span> : <EmptyIcon />}
-                        </div>
-                      )}
-                      {tab === 'done' && !q && (
-                        <button className="history-link" onClick={() => setHistoryOpen(true)} data-testid="history-open">
-                          📒 7日より前の完了・エクスポート・AI日報は「履歴」へ
-                        </button>
-                      )}
-                    </section>
-                    )}
+                    <TaskBoard
+                      board={board}
+                      tasks={visible}
+                      tab={tab}
+                      searching={!!q}
+                      reordering={!!reorder}
+                      onReorder={(st, ids) => setReorder((r) => ({ ...r, [st]: ids }))}
+                      selected={selected}
+                      onSwipe={onSwipe}
+                      onOpen={(x) => setOpenId(x.id)}
+                      onSelect={onSelect}
+                      doneSortRow={doneSortRow}
+                      onHistory={() => setHistoryOpen(true)}
+                    />
                   </>
                 )}
 
@@ -922,7 +849,19 @@ export function App() {
                 canDone={selectedTasks.some((t) => t.status !== 'done')}
               />
             ) : (
-              <Dock view={view} onChange={setView} user={user} onLogout={logout} badge={freeSp} peopleBadge={unread} onHistory={() => setHistoryOpen(true)} />
+              <Dock
+                view={view}
+                onChange={setView}
+                user={user}
+                onLogout={logout}
+                badge={freeSp}
+                peopleBadge={unread}
+                onHistory={() => setHistoryOpen(true)}
+                onHelp={() => setHelpOpen(true)}
+                onStats={user?.isAdmin ? () => setStatsOpen(true) : undefined}
+                theme={theme}
+                onTheme={setTheme}
+              />
             )}
 
             <AnimatePresence>
@@ -989,6 +928,10 @@ export function App() {
                 />
               )}
             </AnimatePresence>
+            <Suspense fallback={null}>
+              <AnimatePresence>{helpOpen && <Help onClose={() => setHelpOpen(false)} />}</AnimatePresence>
+              <AnimatePresence>{statsOpen && <AdminStats onClose={() => setStatsOpen(false)} />}</AnimatePresence>
+            </Suspense>
             <Suspense fallback={null}>
               <AnimatePresence>{historyOpen && <History onClose={() => setHistoryOpen(false)} toast={showToast} />}</AnimatePresence>
             </Suspense>

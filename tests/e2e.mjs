@@ -127,6 +127,16 @@ if (sameKind) {
   }
 }
 
+// @名前 のコメント・お知らせのさかのぼり・エラーの報告・管理者の集計
+await A.call(`/api/tasks/${t2.id}/comments`, 'POST', { text: `@${meB.name} 確認お願いします` })
+const mentionB = (await B.call('/api/notifications')).notices?.find((n) => n.kind === 'comment' && n.text.includes('あなた宛て'))
+check('@名前 で相手に通知', !!mentionB && mentionB.taskOwner === meA.id, mentionB)
+const page1 = await B.call('/api/notifications')
+check('お知らせのさかのぼり', typeof page1.more === 'boolean' && (await B.call(`/api/notifications?before=${page1.notices.at(-1)?.createdAt ?? Date.now()}`)).status === 200)
+check('画面のエラーの報告', (await A.call('/api/log', 'POST', { message: `${PREFIX} テスト用のエラー`, path: '/e2e' })).ok === true)
+const stats = await A.call('/api/admin/stats')
+check('集計は管理者だけ', meA.isAdmin ? stats.people?.length > 0 : stats.status === 403, stats.status)
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')
