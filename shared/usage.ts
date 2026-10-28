@@ -1,0 +1,56 @@
+/** 機能の使われ方の集計に出す名前 (管理者の集計画面用) */
+export const FEATURES: Record<string, string> = {
+  // タスク
+  task_add: 'タスクの追加',
+  task_done: 'タスクの完了',
+  task_undo: '完了を戻す',
+  task_edit: 'タスクの編集・移動',
+  task_delete: 'タスクの削除',
+  due: '期限',
+  flag: '状況フラグ',
+  weight: '大きさの調整',
+  breakdown: 'AIで分解',
+  ai: 'AIで整理・提案',
+  move: '他の人のタスクを動かす',
+  recurring: '繰り返し',
+  comment: 'コメント',
+  reorder: '手動の並べ替え',
+  bulk: 'まとめて操作',
+  request: '依頼',
+  template: 'テンプレート',
+  calendar: 'カレンダー表示',
+  history: '履歴を見る',
+  search: '完了タスクの検索',
+  report: 'AIで日報',
+  // 冒険
+  battle: 'ボス戦',
+  chest: '宝箱',
+  sell: '装備を売る',
+  equip: '装備の付け替え',
+  enhance: '装備の強化（装備で）',
+  enhance_gold: '装備の強化（ゴールドで）',
+  shop_boost: 'XP2倍チケット',
+  shop_srchest: 'SR以上の宝箱',
+  shop_bag: '持ち物の枠',
+  shop_treat: '差し入れ',
+  treat_received: '差し入れを受け取る',
+  skin_buy: 'スキンを買う',
+  skin: 'スキンの変更',
+  pet: 'ペット',
+  title: '称号',
+  job: '冒険職',
+  stat: 'ステータス・スキル',
+  mission: 'ミッション',
+  raid: 'レイド報酬',
+  // 画面だけで完結する操作 (画面から知らせる)
+  csv: '履歴のCSV保存',
+  copy: '履歴のコピー',
+  layout: 'PC/スマホ表示の切り替え',
+  theme: 'ダークモード',
+  shortcut: 'キーボード操作',
+  help: '使い方を見る',
+}
+
+/** 画面から知らせる機能 (サーバーでは分からないもの) */
+export const CLIENT_FEATURES = ['csv', 'copy', 'layout', 'theme', 'shortcut', 'help', 'template'] as const
+export type ClientFeature = (typeof CLIENT_FEATURES)[number]

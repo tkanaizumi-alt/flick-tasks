@@ -17,10 +17,12 @@ interface Props {
   /** どのステータスからでもまとめて完了 */
   onDone: () => void
   canDone: boolean
+  /** 選んだタスクからテンプレートを作る */
+  onTemplate: () => void
 }
 
 /** 選択モード中、下のタブの代わりに出す操作バー */
-export function SelectBar({ count, total, status, onAll, onCancel, onMove, onDelete, onDone, canDone }: Props) {
+export function SelectBar({ count, total, status, onAll, onCancel, onMove, onDelete, onDone, canDone, onTemplate }: Props) {
   const i = status ? ORDER.indexOf(status) : -1
   const prev = status === null ? '前へ' : i > 0 ? `${STATUS_LABEL[ORDER[i - 1]]}へ` : null
   const next = status === null ? '次へ' : i < ORDER.length - 1 ? `${STATUS_LABEL[ORDER[i + 1]]}へ` : null
@@ -59,6 +61,9 @@ export function SelectBar({ count, total, status, onAll, onCancel, onMove, onDel
             <CheckIcon /> 完了
           </button>
         )}
+        <button className="sb-btn" disabled={!count} onClick={onTemplate} aria-label="テンプレートにする" title="テンプレートにする" data-testid="bulk-template">
+          📋
+        </button>
         <button className="sb-btn danger" disabled={!count} onClick={onDelete} aria-label="削除" data-testid="bulk-delete">
           <TrashIcon />
         </button>

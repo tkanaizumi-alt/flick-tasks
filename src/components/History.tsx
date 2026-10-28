@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, useDragControls } from 'motion/react'
 import { tagsOf, type Task } from '../../shared/types'
 import { WEIGHT_LABEL, jstToday } from '../../shared/game'
-import { api, HttpError } from '../api'
+import { api, HttpError, trackUsage } from '../api'
 import { SparkIcon } from './icons'
 
 const DAY = 86400000
@@ -67,6 +67,10 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
   const [preset, setPreset] = useState<Preset>('today')
   const [[from, to], setRange] = useState<[string, string]>(() => rangeOf('today'))
   const [all, setAll] = useState<Task[] | null>(null)
+  // 検索 (入れている間は期間ではなく、残っている完了タスク全部から探す)
+  const [q, setQ] = useState('')
+  const [searchMore, setSearchMore] = useState(false)
+  const searching = q.trim().length > 0
   const [tag, setTag] = useState<string | null>(null)
   const allTags = useMemo(() => [...new Set((all ?? []).flatMap((t) => tagsOf(t)))].sort((a, b) => a.localeCompare(b, 'ja')), [all])
   // タグで絞り込むと、一覧・CSV・コピー・AI 日報すべてがそのタグの分だけになる
@@ -84,6 +88,26 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
     let alive = true
     setAll(null)
     setReport(null)
+    const word = q.trim()
+    if (word) {
+      // 打ち終わるまで少し待ってから探す
+      const t = setTimeout(
+        () =>
+          api.searchHistory(word).then(
+            (r) => {
+              if (!alive) return
+              setAll(r.tasks)
+              setSearchMore(r.more)
+            },
+            () => alive && setAll([]),
+          ),
+        300,
+      )
+      return () => {
+        alive = false
+        clearTimeout(t)
+      }
+    }
     if (from > to) return
     api.history(from, to).then(
       (r) => alive && setAll(r.tasks),
@@ -92,7 +116,7 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
     return () => {
       alive = false
     }
-  }, [from, to])
+  }, [from, to, q])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -119,14 +143,16 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
     const url = URL.createObjectURL(new Blob([toCsv(tasks)], { type: 'text/csv' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `flick-完了タスク_${from}${from === to ? '' : `_${to}`}.csv`
+    a.download = searching ? `flick-完了タスク_検索_${q.trim()}.csv` : `flick-完了タスク_${from}${from === to ? '' : `_${to}`}.csv`
     a.click()
+    trackUsage('csv')
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
+      trackUsage('copy')
       toast('コピーしました')
     } catch {
       toast('コピーできませんでした')
@@ -194,6 +220,18 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
             </ul>
           </section>
         )}
+        <div className="history-search">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="🔍 完了したタスクを探す（件名・詳細）"
+            maxLength={50}
+            aria-label="完了したタスクを探す"
+            data-testid="history-search"
+          />
+        </div>
+        {!searching && (
         <div className="preset-row">
           {PRESETS.map((p) => (
             <button key={p.key} className={`preset ${preset === p.key ? 'on' : ''}`} onClick={() => pick(p.key)} data-testid={`preset-${p.key}`}>
@@ -201,7 +239,8 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
             </button>
           ))}
         </div>
-        {preset === 'custom' && (
+        )}
+        {!searching && preset === 'custom' && (
           <div className="range-row">
             <input type="date" value={from} max={jstToday()} onChange={(e) => e.target.value && setRange([e.target.value, to])} aria-label="開始日" data-testid="range-from" />
             <span>〜</span>
@@ -222,8 +261,8 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
         )}
         <div className="history-bar">
           <span className="muted">
-            {md(from)}
-            {from === to ? '' : ` 〜 ${md(to)}`} ・ <b data-testid="history-count">{tasks?.length ?? '…'}</b>件
+            {searching ? `「${q.trim()}」` : md(from)}
+            {searching || from === to ? '' : ` 〜 ${md(to)}`} ・ <b data-testid="history-count">{tasks?.length ?? '…'}</b>件{searching && searchMore ? '（新しい100件）' : ''}
           </span>
           <button className="pill-btn ghost small" disabled={!tasks?.length} onClick={() => copy(plainList())} data-testid="history-copy">
             テキストでコピー
@@ -232,10 +271,12 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
             CSVで保存
           </button>
         </div>
+        {!searching && (
         <button className={`pill-btn ai report-btn ${busy ? 'busy' : ''}`} disabled={busy || !tasks?.length} onClick={makeReport} data-testid="history-report">
           <SparkIcon />
           <span>{busy ? '作成中' : 'AIで日報・月報の下書きを作る'}</span>
         </button>
+        )}
         {report && (
           <div className="report" data-testid="report">
             <textarea value={report} onChange={(e) => setReport(e.target.value)} rows={10} aria-label="日報の下書き" />
@@ -249,7 +290,7 @@ export function History({ onClose, toast }: { onClose: () => void; toast: (text:
             <div className="skel skel-card" />
           </div>
         ) : tasks.length === 0 ? (
-          <p className="muted feed-empty">この期間に完了したタスクはありません</p>
+          <p className="muted feed-empty">{searching ? '見つかりませんでした' : 'この期間に完了したタスクはありません'}</p>
         ) : (
           groups.map(([d, ts]) => (
             <section key={d} className="history-day">

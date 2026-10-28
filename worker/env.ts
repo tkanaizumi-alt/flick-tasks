@@ -10,6 +10,8 @@ export interface Env {
   ALLOWED_EMAILS?: string
   /** 管理者 (他の人の名前変更・ログ削除ができる) のメールアドレス (カンマ区切り) */
   ADMIN_EMAILS?: string
+  /** 毎日のバックアップ (14 日分) */
+  BACKUP?: KVNamespace
 }
 
 const emailList = (v?: string) =>

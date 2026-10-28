@@ -1,4 +1,4 @@
-import { displayName, isAllowed, type Env } from './env'
+import { displayName, isAdmin, isAllowed, type Env } from './env'
 import { aiReport } from './ai'
 import { jstDayStart, jstToday } from '../shared/game'
 
@@ -76,4 +76,20 @@ export async function weeklyReviews(env: Env) {
     }
   }
   return made
+}
+
+/** 毎週金曜: 直近 7 日にエラーがあれば管理者に知らせる (中身は管理者の集計画面で見る) */
+export async function errorDigest(env: Env) {
+  const r = await env.DB.prepare("SELECT SUM(source = 'server') AS server, SUM(source = 'client') AS client FROM errors WHERE created_at >= ?")
+    .bind(Date.now() - 7 * DAY)
+    .first<{ server: number | null; client: number | null }>()
+  const server = r?.server ?? 0
+  const client = r?.client ?? 0
+  if (!server && !client) return 0
+  const admins = (await allowedUsers(env)).filter((u) => isAdmin(env, u.email))
+  if (!admins.length) return 0
+  await env.DB.batch(
+    admins.map((u) => systemNotice(env, u.id, 'errors', null, `⚠️ 今週のエラー ${server + client}件（サーバー${server}・画面${client}）。メニューの「集計」から見られます`)),
+  )
+  return admins.length
 }

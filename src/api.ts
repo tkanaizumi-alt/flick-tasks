@@ -1,6 +1,7 @@
 import type { Activity, AttentionItem, Comment, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
 import type { BattleResult, Item, MissionDef, PlayerState, StatKey, Weight } from '../shared/game'
 import type { AchievementDef, AchievementStats } from '../shared/achievements'
+import type { ClientFeature } from '../shared/usage'
 
 export interface XpChange {
   amount: number
@@ -111,6 +112,15 @@ export const api = {
   setDue: (id: string, due: string | null) => req<{ task: Task }>(`/api/tasks/${id}/due`, { method: 'PUT', json: { due } }),
   // 管理者のみ
   adminStats: () => req<AdminStats>('/api/admin/stats'),
+  backups: () => req<{ backups: { day: string; bytes: number; rows: number }[]; enabled: boolean }>('/api/admin/backups'),
+  backupNow: () => req<{ ok: true; bytes: number }>('/api/admin/backups', { method: 'POST', json: {} }),
+  templates: () => req<{ templates: Template[] }>('/api/templates'),
+  createTemplate: (name: string, items: string[]) => req<{ template: Template }>('/api/templates', { method: 'POST', json: { name, items } }),
+  deleteTemplate: (id: string) => req<{ ok: true }>(`/api/templates/${id}`, { method: 'DELETE' }),
+  calendar: () => req<{ url: string | null }>('/api/calendar'),
+  makeCalendar: () => req<{ url: string }>('/api/calendar', { method: 'POST', json: {} }),
+  stopCalendar: () => req<{ ok: true }>('/api/calendar', { method: 'DELETE' }),
+  searchHistory: (q: string) => req<{ tasks: Task[]; more: boolean }>(`/api/history/search?q=${encodeURIComponent(q)}`),
   renamePerson: (id: string, name: string) => req<{ name: string }>(`/api/admin/people/${id}/name`, { method: 'PATCH', json: { name } }),
   deleteActivity: (id: number) => req<{ ok: true }>(`/api/admin/activity/${id}`, { method: 'DELETE' }),
   clearActivity: (kind: FeedKind) => req<{ ok: true; deleted: number }>(`/api/admin/activity?kind=${kind}`, { method: 'DELETE' }),
@@ -143,9 +153,29 @@ export interface AdminStats {
     split30: number
     requested30: number
     recurring: number
+    gold: number
+    goldIn7: number
+    goldOut7: number
   }[]
   totals: { done7: number; xpPerDone: number }
   errors: { id: number; source: 'server' | 'client'; path: string; message: string; who: string; at: number }[]
+  usageSince: number | null
+  features: { id: string; label: string; n: number; people: number }[]
+  goldFlow: { id: string; label: string; gold: number; n: number }[]
+}
+export interface Template {
+  id: string
+  name: string
+  items: string[]
+  createdAt: number
+}
+
+/** 画面だけで完結する操作を、管理者の集計用に知らせる (1 回の表示につき 1 機能 1 回まで) */
+const sentUsage = new Set<string>()
+export function trackUsage(feature: ClientFeature, once = true) {
+  if (once && sentUsage.has(feature)) return
+  sentUsage.add(feature)
+  req('/api/usage', { method: 'POST', json: { feature } }).catch(() => {})
 }
 export interface RaidState {
   week: string

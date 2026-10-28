@@ -177,6 +177,61 @@ check('画面のエラーの報告', (await A.call('/api/log', 'POST', { message
 const stats = await A.call('/api/admin/stats')
 check('集計は管理者だけ', meA.isAdmin ? stats.people?.length > 0 : stats.status === 403, stats.status)
 
+// テンプレート・カレンダー配信・完了タスクの検索・利用の記録・バックアップ
+const tpl = await A.call('/api/templates', 'POST', { name: `${PREFIX} 月末`, items: ['請求書を発行する', ' ', '経費精算を締める'] })
+check('テンプレートを作る', tpl.template?.items?.length === 2, tpl)
+check('テンプレートの一覧', (await A.call('/api/templates')).templates?.some((t) => t.id === tpl.template?.id))
+check('名前のないテンプレートは断る', (await A.call('/api/templates', 'POST', { name: ' ', items: ['a'] })).status === 400)
+check('他の人のテンプレートは見えない', !(await B.call('/api/templates')).templates?.some((t) => t.id === tpl.template?.id))
+await A.call(`/api/templates/${tpl.template?.id}`, 'DELETE')
+check('テンプレートを消す', !(await A.call('/api/templates')).templates?.some((t) => t.id === tpl.template?.id))
+
+// ログインなしで読む URL (開発サーバーはまれに 500 を返すので再試行)
+const raw = async (url) => {
+  for (let i = 0; ; i++) {
+    const r = await fetch(url)
+    if (r.status < 500 || i >= 3) return r
+    await new Promise((ok) => setTimeout(ok, 500))
+  }
+}
+const due = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} 期限つき, カレンダー; 確認` }] })).tasks[0]
+await A.call(`/api/tasks/${due.id}/due`, 'PUT', { due: '2030-01-15' })
+const cal = await A.call('/api/calendar', 'POST', {})
+const ics = await raw(cal.url).then(async (r) => ({ status: r.status, type: r.headers.get('content-type'), text: await r.text() }))
+check(
+  'カレンダー配信',
+  ics.status === 200 && ics.type?.startsWith('text/calendar') && ics.text.includes('BEGIN:VCALENDAR') && ics.text.includes('DTSTART;VALUE=DATE:20300115') && ics.text.includes('期限つき\\, カレンダー\\; 確認'),
+  { status: ics.status, text: ics.text.slice(0, 300) },
+)
+const cal2 = await A.call('/api/calendar', 'POST', {})
+check('作り直すと前の URL は使えない', cal2.url !== cal.url && (await raw(cal.url)).status === 404)
+await A.call('/api/calendar', 'DELETE')
+check('表示を止める', (await raw(cal2.url)).status === 404 && (await A.call('/api/calendar')).url === null)
+
+const word = `検索${Date.now().toString(36)}`
+const found = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} ${word} 100%` }] })).tasks[0]
+await A.call(`/api/tasks/${found.id}`, 'PATCH', { status: 'done' })
+const hit = await A.call(`/api/history/search?q=${encodeURIComponent(word)}`)
+check('完了タスクの検索', hit.tasks?.length === 1 && hit.tasks[0].id === found.id, hit)
+const pct = await A.call(`/api/history/search?q=${encodeURIComponent('%')}`)
+check('検索の % はそのままの文字として扱う', pct.tasks?.every((t) => t.title.includes('%') || t.note.includes('%')), pct.tasks?.length)
+check('他の人の完了タスクは出ない', (await B.call(`/api/history/search?q=${encodeURIComponent(word)}`)).tasks?.length === 0)
+
+check('画面からの利用の記録', (await A.call('/api/usage', 'POST', { feature: 'csv' })).ok === true)
+check('知らない機能名は断る', (await A.call('/api/usage', 'POST', { feature: 'hack' })).status === 400)
+if (meA.isAdmin) {
+  const st = await A.call('/api/admin/stats')
+  check('集計: 機能の使われ方', st.features?.find((f) => f.id === 'search')?.n > 0 && st.features.some((f) => f.n === 0), st.features?.slice(0, 3))
+  check('集計: ゴールドの流れ', Array.isArray(st.goldFlow) && typeof st.people[0]?.goldIn7 === 'number')
+  const bk = await A.call('/api/admin/backups', 'POST', {})
+  const list = await A.call('/api/admin/backups')
+  check('バックアップ', bk.ok && list.backups?.length > 0, { bk, list })
+  const one = await A.call(`/api/admin/backups/${list.backups?.[0]?.day}`)
+  check('バックアップの中身', one.app === 'flick' && Array.isArray(one.tables?.tasks) && !('sessions' in one.tables), Object.keys(one.tables ?? {}))
+} else {
+  check('バックアップは管理者だけ', (await A.call('/api/admin/backups')).status === 403)
+}
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')

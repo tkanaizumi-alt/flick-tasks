@@ -23,6 +23,8 @@ interface Props {
   peopleBadge?: number
   onHistory: () => void
   onHelp: () => void
+  onTemplates: () => void
+  onCalendar: () => void
   /** 管理者だけ: 集計 */
   onStats?: () => void
   theme: Theme
@@ -33,7 +35,7 @@ export type Theme = 'auto' | 'light' | 'dark'
 const THEME_LABEL: Record<Theme, string> = { auto: '自動', light: 'ライト', dark: 'ダーク' }
 const NEXT_THEME: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' }
 
-export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onStats, theme, onTheme }: Props) {
+export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onTemplates, onCalendar, onStats, theme, onTheme }: Props) {
   const [menu, setMenu] = useState(false)
   return (
     <div className="dock">
@@ -88,6 +90,26 @@ export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, o
                   }}
                 >
                   📒 履歴・エクスポート
+                </button>
+                <button
+                  className="menu-item"
+                  data-testid="menu-templates"
+                  onClick={() => {
+                    setMenu(false)
+                    onTemplates()
+                  }}
+                >
+                  📋 テンプレート
+                </button>
+                <button
+                  className="menu-item"
+                  data-testid="menu-calendar"
+                  onClick={() => {
+                    setMenu(false)
+                    onCalendar()
+                  }}
+                >
+                  📅 カレンダーに表示
                 </button>
                 <button
                   className="menu-item"

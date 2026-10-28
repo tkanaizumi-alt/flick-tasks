@@ -2,7 +2,9 @@
 import { displayName } from '../env'
 import { FEED_KINDS } from './people'
 import { allowedUsers, router } from '../lib'
-import { levelInfo } from '../../shared/game'
+import { jstToday, levelInfo } from '../../shared/game'
+import { FEATURES } from '../../shared/usage'
+import { backupKey, listBackups, makeBackup } from '../backup'
 
 // ---------- 管理者のみ ----------
 export const admin = router()
@@ -47,7 +49,7 @@ admin.get('/stats', async (c) => {
   const d7 = now - 7 * 86400000
   const d30 = now - 30 * 86400000
   const db = c.env.DB
-  const [tasks, helps, comments, recurring, players, errors] = await db.batch([
+  const [tasks, helps, comments, recurring, players, errors, usage30, gold7, goldBy7, since] = await db.batch([
     db
       .prepare(
         `SELECT user_id,
@@ -63,11 +65,20 @@ admin.get('/stats', async (c) => {
     db.prepare('SELECT user_id, COUNT(*) AS n, SUM(xp) AS xp FROM helps WHERE created_at >= ? GROUP BY user_id').bind(d7),
     db.prepare('SELECT user_id, COUNT(*) AS n FROM comments WHERE created_at >= ? GROUP BY user_id').bind(d7),
     db.prepare('SELECT user_id, COUNT(*) AS n FROM recurring GROUP BY user_id'),
-    db.prepare('SELECT user_id, xp, stage FROM players'),
+    db.prepare('SELECT user_id, xp, stage, gold FROM players'),
     db.prepare('SELECT id, source, path, message, user_id, created_at FROM errors ORDER BY created_at DESC LIMIT 20'),
+    // 機能ごとの使われ方 (直近 30 日)
+    db.prepare('SELECT feature, COUNT(*) AS n, COUNT(DISTINCT user_id) AS people FROM usage WHERE created_at >= ? GROUP BY feature').bind(d30),
+    // 1 人ずつのゴールドの出入り (直近 7 日)
+    db
+      .prepare('SELECT user_id, SUM(CASE WHEN gold > 0 THEN gold ELSE 0 END) AS gin, SUM(CASE WHEN gold < 0 THEN -gold ELSE 0 END) AS gout FROM usage WHERE created_at >= ? GROUP BY user_id')
+      .bind(d7),
+    // 何で稼いで何に使ったか (直近 7 日)
+    db.prepare('SELECT feature, SUM(gold) AS gold, COUNT(*) AS n FROM usage WHERE created_at >= ? AND gold <> 0 GROUP BY feature ORDER BY SUM(gold) DESC').bind(d7),
+    db.prepare('SELECT MIN(created_at) AS at FROM usage'),
   ])
   const by = (r: D1Result) => new Map((r.results as any[]).map((x) => [x.user_id, x]))
-  const [t, h, cm, rc, pl] = [by(tasks), by(helps), by(comments), by(recurring), by(players)]
+  const [t, h, cm, rc, pl, g7] = [by(tasks), by(helps), by(comments), by(recurring), by(players), by(gold7)]
   const users = await allowedUsers(c.env)
   const names = new Map(users.map((u) => [u.id, u.name]))
   const rows = users
@@ -90,6 +101,9 @@ admin.get('/stats', async (c) => {
         split30: x.split30 ?? 0,
         requested30: x.requested30 ?? 0,
         recurring: rc.get(u.id)?.n ?? 0,
+        gold: p.gold ?? 0,
+        goldIn7: g7.get(u.id)?.gin ?? 0,
+        goldOut7: g7.get(u.id)?.gout ?? 0,
       }
     })
     .sort((a, b) => b.done7 - a.done7)
@@ -98,6 +112,34 @@ admin.get('/stats', async (c) => {
   return c.json({
     people: rows,
     totals: { done7, xpPerDone: done7 ? Math.round((taskXp7 / done7) * 10) / 10 : 0 },
+    // 記録を始めた日時 (これより前の操作は数えていない)
+    usageSince: (since.results[0] as any)?.at ?? null,
+    features: (() => {
+      const used = new Map((usage30.results as any[]).map((u) => [u.feature, u]))
+      // 一度も使われていない機能も 0 として出す (整理の候補が分かるように)
+      return Object.entries(FEATURES)
+        .map(([id, label]) => ({ id, label, n: used.get(id)?.n ?? 0, people: used.get(id)?.people ?? 0 }))
+        .sort((a, b) => b.n - a.n)
+    })(),
+    goldFlow: (goldBy7.results as any[]).map((g) => ({ id: g.feature, label: FEATURES[g.feature] ?? g.feature, gold: g.gold, n: g.n })),
     errors: (errors.results as any[]).map((e) => ({ id: e.id, source: e.source, path: e.path, message: e.message, who: e.user_id ? (names.get(e.user_id) ?? '') : '', at: e.created_at })),
   })
+})
+
+// ---------- バックアップ (毎日 3:00 に自動。14 日分) ----------
+admin.get('/backups', async (c) => c.json({ backups: await listBackups(c.env), enabled: !!c.env.BACKUP }))
+
+/** 今すぐバックアップを取る (今日の分を上書き) */
+admin.post('/backups', async (c) => {
+  const bytes = await makeBackup(c.env, jstToday())
+  return bytes === null ? c.json({ error: 'バックアップの保存先がありません' }, 400) : c.json({ ok: true, bytes })
+})
+
+/** バックアップの JSON をダウンロード */
+admin.get('/backups/:day', async (c) => {
+  const day = c.req.param('day')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !c.env.BACKUP) return c.json({ error: 'not found' }, 404)
+  const body = await c.env.BACKUP.get(backupKey(day))
+  if (!body) return c.json({ error: 'not found' }, 404)
+  return c.body(body, 200, { 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="flick-backup-${day}.json"` })
 })

@@ -1,3 +1,4 @@
+import { trackUsage } from './api'
 import { useCallback, useEffect, useState } from 'react'
 import type { View } from './components/Dock'
 
@@ -38,6 +39,7 @@ export function useLayouts() {
   const canToggle = useMedia(TOGGLE_QUERY)
   const isPc = useCallback((v: View) => canToggle && (layouts[v] === 'pc' || (layouts[v] === 'auto' && wideScreen)), [layouts, wideScreen, canToggle])
   const setLayout = useCallback((v: View, mode: 'mobile' | 'pc') => {
+    trackUsage('layout')
     setLayouts((prev) => {
       const next = { ...prev, [v]: mode }
       try {

@@ -2,7 +2,12 @@ import { Hono } from 'hono'
 import type { Env, Vars } from './env'
 import { auth, resolveUser } from './auth'
 import { purgeOldDone } from './game'
-import { dueReminders, weeklyReviews } from './cron'
+import { dueReminders, errorDigest, weeklyReviews } from './cron'
+import { tools } from './routes/tools'
+import { usageLog } from './usage'
+import { calendarFeed } from './calendar'
+import { makeBackup } from './backup'
+import { jstToday } from '../shared/game'
 import { tasks } from './routes/tasks'
 import { social } from './routes/social'
 import { game } from './routes/game'
@@ -23,6 +28,13 @@ app.use('*', async (c, next) => {
 
 app.route('/auth', auth)
 
+/** カレンダー配信 (URL の合言葉で読む。ログイン不要) */
+app.get('/cal/:file', async (c) => {
+  const ics = await calendarFeed(c.env, c.req.param('file'), new URL(c.req.url).origin, c.executionCtx)
+  if (ics === null) return c.text('not found', 404)
+  return c.body(ics, 200, { 'content-type': 'text/calendar; charset=utf-8', 'cache-control': 'private, max-age=900' })
+})
+
 const api = new Hono<{ Bindings: Env; Variables: Vars }>()
 
 api.use('*', async (c, next) => {
@@ -31,12 +43,15 @@ api.use('*', async (c, next) => {
   c.set('user', user)
   await next()
 })
+// 機能の使われ方とゴールドの増減を記録 (管理者の集計用)
+api.use('*', usageLog)
 
 // ルート (どれもログイン済みのユーザーだけ)
 api.route('/', tasks)
 api.route('/', social)
 api.route('/', game)
 api.route('/', people)
+api.route('/', tools)
 api.route('/admin', admin)
 
 /** 画面で起きたエラーの報告 */
@@ -69,8 +84,22 @@ export default {
     // 毎朝 8:00 (JST): 期限のお知らせ
     if (event.cron === '0 23 * * *') ctx.waitUntil(dueReminders(env).then((n) => console.log('due reminders', n)))
     // 金曜 17:00 (JST): 今週のふりかえり
-    else if (event.cron === '0 8 * * 5') ctx.waitUntil(weeklyReviews(env).then((n) => console.log('weekly reviews', n)))
-    // 毎日 3:00 (JST): 古い履歴・ログ・通知を整理
-    else ctx.waitUntil(purgeOldDone(env.DB).then((n) => console.log('purged done tasks', n)))
+    else if (event.cron === '0 8 * * 5') {
+      ctx.waitUntil(weeklyReviews(env).then((n) => console.log('weekly reviews', n)))
+      // 管理者に今週のエラーの件数を知らせる
+      ctx.waitUntil(errorDigest(env).then((n) => console.log('error digest', n)))
+    }
+    // 毎日 3:00 (JST): バックアップ → 古い履歴・ログ・通知を整理
+    else
+      ctx.waitUntil(
+        (async () => {
+          try {
+            console.log('backup bytes', await makeBackup(env, jstToday()))
+          } catch (e: any) {
+            await recordError(env, { source: 'server', path: 'cron backup', message: String(e?.message ?? e), stack: e?.stack })
+          }
+          console.log('purged done tasks', await purgeOldDone(env.DB))
+        })(),
+      )
   },
 } satisfies ExportedHandler<Env>

@@ -7,7 +7,7 @@
   "observability": { "enabled": true },
   "assets": {
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*"]
+    "run_worker_first": ["/api/*", "/auth/*", "/cal/*"]
   },
   "d1_databases": [
     {
@@ -17,6 +17,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  "kv_namespaces": [{ "binding": "BACKUP", "id": "304295db1a7b4e5693096dea411f732e" }],
   "ai": { "binding": "AI", "remote": true },
   "triggers": { "crons": ["0 18 * * *", "0 23 * * *", "0 8 * * 5"] }
 }

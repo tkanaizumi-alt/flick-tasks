@@ -1,5 +1,6 @@
 import type { Env } from './env'
 import { san } from '../shared/types'
+import { track } from './usage'
 import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
 import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
 import { achievementStats, doneDays, jstDayNo } from './achievements'
@@ -306,6 +307,7 @@ export async function buyShop(db: D1Database, userId: string, id: ShopId, member
       pay,
       ...others.map((m) => db.prepare('INSERT OR IGNORE INTO players (user_id, updated_at) VALUES (?, ?)').bind(m.id, now)),
       ...others.map((m) => db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(TREAT_GOLD, now, m.id)),
+      ...others.map((m) => track(db, m.id, 'treat_received', TREAT_GOLD)),
       ...others.map((m) => notify(db, m.id, userId, 'treat', null, `${san(me?.name ?? '')}から差し入れ 🍩 💰${TREAT_GOLD}`)),
       logActivity(db, userId, 'treat', 'みんなに差し入れ 🍩'),
     ])
@@ -626,6 +628,7 @@ export async function purgeOldDone(db: D1Database) {
     db.prepare('DELETE FROM activity WHERE created_at < ?').bind(now - ACTIVITY_KEEP_DAYS * 86400000),
     db.prepare('DELETE FROM notifications WHERE created_at < ?').bind(now - 30 * 86400000),
     db.prepare('DELETE FROM errors WHERE created_at < ?').bind(now - 30 * 86400000),
+    db.prepare('DELETE FROM usage WHERE created_at < ?').bind(now - 90 * 86400000),
   ])
   return res.meta.changes ?? 0
 }

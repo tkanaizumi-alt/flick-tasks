@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { STATUSES, tagsOf, type Flag, type Status, type Task, type User } from '../shared/types'
 import { spInfo, type PlayerState, type Weight } from '../shared/game'
 import type { AchievementDef } from '../shared/achievements'
-import { api, HttpError, pending, STATUS_LABEL, type PendingMemo, type XpChange } from './api'
+import { api, HttpError, pending, STATUS_LABEL, trackUsage, type PendingMemo, type XpChange } from './api'
 import { Background } from './components/Background'
 import { Skeleton } from './components/Skeleton'
 import { exitDir } from './components/TaskCard'
@@ -25,6 +25,8 @@ const Adventure = lazy(() => import('./views/Adventure').then((m) => ({ default:
 const History = lazy(() => import('./components/History').then((m) => ({ default: m.History })))
 const Help = lazy(() => import('./components/Help').then((m) => ({ default: m.Help })))
 const AdminStats = lazy(() => import('./components/AdminStats').then((m) => ({ default: m.AdminStats })))
+const TemplatesSheet = lazy(() => import('./components/Tools').then((m) => ({ default: m.TemplatesSheet })))
+const CalendarSheet = lazy(() => import('./components/Tools').then((m) => ({ default: m.CalendarSheet })))
 const ViewSkeleton = () => (
   <div className="skel-list">
     <div className="skel skel-card tall" />
@@ -76,12 +78,20 @@ export function App() {
   const [query, setQuery] = useState<string | null>(null) // null = 検索を閉じている
   const [unread, setUnread] = useState(0)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpOpen, setHelpOpenState] = useState(false)
+  const setHelpOpen = useCallback((v: boolean) => {
+    setHelpOpenState(v)
+    if (v) trackUsage('help')
+  }, [])
   const [statsOpen, setStatsOpen] = useState(false)
+  // テンプレート (選んだタスクから作るときは、その件名を入れて開く) / カレンダー
+  const [templates, setTemplates] = useState<string[] | null>(null)
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const [theme, setThemeState] = useState<Theme>(() => store.get<Theme>(THEME_KEY, 'auto'))
   const setTheme = (t: Theme) => {
     setThemeState(t)
     store.set(THEME_KEY, t)
+    if (t === 'dark') trackUsage('theme')
   }
   const [hint, setHint] = useState(() => !store.get<boolean>(HINT_KEY, false))
   const [sort, setSortState] = useState<SortMode>(() => {
@@ -166,6 +176,7 @@ export function App() {
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return
       if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
       const k = e.key.toLowerCase()
+      if (['n', '/', '1', '2', '3', '?'].includes(k)) trackUsage('shortcut')
       if (k === 'n') {
         e.preventDefault()
         setView('me')
@@ -182,7 +193,7 @@ export function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [phase, setView])
+  }, [phase, setView, setHelpOpen])
 
   // 見え方を切り替えられることを、メンバーごとに最初の 1 回だけ案内する
   useEffect(() => {
@@ -622,6 +633,28 @@ export function App() {
     [removeLocal, showToast, upsert],
   )
 
+  /** テンプレートのタスクをまとめて未着手に追加 */
+  const applyTemplate = useCallback(
+    async (titles: string[], name: string) => {
+      const base = Date.now()
+      const items = titles.map((title, i) => ({ id: crypto.randomUUID(), title, status: 'todo' as Status, position: base - i }))
+      setTemplates(null)
+      setView('me')
+      setTab('todo')
+      upsert(items.map((t) => newTask({ ...t, syncing: true })))
+      try {
+        const { tasks: created } = await api.create(items)
+        upsert(created.map((t) => ({ ...t, syncing: false })))
+        trackUsage('template', false)
+        showToast(`「${name}」の${created.length}件を追加しました`)
+      } catch {
+        removeLocal(items.map((t) => t.id))
+        showToast('追加できませんでした')
+      }
+    },
+    [removeLocal, setTab, setView, showToast, upsert],
+  )
+
   const logout = useCallback(async () => {
     try {
       await api.logout()
@@ -847,6 +880,10 @@ export function App() {
                 onDelete={() => bulkDelete(selectedTasks)}
                 onDone={() => bulkDone(selectedTasks)}
                 canDone={selectedTasks.some((t) => t.status !== 'done')}
+                onTemplate={() => {
+                  setTemplates(selectedTasks.map((t) => t.title))
+                  setSelected(null)
+                }}
               />
             ) : (
               <Dock
@@ -858,6 +895,8 @@ export function App() {
                 peopleBadge={unread}
                 onHistory={() => setHistoryOpen(true)}
                 onHelp={() => setHelpOpen(true)}
+                onTemplates={() => setTemplates([])}
+                onCalendar={() => setCalendarOpen(true)}
                 onStats={user?.isAdmin ? () => setStatsOpen(true) : undefined}
                 theme={theme}
                 onTheme={setTheme}
@@ -934,6 +973,12 @@ export function App() {
             </Suspense>
             <Suspense fallback={null}>
               <AnimatePresence>{historyOpen && <History onClose={() => setHistoryOpen(false)} toast={showToast} />}</AnimatePresence>
+            </Suspense>
+            <Suspense fallback={null}>
+              <AnimatePresence>
+                {templates && <TemplatesSheet initial={templates} onClose={() => setTemplates(null)} toast={showToast} onApply={applyTemplate} />}
+              </AnimatePresence>
+              <AnimatePresence>{calendarOpen && <CalendarSheet onClose={() => setCalendarOpen(false)} toast={showToast} />}</AnimatePresence>
             </Suspense>
 
             <AnimatePresence>
