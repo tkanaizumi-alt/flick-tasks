@@ -120,7 +120,7 @@ const sameKind = Object.values(
   before.items.reduce((m, i) => ((m[`${i.slot}/${i.rarity}`] ??= []).push(i), m), {}),
 ).find((list) => list.length >= 2)
 if (sameKind) {
-  const target = sameKind.find((i) => (i.plus ?? 0) < 5)
+  const target = sameKind.find((i) => (i.plus ?? 0) < 10)
   if (target) {
     const e = await A.call(`/api/items/${target.id}/enhance`, 'POST', {})
     check('装備の強化', e.player?.items.find((i) => i.id === target.id)?.plus === (target.plus ?? 0) + 1, e)
@@ -146,7 +146,7 @@ else if (g.gold >= 300) {
   check('買ったスキンは二度買えない', (await A.call('/api/shop/skin/ghost', 'POST', {})).status === 400)
 } else check('お金が足りないとスキンを買えない', (await A.call('/api/shop/skin/ghost', 'POST', {})).status === 400)
 g = await now()
-const cheap = g.items.find((i) => (i.plus ?? 0) < 5)
+const cheap = g.items.find((i) => (i.plus ?? 0) < 10)
 if (cheap) {
   const cost = { N: 30, R: 60, SR: 120, SSR: 250, UR: 500 }[cheap.rarity] * ((cheap.plus ?? 0) + 1)
   const r = await A.call(`/api/items/${cheap.id}/enhance`, 'POST', { by: 'gold' })

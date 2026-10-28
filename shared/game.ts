@@ -18,7 +18,7 @@ export interface Item {
   crit: number
   heal: number
   effect: string | null
-  /** 強化段階 (+1〜+5) */
+  /** 強化段階 (+1〜+10) */
   plus?: number
 }
 

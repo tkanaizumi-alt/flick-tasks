@@ -42,7 +42,8 @@ async function run(label, viewport) {
   await page.waitForSelector('[data-testid="nav-me"]', { timeout: 20000 })
   // 初めての案内やお祝いが出ていたら閉じる
   const dismiss = async () => {
-    for (const id of ['layout-guide-ok', 'levelup-go', 'xp-guide-close']) {
+    // お祝いは「閉じる」で (「冒険へ」を押すと画面が変わってしまう)
+    for (const id of ['layout-guide-ok', 'levelup-close', 'xp-guide-close']) {
       const b = page.getByTestId(id)
       if (await b.isVisible().catch(() => false)) await b.click().catch(() => {})
     }

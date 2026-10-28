@@ -65,7 +65,7 @@ export function LevelUp({ data, onClose, onGo }: { data: Celebration; onClose: (
         <div className="lu-level">{data.title}</div>
         <div className="lu-sp">{data.sub}</div>
         <div className="lu-actions">
-          <button className="pill-btn ghost" onClick={onClose}>
+          <button className="pill-btn ghost" onClick={onClose} data-testid="levelup-close">
             閉じる
           </button>
           <button className="pill-btn primary" onClick={onGo} data-testid="levelup-go">

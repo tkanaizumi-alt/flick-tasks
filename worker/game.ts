@@ -16,6 +16,8 @@ import {
   EVENT_XP,
   PET_MAP,
   PLUS_MAX,
+  lowerRarity,
+  materialsFor,
   SHOP,
   activeEvent,
   hasEventSkin,
@@ -262,11 +264,11 @@ export async function enhanceItem(db: D1Database, userId: string, itemId: string
     await up.run()
     return { player: await getPlayer(db, userId) }
   }
-  const equipped = new Set(Object.values(p.equipped))
-  const material = p.items
-    .filter((i) => i.id !== item.id && i.slot === item.slot && i.rarity === item.rarity && !equipped.has(i.id))
-    .sort((a, b) => (a.plus ?? 0) - (b.plus ?? 0))[0]
-  if (!material) return { error: '同じ部位・同じレア度の装備がもう1つ必要です' }
+  const material = materialsFor(item, p.items, Object.values(p.equipped) as string[])[0]
+  if (!material) {
+    const lower = lowerRarity(item.rarity)
+    return { error: `同じ部位の${item.rarity}の装備${lower ? `か、${lower}の+${PLUS_MAX}の装備` : ''}がもう1つ必要です` }
+  }
   await db.batch([db.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(material.id, userId), up])
   return { player: await getPlayer(db, userId) }
 }

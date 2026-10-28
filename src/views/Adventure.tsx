@@ -34,7 +34,7 @@ import type { Celebration } from '../components/Rewards'
 import { Achievements } from '../components/Achievements'
 import { EventBanner, EventBossPanel, PetPanel, RaidPanel, ShopPanel, SparPanel } from '../components/GameExtras'
 import type { BattleMode } from '../components/BattleModal'
-import { EVENT_SKINS, REMATCH_DAILY, hasEventSkin, rematchGold } from '../../shared/extras'
+import { EVENT_SKINS, REMATCH_DAILY, hasEventSkin, materialsFor, rematchGold } from '../../shared/extras'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train' | 'achieve'
 
@@ -611,7 +611,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             onSell={async () => {
               if (await run(() => api.sell(openItem.id))) setOpenItem(null)
             }}
-            materials={player.items.filter((i) => i.id !== openItem.id && i.slot === openItem.slot && i.rarity === openItem.rarity && !Object.values(player.equipped).includes(i.id)).length}
+            materials={materialsFor(openItem, player.items, Object.values(player.equipped) as string[]).length}
             gold={player.gold}
             onEnhance={async (by) => {
               const r = await run(() => api.enhance(openItem.id, by))

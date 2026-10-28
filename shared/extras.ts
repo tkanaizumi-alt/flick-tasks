@@ -1,5 +1,5 @@
 /** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
-import { MAX_TURNS, bossGold, enemyForStage, type BattleResult, type Enemy, type Rarity, type Slot } from './game'
+import { MAX_TURNS, bossGold, enemyForStage, type BattleResult, type Enemy, type Item, type Rarity, type Slot } from './game'
 import type { AchievementStats } from './achievements'
 
 const DAY = 86400000
@@ -87,10 +87,28 @@ export const shopPrice = (id: ShopId, invExtra = 0) => (id === 'bag' ? bagPrice(
 const ENHANCE_GOLD: Record<Rarity, number> = { N: 30, R: 60, SR: 120, SSR: 250, UR: 500 }
 export const enhanceGold = (rarity: Rarity, plus: number) => ENHANCE_GOLD[rarity] * (plus + 1)
 
-// ---------- 装備の強化 (同じ部位・同じレア度の装備を 1 つ使って +1。最大 +5) ----------
-export const PLUS_MAX = 5
+// ---------- 装備の強化 (素材の装備を 1 つ使って +1。最大 +10) ----------
+export const PLUS_MAX = 10
 /** 強化 1 回で各ステータス +10% (最低 +1) */
 export const plusUp = (v: number) => (v > 0 ? v + Math.max(1, Math.round(v * 0.1)) : 0)
+
+const RARITY_UP: Rarity[] = ['N', 'R', 'SR', 'SSR', 'UR']
+/** 1 つ下 / 上のレア度 (無ければ null) */
+export const lowerRarity = (r: Rarity): Rarity | null => RARITY_UP[RARITY_UP.indexOf(r) - 1] ?? null
+export const higherRarity = (r: Rarity): Rarity | null => RARITY_UP[RARITY_UP.indexOf(r) + 1] ?? null
+
+/**
+ * 強化の素材に使える装備 (使う順)。同じ部位で、同じレア度の装備か、
+ * 1 つ下のレア度で +10 まで強化した装備。装備中のものと強化する装備そのものは使わない。
+ * 同じレア度 (強化の低いものから) → 1 つ下のレア度の +10 の順
+ */
+export function materialsFor<T extends Pick<Item, 'id' | 'slot' | 'rarity' | 'plus'>>(item: T, items: T[], equippedIds: string[]): T[] {
+  const lower = lowerRarity(item.rarity)
+  return items
+    .filter((i) => i.id !== item.id && i.slot === item.slot && !equippedIds.includes(i.id))
+    .filter((i) => i.rarity === item.rarity || (i.rarity === lower && (i.plus ?? 0) >= PLUS_MAX))
+    .sort((a, b) => Number(a.rarity !== item.rarity) - Number(b.rarity !== item.rarity) || (a.plus ?? 0) - (b.plus ?? 0))
+}
 
 // ---------- 季節イベント (期間中は XP+10%、10 件完了で限定スキン) ----------
 export interface EventDef {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, higherRarity, lowerRarity, materialsFor, PLUS_MAX, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
 import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinUnlocked, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
@@ -107,5 +107,22 @@ describe('過去のボスと再戦', () => {
     expect(rematchGold(1)).toBe(18)
     expect(rematchGold(10)).toBe(72)
     expect(REMATCH_DAILY).toBe(5)
+  })
+})
+
+describe('装備の強化の素材', () => {
+  const it2 = (id: string, rarity: 'N' | 'R' | 'SR' | 'SSR' | 'UR', plus = 0, slot: 'head' | 'body' = 'head') => ({ id, slot, rarity, plus })
+  it('同じ部位の同じレア度、または 1 つ下のレア度の +10 (同じレア度を先に使う)', () => {
+    const target = it2('t', 'R')
+    const items = [target, it2('a', 'R', 3), it2('b', 'R', 0), it2('c', 'N', 10), it2('d', 'N', 9), it2('e', 'SR', 10), it2('f', 'R', 0, 'body')]
+    expect(materialsFor(target, items, []).map((i) => i.id)).toEqual(['b', 'a', 'c'])
+    // 装備中のものは使わない
+    expect(materialsFor(target, items, ['b']).map((i) => i.id)).toEqual(['a', 'c'])
+    // N には下のレア度がない、UR は上がない
+    expect(materialsFor(it2('n', 'N'), [it2('x', 'N', 10)], []).map((i) => i.id)).toEqual(['x'])
+    expect(lowerRarity('N')).toBeNull()
+    expect(higherRarity('UR')).toBeNull()
+    expect(higherRarity('SSR')).toBe('UR')
+    expect(PLUS_MAX).toBe(10)
   })
 })

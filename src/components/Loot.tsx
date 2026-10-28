@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { EFFECTS, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
-import { PLUS_MAX, enhanceGold } from '../../shared/extras'
+import { PLUS_MAX, enhanceGold, higherRarity, lowerRarity } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
 const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
@@ -96,6 +96,9 @@ interface SheetProps {
 /** アイテムの詳細と 装備 / 外す / 売る */
 export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, gold, onEnhance }: SheetProps) {
   const maxed = (item.plus ?? 0) >= PLUS_MAX
+  const lower = lowerRarity(item.rarity)
+  const higher = higherRarity(item.rarity)
+  const need = `同じ部位の${item.rarity}${lower ? `か、${lower}の+${PLUS_MAX}` : ''}`
   const cost = enhanceGold(item.rarity, item.plus ?? 0)
   const diff = (k: 'atk' | 'hp' | 'crit' | 'heal') => item[k] - (current && current.id !== item.id ? current[k] : 0)
   return (
@@ -144,7 +147,13 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
             ⚒️ 強化 {maxed ? '(最大)' : `+${(item.plus ?? 0) + 1}`}
           </button>
           <span className="muted">
-            {maxed ? `+${PLUS_MAX}が最大です` : materials ? `同じ部位・${item.rarity}の装備を1つ使って全ステータス+10%（使える装備 ${materials}個）` : `同じ部位・${item.rarity}の装備がもう1つあると強化できます`}
+            {maxed
+              ? higher
+                ? `+${PLUS_MAX}が最大です。同じ部位の${higher}を強化する素材に使えます`
+                : `+${PLUS_MAX}が最大です`
+              : materials
+                ? `${need}の装備を1つ使って全ステータス+10%（使える装備 ${materials}個）`
+                : `${need}の装備がもう1つあると強化できます`}
           </span>
         </div>
         {!maxed && (
