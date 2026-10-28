@@ -104,7 +104,7 @@
 .chest-shake.rare { filter: drop-shadow(0 0 18px #f0a400); }
 @keyframes shake { 25% { transform: rotate(-8deg) scale(1.05); } 75% { transform: rotate(8deg) scale(1.05); } }
 .reveal-card {
-  position: relative; overflow: hidden; width: min(300px, calc(100vw - 48px)); border-radius: 28px; padding: 26px 20px 20px; text-align: center;
+  position: relative; overflow: hidden; width: min(300px, calc(100vw / var(--zoom, 1) - 48px)); border-radius: 28px; padding: 26px 20px 20px; text-align: center;
   --glass: linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.88));
   box-shadow: var(--glass-edge), 0 0 0 3px var(--rc), 0 20px 60px -20px var(--rc);
   animation: pop-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4);

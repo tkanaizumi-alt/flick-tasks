@@ -18,6 +18,13 @@
         try { t = JSON.parse(localStorage.getItem('flick.theme') || '"auto"') } catch (e) {}
         var dark = t === 'dark' || (t !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        // 文字の大きさ (小・標準・大・特大) とシンプル表示 (ゲームを隠す)
+        var f = 'm', s = false
+        try { f = JSON.parse(localStorage.getItem('flick.font') || '"m"'); s = JSON.parse(localStorage.getItem('flick.simple') || 'false') } catch (e) {}
+        var z = { s: 0.92, m: 1, l: 1.12, xl: 1.25 }[f] || 1
+        document.documentElement.style.setProperty('--zoom', String(z))
+        document.documentElement.dataset.font = f
+        if (s) document.documentElement.dataset.simple = '1'
       })()
     </script>
     <style>
@@ -92,6 +99,9 @@
       .composer #send-btn { background: linear-gradient(160deg, #6f7dff, #4f5bff); color: #fff; box-shadow: 0 6px 16px -4px rgba(79, 91, 255, 0.55), inset 0 1px 1px rgba(255,255,255,.5); }
       .composer:not(.has-text) #send-btn { transform: scale(0.4); opacity: 0; pointer-events: none; width: 0; margin-left: -6px; }
       .composer:not(.has-text) #ai-btn { opacity: 0.55; }
+      /* 書いている間は入力欄を広く使う (テンプレートのボタンは隠す) */
+      .composer #tpl-btn { opacity: 0.55; transition: transform 0.2s ease, opacity 0.2s ease, width 0.2s ease, margin 0.2s ease; }
+      .composer.has-text #tpl-btn { transform: scale(0.4); opacity: 0; pointer-events: none; width: 0; margin-left: -6px; }
       .composer.ai-busy #ai-btn svg { animation: spin 1.1s linear infinite; }
       @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -127,6 +137,9 @@
 
     <div id="composer" class="composer">
       <textarea id="memo" rows="1" placeholder="タスクを記入" autofocus enterkeyhint="send" aria-label="タスクを記入" autocomplete="off"></textarea>
+      <button id="tpl-btn" class="cbtn" type="button" aria-label="テンプレートから追加" title="テンプレートから追加">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4"/></svg>
+      </button>
       <button id="ai-btn" class="cbtn" type="button" aria-label="AIで整理">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
       </button>
@@ -178,11 +191,12 @@
         ta.addEventListener('keydown', function (e) {
           if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(false) }
         })
-        ;['send-btn', 'ai-btn'].forEach(function (id) {
+        document.getElementById('tpl-btn').addEventListener('click', function () { window.dispatchEvent(new Event('flick:templates')) })
+        ;['send-btn', 'ai-btn', 'tpl-btn'].forEach(function (id) {
           var b = document.getElementById(id)
           // ボタン押下でテキストエリアのフォーカス (モバイルのキーボード) を失わない
           b.addEventListener('pointerdown', function (e) { e.preventDefault() })
-          b.addEventListener('click', function () { submit(id === 'ai-btn') })
+          if (id !== 'tpl-btn') b.addEventListener('click', function () { submit(id === 'ai-btn') })
         })
         if (window.ResizeObserver) new ResizeObserver(function () {
           document.documentElement.style.setProperty('--composer-h', comp.offsetHeight + 'px')

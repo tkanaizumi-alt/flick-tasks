@@ -72,7 +72,7 @@
 .scrim.top { z-index: 80; }
 .guide {
   position: fixed; z-index: 90; inset: 0; margin: auto; height: fit-content;
-  width: min(420px, calc(100vw - 32px)); max-height: 86dvh; overflow-y: auto; border-radius: 26px; padding: 20px;
+  width: min(420px, calc(100vw / var(--zoom, 1) - 32px)); max-height: calc(86dvh / var(--zoom, 1)); overflow-y: auto; border-radius: 26px; padding: 20px;
   --glass: linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.9));
 }
 .guide h2 { margin: 0 0 6px; font-size: 18px; }
@@ -96,7 +96,7 @@
 .ps-parent { width: 100%; font-size: 11px; font-weight: 700; color: var(--ink-3); }
 
 /* ---------- 履歴 ---------- */
-.history { max-height: 90dvh; }
+.history { max-height: calc(90dvh / var(--zoom, 1)); }
 .sheet-h { margin: 0 0 10px; font-size: 18px; }
 .preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .preset { height: 32px; border: 0; border-radius: 16px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; background: rgba(20, 28, 48, 0.05); color: var(--ink-2); }

@@ -10,6 +10,7 @@ import { exitDir } from './components/TaskCard'
 import { Dock, type Theme, type View } from './components/Dock'
 import { MeToolbar } from './components/StatusTabs'
 import { SelectBar } from './components/SelectBar'
+import { FONT_KEY, FONT_ZOOM, SIMPLE_KEY, type FontSize } from './display'
 import { Sheet } from './components/Sheet'
 import { Toast, type ToastData } from './components/Toast'
 import { Login } from './components/Login'
@@ -87,6 +88,25 @@ export function App() {
   // テンプレート (選んだタスクから作るときは、その件名を入れて開く) / カレンダー
   const [templates, setTemplates] = useState<string[] | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  // 文字の大きさ / シンプル表示 (ゲームの要素を隠す。XP やゴールドは裏で今まで通りたまる)
+  const [font, setFontState] = useState<FontSize>(() => {
+    const v = store.get<FontSize>(FONT_KEY, 'm')
+    return v in FONT_ZOOM ? v : 'm'
+  })
+  const setFont = (f: FontSize) => {
+    setFontState(f)
+    store.set(FONT_KEY, f)
+    if (f !== 'm') trackUsage('font')
+  }
+  const [simple, setSimpleState] = useState(() => store.get<boolean>(SIMPLE_KEY, false) === true)
+  const setSimple = (v: boolean) => {
+    setSimpleState(v)
+    store.set(SIMPLE_KEY, v)
+    if (v) trackUsage('simple')
+    showToast(v ? 'シンプル表示にしました（冒険・XPを隠します。XPは裏でたまります）' : 'ゲームの表示を戻しました')
+  }
+  const simpleRef = useRef(simple)
+  simpleRef.current = simple
   const [theme, setThemeState] = useState<Theme>(() => store.get<Theme>(THEME_KEY, 'auto'))
   const setTheme = (t: Theme) => {
     setThemeState(t)
@@ -154,6 +174,20 @@ export function App() {
     document.body.dataset.layout = phase === 'ready' && isPc(view) ? 'pc' : 'mobile'
   }, [view, phase, isPc])
 
+  // 文字の大きさは画面全体の拡大率で (vh を使う所は --zoom で割り戻す)
+  useEffect(() => {
+    document.documentElement.style.setProperty('--zoom', String(FONT_ZOOM[font]))
+    document.documentElement.dataset.font = font
+  }, [font])
+  useEffect(() => {
+    if (simple) document.documentElement.dataset.simple = '1'
+    else delete document.documentElement.dataset.simple
+  }, [simple])
+  // シンプル表示では冒険の画面に行かない
+  useEffect(() => {
+    if (simple && view === 'game') setView('me')
+  }, [simple, view, setView])
+
   // 見た目: 自動なら端末の設定 (ダークモード) に合わせる
   useEffect(() => {
     const m = matchMedia('(prefers-color-scheme: dark)')
@@ -185,7 +219,7 @@ export function App() {
         e.preventDefault()
         setView('me')
         setQuery('')
-      } else if (k === '1' || k === '2' || k === '3') {
+      } else if (k === '1' || k === '2' || (k === '3' && !simpleRef.current)) {
         setView((['me', 'people', 'game'] as const)[Number(k) - 1])
       } else if (k === '?') {
         setHelpOpen(true)
@@ -232,10 +266,15 @@ export function App() {
 
   const onXp = useCallback((xp: XpChange | null) => {
     if (!xp || xp.amount === 0) return
+    setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount), gold: Math.max(0, p.gold + xp.gold) } : p))
+    // シンプル表示: XP の表示やお祝いは出さない (状態だけ取り直す)
+    if (simpleRef.current) {
+      api.player().then((r) => setPlayer(r.player), () => {})
+      return
+    }
     const id = Date.now() + Math.random()
     setPops((p) => [...p.slice(-2), { id, amount: xp.amount, gold: xp.gold, bonuses: xp.bonuses }])
     setTimeout(() => setPops((p) => p.filter((x) => x.id !== id)), 1800)
-    setPlayer((p) => (p ? { ...p, xp: Math.max(0, p.xp + xp.amount), gold: Math.max(0, p.gold + xp.gold) } : p))
     // 職業 XP なども変わるのでサーバーの状態で取り直す
     api.player().then((r) => {
       setPlayer(r.player)
@@ -257,7 +296,7 @@ export function App() {
     ;(async () => {
       try {
         const [{ user }, { tasks }, { player, unlocked }] = await Promise.all([api.me(), api.list(), api.player()])
-        celebrateAchievements(unlocked, 1200)
+        if (!simpleRef.current) celebrateAchievements(unlocked, 1200)
         if (cancelled) return
         setUser(user)
         setTasks(tasks)
@@ -346,6 +385,12 @@ export function App() {
       }
     }
   }, [removeLocal, setTab, setView, showToast, upsert])
+
+  useEffect(() => {
+    const open = () => phaseRef.current === 'ready' && setTemplates([])
+    window.addEventListener('flick:templates', open)
+    return () => window.removeEventListener('flick:templates', open)
+  }, [])
 
   useEffect(() => {
     drain()
@@ -895,8 +940,11 @@ export function App() {
                 peopleBadge={unread}
                 onHistory={() => setHistoryOpen(true)}
                 onHelp={() => setHelpOpen(true)}
-                onTemplates={() => setTemplates([])}
                 onCalendar={() => setCalendarOpen(true)}
+                font={font}
+                onFont={setFont}
+                simple={simple}
+                onSimple={setSimple}
                 onStats={user?.isAdmin ? () => setStatsOpen(true) : undefined}
                 theme={theme}
                 onTheme={setTheme}

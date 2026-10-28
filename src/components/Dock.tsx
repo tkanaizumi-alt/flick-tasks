@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
+import { FONT_LABEL, NEXT_FONT, type FontSize } from '../display'
 import { useState } from 'react'
 import type { User } from '../../shared/types'
 import { SKIN_MAP } from '../../shared/game'
@@ -23,8 +24,12 @@ interface Props {
   peopleBadge?: number
   onHistory: () => void
   onHelp: () => void
-  onTemplates: () => void
   onCalendar: () => void
+  font: FontSize
+  onFont: (f: FontSize) => void
+  /** シンプル表示 (冒険のタブを出さない) */
+  simple: boolean
+  onSimple: (v: boolean) => void
   /** 管理者だけ: 集計 */
   onStats?: () => void
   theme: Theme
@@ -35,12 +40,13 @@ export type Theme = 'auto' | 'light' | 'dark'
 const THEME_LABEL: Record<Theme, string> = { auto: '自動', light: 'ライト', dark: 'ダーク' }
 const NEXT_THEME: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' }
 
-export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onTemplates, onCalendar, onStats, theme, onTheme }: Props) {
+export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onCalendar, font, onFont, simple, onSimple, onStats, theme, onTheme }: Props) {
   const [menu, setMenu] = useState(false)
+  const items = simple ? ITEMS.filter((i) => i.key !== 'game') : ITEMS
   return (
     <div className="dock">
       <nav className="tabbar glass" role="tablist">
-        {ITEMS.map(({ key, label, Icon }) => {
+        {items.map(({ key, label, Icon }) => {
           const on = view === key
           return (
             <button key={key} role="tab" aria-selected={on} data-testid={`nav-${key}`} className={`tab ${on ? 'on' : ''}`} onClick={() => onChange(key)}>
@@ -93,16 +99,6 @@ export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, o
                 </button>
                 <button
                   className="menu-item"
-                  data-testid="menu-templates"
-                  onClick={() => {
-                    setMenu(false)
-                    onTemplates()
-                  }}
-                >
-                  📋 テンプレート
-                </button>
-                <button
-                  className="menu-item"
                   data-testid="menu-calendar"
                   onClick={() => {
                     setMenu(false)
@@ -123,6 +119,12 @@ export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, o
                 </button>
                 <button className="menu-item" data-testid="menu-theme" onClick={() => onTheme(NEXT_THEME[theme])}>
                   🌓 見た目: {THEME_LABEL[theme]}
+                </button>
+                <button className="menu-item" data-testid="menu-font" onClick={() => onFont(NEXT_FONT[font])}>
+                  🔤 文字の大きさ: {FONT_LABEL[font]}
+                </button>
+                <button className="menu-item" data-testid="menu-simple" onClick={() => onSimple(!simple)} aria-pressed={simple}>
+                  {simple ? '🎮 ゲームを表示する' : '📄 シンプル表示（ゲームを隠す）'}
                 </button>
                 {onStats && (
                   <button

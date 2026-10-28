@@ -220,3 +220,18 @@ kbd { display: inline-block; min-width: 24px; padding: 2px 8px; border-radius: 6
 .usage-bar { height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.06); overflow: hidden; }
 .usage-bar span { display: block; height: 100%; background: linear-gradient(90deg, #7c6cf2, #a78bfa); transform-origin: left; }
 .usage-list b { text-align: right; }
+
+/* ---------- 文字の大きさ (画面全体の拡大率。index.html と App で --zoom を設定) ---------- */
+:root { zoom: var(--zoom, 1); }
+
+/* ---------- シンプル表示: ゲームの要素を隠す (XP・ゴールドは裏でたまる) ---------- */
+:root[data-simple='1'] .xp-chip,
+:root[data-simple='1'] .xp-zone,
+:root[data-simple='1'] .person-lv,
+:root[data-simple='1'] .person-stage,
+:root[data-simple='1'] .title-chip,
+:root[data-simple='1'] .mvp,
+:root[data-simple='1'] .ps-stats,
+:root[data-simple='1'] .ps-skills,
+:root[data-simple='1'] [data-testid='weight-field'],
+:root[data-simple='1'] [data-testid='xp-guide-open'] { display: none !important; }

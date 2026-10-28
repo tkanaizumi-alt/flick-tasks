@@ -42,7 +42,7 @@ body[data-layout='pc'] .toast-zone { left: var(--side); bottom: calc(var(--safe-
 .board-mode .hint-bar { position: absolute; margin: 0; top: calc(var(--safe-t) + var(--composer-h) + 28px); left: calc(var(--side) + 28px); height: 42px; max-width: 560px; }
 .board-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .board-col {
-  min-height: 60vh; padding: 12px; border-radius: 26px;
+  min-height: calc(60vh / var(--zoom, 1)); padding: 12px; border-radius: 26px;
   background: rgba(255, 255, 255, 0.32); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), inset 0 0 0 1px rgba(20, 28, 48, 0.04);
 }
 .board-col-head { display: flex; align-items: center; gap: 8px; margin: 2px 6px 10px; font-size: 14px; font-weight: 800; }

@@ -79,7 +79,7 @@
 }
 
 /* ---------- レイアウト ---------- */
-.app { min-height: 100dvh; }
+.app { min-height: calc(100dvh / var(--zoom, 1)); }
 /* 本体の上でフェードアウトする間、操作を妨げない */
 .boot-skel { z-index: 5; pointer-events: none; }
 .view {
@@ -90,7 +90,7 @@
   overflow-x: clip;
 }
 .view-me { padding-top: calc(var(--safe-t) + var(--composer-h) + 20px); }
-.list-page { position: relative; min-height: 50vh; }
+.list-page { position: relative; min-height: calc(50vh / var(--zoom, 1)); }
 
 /* メモ欄は「自分」の画面だけ */
 .composer { transition: box-shadow 0.35s ease, transform 0.25s ease, opacity 0.2s ease; }
@@ -264,7 +264,7 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
 /* ---------- 空 ---------- */
 .empty {
   position: absolute;
-  top: 18vh;
+  top: calc(18vh / var(--zoom, 1));
   left: 0;
   right: 0;
   display: grid;
@@ -411,7 +411,7 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
   border-radius: 32px;
   padding: 0 18px 18px;
   --glass: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
-  max-height: 85dvh;
+  max-height: calc(85dvh / var(--zoom, 1));
   overflow-y: auto;
 }
 .grab-zone { padding: 10px 0 6px; cursor: grab; touch-action: none; }
@@ -530,7 +530,7 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
 
 /* ---------- ログイン ---------- */
 .login {
-  min-height: 100dvh;
+  min-height: calc(100dvh / var(--zoom, 1));
   padding: calc(var(--safe-t) + var(--composer-h) + 24px) 12px calc(var(--safe-b) + 24px);
   display: flex;
   flex-direction: column;

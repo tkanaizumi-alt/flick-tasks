@@ -33,10 +33,12 @@ const browser = await chromium.launch({
 async function run(label, viewport) {
   console.log(`\n--- ${label} (${viewport.width}×${viewport.height}) ---`)
   const ctx = await browser.newContext({ viewport, locale: 'ja-JP', permissions: ['clipboard-read', 'clipboard-write'] })
+  // 本番など開発用ログインが使えない環境では、確認用のセッションを E2E_TOKEN_A で渡す
+  if (process.env.E2E_TOKEN_A) await ctx.addCookies([{ name: 'flick_sid', value: process.env.E2E_TOKEN_A, url: base }])
   page = await ctx.newPage()
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
-  await page.goto(`${base}/auth/dev?as=3`)
+  await page.goto(process.env.E2E_TOKEN_A ? base : `${base}/auth/dev?as=3`)
   await page.waitForSelector('[data-testid="nav-me"]', { timeout: 20000 })
   // 初めての案内やお祝いが出ていたら閉じる
   const dismiss = async () => {
@@ -51,8 +53,12 @@ async function run(label, viewport) {
 
   await step('タスクを追加', async () => {
     await page.fill('#memo', title)
+    // 保存が終わるまで待つ (保存中のカードは開けない)
+    const saved = page.waitForResponse((r) => r.url().endsWith('/api/tasks') && r.request().method() === 'POST', { timeout: 15000 })
     await page.press('#memo', 'Enter')
+    await saved
     await page.getByTestId('task').filter({ hasText: title }).first().waitFor({ timeout: 10000 })
+    await page.waitForTimeout(300)
   })
 
   await step('タスクを開いて完了にする', async () => {
@@ -75,7 +81,9 @@ async function run(label, viewport) {
   }
 
   await step('テンプレートを作って追加する', async () => {
-    await openMenu('menu-templates')
+    // メモ欄の横のボタンから開く
+    await dismiss()
+    await page.click('#tpl-btn')
     await page.getByTestId('templates').waitFor()
     await page.fill('[data-testid="template-name"]', `${PREFIX} 月末`)
     await page.fill('[data-testid="template-items"]', `${PREFIX} 請求書\n${PREFIX} 経費精算`)
@@ -130,6 +138,35 @@ async function run(label, viewport) {
     await page.getByTestId('adv-loot').click()
     await page.getByTestId('buy-bag').waitFor()
     return (await page.getByTestId('shop').innerText()).includes('みんなに差し入れ')
+  })
+
+  await step('文字の大きさを変える', async () => {
+    const before = await page.locator('#memo').boundingBox()
+    await page.getByTestId('avatar').click()
+    await page.getByTestId('menu-font').click() // 標準 → 大
+    await page.keyboard.press('Escape')
+    await page.mouse.click(5, 5)
+    const zoom = await page.evaluate(() => getComputedStyle(document.documentElement).zoom)
+    const after = await page.locator('#memo').boundingBox()
+    // 横にはみ出さない
+    const fits = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+    await page.evaluate(() => localStorage.setItem('flick.font', JSON.stringify('m')))
+    return zoom === '1.12' && after.height > before.height && fits ? true : { zoom, before, after, fits }
+  })
+
+  await step('シンプル表示で冒険・XP を隠す', async () => {
+    await dismiss()
+    await page.getByTestId('nav-me').click()
+    await page.getByTestId('avatar').click()
+    await page.getByTestId('menu-simple').click()
+    await page.mouse.click(5, 5)
+    await page.waitForTimeout(400)
+    const hidden = (await page.getByTestId('nav-game').count()) === 0 && (await page.locator('.xp-chip:visible').count()) === 0
+    await page.getByTestId('avatar').click()
+    await page.getByTestId('menu-simple').click() // 戻す
+    await page.mouse.click(5, 5)
+    await page.getByTestId('nav-game').waitFor()
+    return hidden
   })
 
   await step('みんなの画面', async () => {
