@@ -1,15 +1,29 @@
 import { motion } from 'motion/react'
 
-/** その画面の見え方 (📱 スマホ / 💻 PC) の切り替え */
-export function LayoutToggle({ pc, onChange, label }: { pc: boolean; onChange: (mode: 'mobile' | 'pc') => void; label: string }) {
+export type ViewMode = 'mobile' | 'pc' | 'calendar'
+const MODE_LABEL: Record<ViewMode, [string, string, string]> = {
+  mobile: ['📱', 'スマホ', 'スマホ用の見え方'],
+  pc: ['💻', 'PC', 'PC用の見え方'],
+  calendar: ['📅', 'カレンダー', '期限のあるタスクをカレンダーで見る'],
+}
+
+/**
+ * その画面の見え方の切り替え (📱 スマホ / 💻 PC / 📅 カレンダー)。
+ * modes で出す選択肢を決める (狭い画面では PC を出さない、カレンダーは「自分」だけ)。狭い画面では絵文字だけ
+ */
+export function LayoutToggle({ mode, onChange, label, modes = ['mobile', 'pc'] }: { mode: ViewMode; onChange: (mode: ViewMode) => void; label: string; modes?: ViewMode[] }) {
   return (
     <div className="layout-toggle glass" role="radiogroup" aria-label={`${label}の見え方`} data-testid="layout-toggle">
-      {(['mobile', 'pc'] as const).map((m) => {
-        const on = (m === 'pc') === pc
+      {modes.map((m) => {
+        const on = m === mode
+        const [icon, text, title] = MODE_LABEL[m]
         return (
-          <button key={m} role="radio" aria-checked={on} className={`lt-btn ${on ? 'on' : ''}`} onClick={() => onChange(m)} title={m === 'pc' ? 'PC用の見え方' : 'スマホ用の見え方'} data-testid={`layout-${m}`}>
+          <button key={m} role="radio" aria-checked={on} aria-label={text} className={`lt-btn ${on ? 'on' : ''}`} onClick={() => onChange(m)} title={title} data-testid={`layout-${m}`}>
             {on && <motion.span layoutId={`lt-pill-${label}`} className="lt-pill" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
-            <span className="lt-label">{m === 'pc' ? '💻 PC' : '📱 スマホ'}</span>
+            <span className="lt-label">
+              {icon}
+              <span className="lt-text"> {text}</span>
+            </span>
           </button>
         )
       })}

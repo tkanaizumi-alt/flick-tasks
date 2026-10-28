@@ -32,3 +32,9 @@
 :root[data-theme='dark'] .sort-btn.on { background: var(--ink); color: #11141c; }
 :root[data-theme='dark'] .skel { background: rgba(255, 255, 255, 0.06); }
 :root[data-theme='dark'] kbd { background: rgba(255, 255, 255, 0.1); color: var(--ink); }
+
+/* カレンダー表示: 文字色を暗い背景でも読めるように */
+:root[data-theme='dark'] .cal-status.s-todo, :root[data-theme='dark'] .cal-chip, :root[data-theme='dark'] .cal-today { color: #b3bbff; }
+:root[data-theme='dark'] .cal-status.s-doing, :root[data-theme='dark'] .cal-chip.doing { color: #ffcc75; }
+:root[data-theme='dark'] .cal-chip.late, :root[data-theme='dark'] .cal-late { color: #ff8a8e; }
+:root[data-theme='dark'] .cal-week .sat, :root[data-theme='dark'] .cal-cell.sat .cal-num { color: #8fa8ff; }

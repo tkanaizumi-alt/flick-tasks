@@ -10,6 +10,8 @@ import { exitDir } from './components/TaskCard'
 import { Dock, type Theme, type View } from './components/Dock'
 import { MeToolbar } from './components/StatusTabs'
 import { SelectBar } from './components/SelectBar'
+import { CalendarView } from './components/CalendarView'
+import { CalendarIcon } from './components/icons'
 import { FONT_KEY, FONT_ZOOM, SIMPLE_KEY, type FontSize } from './display'
 import { Sheet } from './components/Sheet'
 import { Toast, type ToastData } from './components/Toast'
@@ -141,7 +143,7 @@ export function App() {
   )
   const unreadRef = useRef(0)
   // 画面ごとの見え方 (スマホ / PC)。PC 表示の「自分」は未着手・進行中・完了の 3 列
-  const { isPc, setLayout, canToggle } = useLayouts()
+  const { isPc, setLayout, canToggle, calendar, setCalendar } = useLayouts()
   const wide = isPc('me')
   const [layoutGuide, setLayoutGuide] = useState(false)
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -761,6 +763,40 @@ export function App() {
     }
     if (changes.length) showToast('並び順を保存しました')
   }
+  // 「自分」の見え方: スマホ / PC / カレンダー (狭い画面ではスマホ / カレンダー)。
+  // スマホのリストでは場所を取らないよう、カレンダーに切り替えるボタンだけ
+  const meToggle =
+    !canToggle && !calendar ? (
+      <button className="tool-btn glass" aria-label="カレンダー表示" title="カレンダー表示" data-testid="layout-calendar" onClick={() => setCalendar(true)}>
+        <CalendarIcon />
+      </button>
+    ) : (
+      <LayoutToggle
+        mode={calendar ? 'calendar' : isPc('me') ? 'pc' : 'mobile'}
+        modes={canToggle ? ['mobile', 'pc', 'calendar'] : ['mobile', 'calendar']}
+        onChange={(m) => {
+          setSelected(null)
+          if (m === 'calendar') return setCalendar(true)
+          setCalendar(false)
+          if (canToggle) setLayout('me', m)
+        }}
+        label="自分"
+      />
+    )
+  /** カレンダーで選んだ日を期限にしてタスクを追加 */
+  const addOnDay = async (title: string, due: string) => {
+    const id = crypto.randomUUID()
+    upsert([newTask({ id, title, due, position: Date.now(), syncing: true })])
+    try {
+      const { tasks: created } = await api.create([{ id, title, status: 'todo', position: Date.now() }])
+      upsert(created.map((t) => ({ ...t, due, syncing: true })))
+      const { task } = await api.setDue(id, due)
+      upsert([{ ...task, syncing: false }])
+    } catch {
+      removeLocal([id])
+      showToast('追加できませんでした')
+    }
+  }
   const selectedTasks = selected ? visible.filter((t) => selected.has(t.id)) : []
   const selStatuses = new Set(selectedTasks.map((t) => t.status))
   const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q && !board ? tab : null
@@ -779,8 +815,14 @@ export function App() {
         {phase === 'ready' && (
           <motion.div key="app" className="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
             {/* 画面切り替えは退場アニメーションを待たず即座に描画する (フェードインのみ) */}
-            <motion.main key={view} className={`view view-${view} ${board && view === 'me' ? 'board-mode' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
-                {view === 'me' && (
+            <motion.main key={view} className={`view view-${view} ${board && view === 'me' && !calendar ? 'board-mode' : ''} ${view === 'me' && calendar ? 'cal-mode' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
+                {view === 'me' && calendar && (
+                  <>
+                    <div className="view-head cal-toggle">{meToggle}</div>
+                    <CalendarView tasks={shown} onOpen={(t) => setOpenId(t.id)} onAdd={addOnDay} />
+                  </>
+                )}
+                {view === 'me' && !calendar && (
                   <>
                     <MeToolbar
                       tab={tab}
@@ -792,7 +834,7 @@ export function App() {
                         setSelected(null)
                       }}
                       onStartSelect={() => setSelected((s) => (s ? null : new Set()))}
-                      extra={canToggle ? <LayoutToggle pc={isPc('me')} onChange={(m) => setLayout('me', m)} label="自分" /> : null}
+                      extra={meToggle}
                     />
                     {hint && !selected && !q && visible.length > 1 && (
                       <div className="hint-bar" data-testid="select-hint">
@@ -877,7 +919,7 @@ export function App() {
                 <Suspense fallback={<ViewSkeleton />}>
                 {view !== 'me' && canToggle && (
                   <div className="view-head">
-                    <LayoutToggle pc={isPc(view)} onChange={(m) => setLayout(view, m)} label={view === 'people' ? 'みんな' : '冒険'} />
+                    <LayoutToggle mode={isPc(view) ? 'pc' : 'mobile'} onChange={(m) => m !== 'calendar' && setLayout(view, m)} label={view === 'people' ? 'みんな' : '冒険'} />
                   </div>
                 )}
                 {view === 'people' && (

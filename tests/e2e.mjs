@@ -246,7 +246,10 @@ check(
 )
 check('自分とは腕試しできない', (await A.call(`/api/spar/${meA.id}`, 'POST', {})).status === 400)
 const eb = await A.call('/api/event/boss')
-if (eb.event) {
+if (eb.event && eb.left === 0) {
+  // 同じ日にもう挑戦し終えている (ローカルで何度もテストしたとき)
+  check('限定ボスは1日3回まで (今日はもう挑めない)', (await A.call('/api/event/boss', 'POST', {})).status === 400)
+} else if (eb.event) {
   let tries = 0
   let won = null
   for (let i = 0; i < 4; i++) {

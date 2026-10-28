@@ -90,6 +90,11 @@
 :root[data-theme='dark'] .history-search input { background: hsla(0, 0%, 12%, 0.765); }
 :root[data-theme='dark'] .flow-list li, :root[data-theme='dark'] .backup-list li { background: hsla(0, 0%, 12%, 0.698); }
 :root[data-theme='dark'] .spar-list li { background: hsla(0, 0%, 12%, 0.698); }
+:root[data-theme='dark'] .cal-nav { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .cal-cell { background: hsla(0, 0%, 12%, 0.653); }
+:root[data-theme='dark'] .cal-cell.on { background: hsla(0, 0%, 12%, 0.833); }
+:root[data-theme='dark'] .cal-item { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .cal-add input { background: hsla(0, 0%, 12%, 0.765); }
 
 /* ---- src/desktop.css ---- */
 :root[data-theme='dark'] .lt-pill { background: hsla(0, 0%, 12%, 1); }

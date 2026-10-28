@@ -53,8 +53,9 @@ export const FEATURES: Record<string, string> = {
   help: '使い方を見る',
   font: '文字の大きさの変更',
   simple: 'シンプル表示',
+  calendar_view: 'カレンダー表示（自分）',
 }
 
 /** 画面から知らせる機能 (サーバーでは分からないもの) */
-export const CLIENT_FEATURES = ['csv', 'copy', 'layout', 'theme', 'shortcut', 'help', 'template', 'font', 'simple'] as const
+export const CLIENT_FEATURES = ['csv', 'copy', 'layout', 'theme', 'shortcut', 'help', 'template', 'font', 'simple', 'calendar_view'] as const
 export type ClientFeature = (typeof CLIENT_FEATURES)[number]

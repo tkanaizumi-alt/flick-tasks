@@ -7,6 +7,7 @@ export type LayoutMode = 'auto' | 'mobile' | 'pc'
 export type Layouts = Record<View, LayoutMode>
 
 const KEY = 'flick.layout'
+const CAL_KEY = 'flick.layout.calendar'
 /** 自動のとき PC 表示にする幅 */
 const PC_QUERY = '(min-width: 1000px)'
 /** 切り替えボタンを出す幅 (これより狭いスマホでは PC 表示は使えないので出さない) */
@@ -48,5 +49,20 @@ export function useLayouts() {
       return next
     })
   }, [])
-  return { isPc, setLayout, canToggle }
+  // 「自分」のカレンダー表示 (この端末に保存。スマホ・PC の見え方とは別に覚える)
+  const [calendar, setCalendarState] = useState(() => {
+    try {
+      return localStorage.getItem(CAL_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const setCalendar = useCallback((on: boolean) => {
+    if (on) trackUsage('calendar_view')
+    setCalendarState(on)
+    try {
+      localStorage.setItem(CAL_KEY, on ? '1' : '0')
+    } catch {}
+  }, [])
+  return { isPc, setLayout, canToggle, calendar, setCalendar }
 }

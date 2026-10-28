@@ -122,6 +122,27 @@ async function run(label, viewport) {
     return url.includes('/cal/') && url.endsWith('.ics')
   })
 
+  await step('カレンダー表示で期限付きのタスクを追加する', async () => {
+    await dismiss()
+    await page.getByTestId('nav-me').click()
+    await page.getByTestId('layout-calendar').click()
+    await page.getByTestId('calendar-view').waitFor()
+    // 来月の 15 日を選んで、その日が期限のタスクを追加
+    await page.getByTestId('cal-next').click()
+    const day = await page.locator('[data-testid="cal-cell"]:not(.out)').nth(14).getAttribute('data-date')
+    await page.locator(`[data-testid="cal-cell"][data-date="${day}"]`).click()
+    const calTitle = `${PREFIX} カレンダー ${Date.now().toString(36)}`
+    await page.fill('[data-testid="cal-add-input"]', calTitle)
+    await page.getByTestId('cal-add').click()
+    await page.getByTestId('cal-item').filter({ hasText: calTitle }).waitFor({ timeout: 10000 })
+    await page.waitForTimeout(1500)
+    const saved = (await (await page.request.get(`${base}/api/tasks`)).json()).tasks.find((t) => t.title === calTitle)
+    // リスト表示に戻す
+    await page.getByTestId(viewport.width >= 768 ? 'layout-pc' : 'layout-mobile').click()
+    await page.getByTestId('calendar-view').waitFor({ state: 'detached' })
+    return saved?.due === day ? true : { day, due: saved?.due }
+  })
+
   await step('ダークモードに切り替える', async () => {
     for (let i = 0; i < 3; i++) {
       if ((await page.evaluate(() => document.documentElement.dataset.theme)) === 'dark') break
