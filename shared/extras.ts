@@ -1,5 +1,5 @@
 /** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
-import { MAX_TURNS, type BattleResult, type Rarity } from './game'
+import { MAX_TURNS, effectiveStats, enemyForStage, type BattleResult, type BattleStats, type Enemy, type Rarity, type Slot } from './game'
 import type { AchievementStats } from './achievements'
 
 const DAY = 86400000
@@ -100,19 +100,67 @@ export interface EventDef {
   from: string // MM-DD
   to: string // MM-DD (両端を含む)
   skin: { id: string; name: string; emoji: string; bg: string }
+  /** 期間中だけ出る限定ボスと、倒すと手に入る限定装備の名前 (部位ごと) */
+  boss: { name: string; icon: string }
+  gear: Record<Slot, string>
 }
 export const EVENT_GOAL = 10
 export const EVENT_XP = 0.1
 export const EVENTS: EventDef[] = [
-  { id: 'newyear', name: 'お正月', icon: '🎍', from: '01-01', to: '01-07', skin: { id: 'ev_daruma', name: 'だるま', emoji: '🎎', bg: 'linear-gradient(135deg,#ff9a9e,#fad0c4)' } },
-  { id: 'setsubun', name: '節分', icon: '👹', from: '02-01', to: '02-04', skin: { id: 'ev_oni', name: 'おに', emoji: '👹', bg: 'linear-gradient(135deg,#ff6a6a,#ffb199)' } },
-  { id: 'hanami', name: 'お花見', icon: '🌸', from: '03-25', to: '04-10', skin: { id: 'ev_sakura', name: 'さくら', emoji: '🌸', bg: 'linear-gradient(135deg,#fde2f3,#f9b8d6)' } },
-  { id: 'tsuyu', name: '梅雨', icon: '☔', from: '06-10', to: '06-30', skin: { id: 'ev_snail', name: 'かたつむり', emoji: '🐌', bg: 'linear-gradient(135deg,#c2e9fb,#a1c4fd)' } },
-  { id: 'natsu', name: '夏祭り', icon: '🎆', from: '07-20', to: '08-20', skin: { id: 'ev_suika', name: 'すいか', emoji: '🍉', bg: 'linear-gradient(135deg,#d4fc79,#ff9a9e)' } },
-  { id: 'tsukimi', name: 'お月見', icon: '🎑', from: '09-10', to: '09-25', skin: { id: 'ev_moon', name: 'おつきさま', emoji: '🌕', bg: 'linear-gradient(135deg,#2c3e50,#4ca1af)' } },
-  { id: 'halloween', name: 'ハロウィン', icon: '🎃', from: '10-25', to: '10-31', skin: { id: 'ev_pumpkin', name: 'かぼちゃ', emoji: '🎃', bg: 'linear-gradient(135deg,#f7971e,#ffd200)' } },
-  { id: 'xmas', name: 'クリスマス', icon: '🎄', from: '12-18', to: '12-25', skin: { id: 'ev_santa', name: 'サンタ', emoji: '🎅', bg: 'linear-gradient(135deg,#ff416c,#ff4b2b)' } },
-  { id: 'oosouji', name: '年末の大掃除', icon: '🧹', from: '12-26', to: '12-31', skin: { id: 'ev_broom', name: 'ほうき', emoji: '🧹', bg: 'linear-gradient(135deg,#e0c3fc,#8ec5fc)' } },
+  {
+    id: 'newyear', name: 'お正月', icon: '🎍', from: '01-01', to: '01-07',
+    skin: { id: 'ev_daruma', name: 'だるま', emoji: '🎎', bg: 'linear-gradient(135deg,#ff9a9e,#fad0c4)' },
+    boss: { name: '大鏡餅', icon: '🍙' },
+    gear: { head: '獅子舞の頭', body: '晴れ着', feet: '紅白の草履', weapon: '破魔矢' },
+  },
+  {
+    id: 'setsubun', name: '節分', icon: '👹', from: '02-01', to: '02-04',
+    skin: { id: 'ev_oni', name: 'おに', emoji: '👹', bg: 'linear-gradient(135deg,#ff6a6a,#ffb199)' },
+    boss: { name: '赤鬼の親分', icon: '👹' },
+    gear: { head: '鬼の角', body: '虎柄の羽織', feet: '鬼の下駄', weapon: '福豆の升' },
+  },
+  {
+    id: 'hanami', name: 'お花見', icon: '🌸', from: '03-25', to: '04-10',
+    skin: { id: 'ev_sakura', name: 'さくら', emoji: '🌸', bg: 'linear-gradient(135deg,#fde2f3,#f9b8d6)' },
+    boss: { name: '花見の大樹', icon: '🌳' },
+    gear: { head: '桜の髪飾り', body: '花びらの衣', feet: '春風の靴', weapon: '夜桜の扇' },
+  },
+  {
+    id: 'tsuyu', name: '梅雨', icon: '☔', from: '06-10', to: '06-30',
+    skin: { id: 'ev_snail', name: 'かたつむり', emoji: '🐌', bg: 'linear-gradient(135deg,#c2e9fb,#a1c4fd)' },
+    boss: { name: '長雨の主', icon: '🐸' },
+    gear: { head: '紫陽花の帽子', body: '雨合羽', feet: '水たまりの長靴', weapon: '雷雨の傘' },
+  },
+  {
+    id: 'natsu', name: '夏祭り', icon: '🎆', from: '07-20', to: '08-20',
+    skin: { id: 'ev_suika', name: 'すいか', emoji: '🍉', bg: 'linear-gradient(135deg,#d4fc79,#ff9a9e)' },
+    boss: { name: '大花火の精', icon: '🎇' },
+    gear: { head: 'ひょっとこの面', body: '祭りの法被', feet: '鼻緒の下駄', weapon: '金魚すくいの網' },
+  },
+  {
+    id: 'tsukimi', name: 'お月見', icon: '🎑', from: '09-10', to: '09-25',
+    skin: { id: 'ev_moon', name: 'おつきさま', emoji: '🌕', bg: 'linear-gradient(135deg,#2c3e50,#4ca1af)' },
+    boss: { name: '月のうさぎ', icon: '🐇' },
+    gear: { head: 'すすきの冠', body: '月光の羽衣', feet: '団子の足袋', weapon: '十五夜の杵' },
+  },
+  {
+    id: 'halloween', name: 'ハロウィン', icon: '🎃', from: '10-25', to: '10-31',
+    skin: { id: 'ev_pumpkin', name: 'かぼちゃ', emoji: '🎃', bg: 'linear-gradient(135deg,#f7971e,#ffd200)' },
+    boss: { name: 'ジャック・オ・ランタン', icon: '🎃' },
+    gear: { head: '魔女の帽子', body: 'おばけのマント', feet: 'こうもりの靴', weapon: 'ジャックの鎌' },
+  },
+  {
+    id: 'xmas', name: 'クリスマス', icon: '🎄', from: '12-18', to: '12-25',
+    skin: { id: 'ev_santa', name: 'サンタ', emoji: '🎅', bg: 'linear-gradient(135deg,#ff416c,#ff4b2b)' },
+    boss: { name: '雪だるま大王', icon: '⛄' },
+    gear: { head: 'サンタの帽子', body: 'トナカイのセーター', feet: '雪の長靴', weapon: 'ひいらぎの杖' },
+  },
+  {
+    id: 'oosouji', name: '年末の大掃除', icon: '🧹', from: '12-26', to: '12-31',
+    skin: { id: 'ev_broom', name: 'ほうき', emoji: '🧹', bg: 'linear-gradient(135deg,#e0c3fc,#8ec5fc)' },
+    boss: { name: 'ほこりの大魔神', icon: '🌪️' },
+    gear: { head: '三角巾', body: '大掃除のエプロン', feet: 'ぞうきんの靴', weapon: '伝説のはたき' },
+  },
 ]
 /** その日に開催中のイベント (期間と、取ったかどうかの記録に使うキー) */
 export function activeEvent(day: string) {
@@ -137,3 +185,26 @@ export function battleAdvice(r: BattleResult): string | null {
   return `あと一押し（残り${Math.round(left * 100)}%）！体力・回復を少し上げると勝てそうです`
 }
 export const EVENT_SKIN_MAP: Record<string, (typeof EVENT_SKINS)[number]> = Object.fromEntries(EVENT_SKINS.map((s) => [s.id, s]))
+
+// ---------- 季節イベントの限定ボス (1 日 3 回まで挑戦、勝つとその日は終わり) ----------
+export const EVENT_BOSS_TRIES = 3
+/** 限定ボスの強さ: 今いるステージの 1 つ前のボスより少し強い。誰でも挑めるよう、進み具合に合わせる */
+export function eventBoss(ev: Pick<EventDef, 'boss'>, stage: number): Enemy {
+  const base = enemyForStage(Math.max(1, stage - 1))
+  return { stage: base.stage, name: ev.boss.name, icon: ev.boss.icon, hp: Math.round(base.hp * 1.4), atk: Math.round(base.atk * 1.1) }
+}
+/** 限定装備のレア度 (SR 以上確定。宝石の宝箱と同じ) */
+export const eventGearRarity = (r: number): Rarity => srChestRarity(r)
+/** 倒したときのゴールド */
+export const eventBossGold = (stage: number) => 60 + stage * 20
+
+// ---------- メンバーと腕試し (練習試合。勝っても負けても何も増減しない) ----------
+export const SPAR_DAILY = 20
+/**
+ * 相手のキャラを敵として扱う。相手はスキルを使わない代わりに、
+ * 攻撃は会心を平均に含めた値、体力は回復 5 ターン分を足した値にする
+ */
+export function sparEnemy(opp: BattleStats, name: string, icon: string): Enemy {
+  const s = effectiveStats(opp)
+  return { stage: 0, name, icon, hp: s.hp + s.heal * 5, atk: Math.max(1, Math.round(s.atk * (1 + s.crit / 100))) }
+}

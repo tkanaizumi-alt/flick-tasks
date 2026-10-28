@@ -101,7 +101,7 @@ export interface SecretSkillView {
   owned: boolean
 }
 
-type BattleStats = Pick<PlayerState, 'stats' | 'skills'> &
+export type BattleStats = Pick<PlayerState, 'stats' | 'skills'> &
   Partial<Pick<PlayerState, 'items' | 'equipped' | 'job' | 'jobLevel' | 'bonus'>>
 
 // ---------- 冒険職 (基本職) ----------

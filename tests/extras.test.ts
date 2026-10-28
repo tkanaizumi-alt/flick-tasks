@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, hasEventSkin, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
-import { INVENTORY_MAX, SKINS, computeXp, enemyForStage, invMax, skinUnlocked, type BattleResult } from '../shared/game'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, hasEventSkin, mondayOf, plusUp, raidForWeek, shopPrice, sparEnemy, srChestRarity } from '../shared/extras'
+import { INVENTORY_MAX, SKINS, computeXp, effectiveStats, enemyForStage, invMax, skinUnlocked, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
   it('レイド: 週ごとに決まったボス、HP は人数 × 250', () => {
@@ -69,5 +69,27 @@ describe('ゲームの追加要素', () => {
     expect(skinUnlocked(ghost, 99, 99)).toBe(false)
     expect(skinUnlocked(ghost, 1, 1, ['ghost'])).toBe(true)
     expect(PETS.find((p) => p.id === 'chick')!.name).toBe('イナムル')
+  })
+})
+
+describe('腕試しと限定ボス', () => {
+  const base = { stats: { atk: 0, hp: 0, crit: 0, heal: 0 }, skills: [] as string[] }
+  it('腕試しの相手: 会心を平均に含めた攻撃、回復 5 ターン分の体力', () => {
+    const e = sparEnemy({ ...base, stats: { atk: 5, hp: 5, crit: 10, heal: 2 } }, 'テスト', '🧑')
+    const s = effectiveStats({ ...base, stats: { atk: 5, hp: 5, crit: 10, heal: 2 } })
+    expect(e.hp).toBe(s.hp + s.heal * 5)
+    expect(e.atk).toBe(Math.round(s.atk * (1 + s.crit / 100)))
+  })
+  it('限定ボスは今の進み具合に合わせた強さ', () => {
+    const ev = EVENTS.find((x) => x.id === 'halloween')!
+    expect(eventBoss(ev, 1).hp).toBe(Math.round(enemyForStage(1).hp * 1.4))
+    expect(eventBoss(ev, 10).hp).toBeGreaterThan(eventBoss(ev, 5).hp)
+  })
+  it('どのイベントにも限定ボスと 4 部位の限定装備', () => {
+    for (const ev of EVENTS) {
+      expect(ev.boss.name).toBeTruthy()
+      expect(Object.keys(ev.gear).sort()).toEqual(['body', 'feet', 'head', 'weapon'])
+    }
+    expect(['SR', 'SSR', 'UR']).toContain(eventGearRarity(0.9))
   })
 })

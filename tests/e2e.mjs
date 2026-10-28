@@ -232,6 +232,39 @@ if (meA.isAdmin) {
   check('バックアップは管理者だけ', (await A.call('/api/admin/backups')).status === 403)
 }
 
+// メンバーと腕試し・季節イベントの限定ボス
+const sp0 = await A.call('/api/spar')
+check('腕試しの相手一覧', Array.isArray(sp0.people) && sp0.people.some((p) => p.id === meB.id) && !sp0.people.some((p) => p.id === meA.id), sp0)
+const goldBefore = (await A.call('/api/player')).player.gold
+const sp = await A.call(`/api/spar/${meB.id}`, 'POST', {})
+const sp1 = (await A.call('/api/spar')).people.find((p) => p.id === meB.id)
+const before1 = sp0.people.find((p) => p.id === meB.id)
+check(
+  '腕試し (何も増減しない)',
+  typeof sp.result?.win === 'boolean' && sp1.wins + sp1.losses === before1.wins + before1.losses + 1 && (await A.call('/api/player')).player.gold === goldBefore,
+  { sp: sp.result?.win, sp1, goldBefore },
+)
+check('自分とは腕試しできない', (await A.call(`/api/spar/${meA.id}`, 'POST', {})).status === 400)
+const eb = await A.call('/api/event/boss')
+if (eb.event) {
+  let tries = 0
+  let won = null
+  for (let i = 0; i < 4; i++) {
+    const r = await A.call('/api/event/boss', 'POST', {})
+    if (r.status === 400) break
+    tries++
+    if (r.result?.win) {
+      won = r
+      break
+    }
+  }
+  const after = await A.call('/api/event/boss')
+  check('限定ボスは1日3回まで (勝ったらその日は終わり)', tries >= 1 && tries <= 3 && after.left === 0 && (await A.call('/api/event/boss', 'POST', {})).status === 400, { tries, after })
+  if (won?.reward?.item) check('限定装備 (SR以上)', eb.gear.some((g) => g.name === won.reward.item.name) && ['SR', 'SSR', 'UR'].includes(won.reward.item.rarity), won.reward)
+} else {
+  check('開催していないときは限定ボスに挑めない', (await A.call('/api/event/boss', 'POST', {})).status === 400)
+}
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')

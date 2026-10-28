@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
+import { EVENT_BOSS_TRIES, BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
 import { ACHIEVEMENT_MAP, type AchievementStats } from '../../shared/achievements'
-import type { Item, PlayerState } from '../../shared/game'
-import { api, HttpError, type EventState, type Mvp, type RaidState } from '../api'
+import { winRate, type Item, type PlayerState } from '../../shared/game'
+import { api, HttpError, type EventBossState, type EventState, type Mvp, type RaidState, type SparPerson } from '../api'
 import { Avatar } from './Dock'
 
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
@@ -201,6 +201,88 @@ export function MvpPanel() {
               </b>
             </li>
           ))}
+      </ul>
+    </section>
+  )
+}
+
+/** 季節イベントの限定ボス (開催中だけ。1 日 3 回まで、勝つと限定装備) */
+export function EventBossPanel({ player, busy, refresh, onFight }: { player: PlayerState; busy: boolean; refresh: number; onFight: () => Promise<void> }) {
+  const [s, setS] = useState<EventBossState | null>(null)
+  useEffect(() => {
+    api.eventBoss().then(setS, () => {})
+  }, [refresh])
+  if (!s?.event || !s.boss) return null
+  const rate = winRate(player, s.boss)
+  return (
+    <section className="panel glass event-boss" data-testid="event-boss">
+      <div className="panel-head">
+        <h2>
+          {s.event.icon} {s.event.name}の限定ボス
+        </h2>
+        <span className="muted">〜{md(s.event.end)}・1日{EVENT_BOSS_TRIES}回まで</span>
+      </div>
+      <div className="eb-body">
+        <div className={`boss-icon ${s.won ? 'down' : ''}`}>{s.boss.icon}</div>
+        <div className="boss-body">
+          <div className="boss-name">{s.boss.name}</div>
+          <div className="boss-stats">
+            HP {s.boss.hp} ・ 攻撃 {s.boss.atk}
+          </div>
+          <div className="rate">
+            <div className="rate-bar">
+              <span style={{ width: `${Math.round(rate * 100)}%` }} className={rate >= 0.6 ? 'good' : rate >= 0.3 ? 'mid' : 'bad'} />
+            </div>
+            <span className="rate-text">勝率 {Math.round(rate * 100)}%</span>
+          </div>
+        </div>
+        <button className="pill-btn primary" disabled={busy || !s.left} onClick={onFight} data-testid="event-boss-fight">
+          {s.won ? '今日は撃破済み' : s.left ? `挑戦（あと${s.left}回）` : 'また明日'}
+        </button>
+      </div>
+      <div className="eb-gear" data-testid="event-gear">
+        <span className="muted">倒すと限定装備（SR以上）：</span>
+        {s.gear?.map((g) => (
+          <span key={g.slot} className={`eb-chip ${g.owned ? 'owned' : ''}`}>
+            {g.owned ? '✓ ' : ''}
+            {g.name}
+          </span>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** メンバーと腕試し (練習試合。勝っても負けても何も増減しない) */
+export function SparPanel({ busy, refresh, onSpar }: { busy: boolean; refresh: number; onSpar: (p: SparPerson) => Promise<void> }) {
+  const [s, setS] = useState<{ left: number; people: SparPerson[] } | null>(null)
+  useEffect(() => {
+    api.sparList().then(setS, () => {})
+  }, [refresh])
+  if (!s || !s.people.length) return null
+  return (
+    <section className="panel glass spar" data-testid="spar">
+      <div className="panel-head">
+        <h2>メンバーと腕試し</h2>
+        <span className="muted">練習試合・今日あと{s.left}回</span>
+      </div>
+      <p className="muted spar-note">相手のキャラ（装備・職業・ステータス）と戦います。勝っても負けてもXP・ゴールドは変わりません。</p>
+      <ul className="spar-list">
+        {s.people.map((p) => (
+          <li key={p.id}>
+            <Avatar name={p.name} picture={p.picture} skin={p.skin} size={32} />
+            <span className="spar-who">
+              <b>{p.name}</b>
+              <span className="muted">
+                Lv{p.level} ・ St.{p.stage}
+                {p.wins + p.losses > 0 ? ` ・ ${p.wins}勝${p.losses}敗` : ''}
+              </span>
+            </span>
+            <button className="pill-btn ghost small" disabled={busy || !s.left} onClick={() => onSpar(p)} data-testid="spar-fight">
+              挑む
+            </button>
+          </li>
+        ))}
       </ul>
     </section>
   )

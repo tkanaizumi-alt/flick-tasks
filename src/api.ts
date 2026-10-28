@@ -1,5 +1,5 @@
 import type { Activity, AttentionItem, Comment, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
-import type { BattleResult, Item, MissionDef, PlayerState, StatKey, Weight } from '../shared/game'
+import type { BattleResult, Enemy, Item, MissionDef, PlayerState, Slot, StatKey, Weight } from '../shared/game'
 import type { AchievementDef, AchievementStats } from '../shared/achievements'
 import type { ClientFeature } from '../shared/usage'
 
@@ -51,6 +51,11 @@ export const api = {
   claimRaid: () => req<{ gold: number; item: Item | null; player: PlayerState }>('/api/raid/claim', { method: 'POST', json: {} }),
   mvp: () => req<Mvp>('/api/mvp'),
   event: () => req<{ event: EventState | null }>('/api/event'),
+  sparList: () => req<{ left: number; people: SparPerson[] }>('/api/spar'),
+  spar: (id: string) => req<{ result: BattleResult }>(`/api/spar/${id}`, { method: 'POST', json: {} }),
+  eventBoss: () => req<EventBossState>('/api/event/boss'),
+  fightEventBoss: () =>
+    req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState }>('/api/event/boss', { method: 'POST', json: {} }),
   setTitle: (title: string | null) => req<{ player: PlayerState }>('/api/player/title', { method: 'POST', json: { title } }),
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),
   learn: (id: string) =>
@@ -205,6 +210,26 @@ export interface EventState {
 }
 
 export type Mission = MissionDef & { value: number; done: boolean; claimed: boolean }
+
+export interface SparPerson {
+  id: string
+  name: string
+  picture: string
+  skin: string | null
+  level: number
+  stage: number
+  wins: number
+  losses: number
+}
+export interface EventBossState {
+  event: { id: string; name: string; icon: string; end: string } | null
+  boss?: Enemy
+  gear?: { slot: Slot; name: string; owned: boolean }[]
+  owned?: number
+  tries?: number
+  won?: boolean
+  left?: number
+}
 
 export interface PendingMemo {
   id: string

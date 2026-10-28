@@ -1,6 +1,7 @@
 /** 冒険 (ミニゲーム) */
 import { addStat, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
+import { eventBossState, fightEventBoss, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
 import { eventProgress, syncAchievements } from '../achievements'
 import type { StatKey } from '../../shared/game'
@@ -72,6 +73,20 @@ game.get('/raid', async (c) => c.json(await raidState(c.env, c.get('user').id)))
 game.post('/raid/claim', async (c) => {
   const r = await claimRaid(c.env, c.get('user').id)
   return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** メンバーと腕試し (練習試合) */
+game.get('/spar', async (c) => c.json(await sparList(c.env, c.get('user').id)))
+game.post('/spar/:id', async (c) => {
+  const r = await spar(c.env, c.get('user').id, c.req.param('id'))
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 季節イベントの限定ボス */
+game.get('/event/boss', async (c) => c.json(await eventBossState(c.env, c.get('user').id)))
+game.post('/event/boss', async (c) => {
+  const r = await fightEventBoss(c.env, c.get('user').id)
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
 })
 
 /** 先週の MVP */

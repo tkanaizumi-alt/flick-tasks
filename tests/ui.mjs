@@ -82,8 +82,13 @@ async function run(label, viewport) {
 
   await step('テンプレートを作って追加する', async () => {
     // メモ欄の横のボタンから開く
-    await dismiss()
-    await page.click('#tpl-btn')
+    // 完了のお祝い (実績など) が重なっていたら閉じてから押し直す
+    for (let i = 0; i < 3; i++) {
+      await dismiss()
+      if (await page.click('#tpl-btn', { timeout: 5000 }).then(() => true, () => false)) break
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(800)
+    }
     await page.getByTestId('templates').waitFor()
     await page.fill('[data-testid="template-name"]', `${PREFIX} 月末`)
     await page.fill('[data-testid="template-items"]', `${PREFIX} 請求書\n${PREFIX} 経費精算`)
@@ -130,6 +135,28 @@ async function run(label, viewport) {
     // 元に戻す (自動)
     await page.evaluate(() => localStorage.setItem('flick.theme', JSON.stringify('auto')))
     return dark
+  })
+
+  await step('メンバーと腕試し', async () => {
+    await dismiss()
+    await page.getByTestId('nav-game').click()
+    await page.getByTestId('adv-battle').click()
+    await page.getByTestId('spar').waitFor()
+    await page.getByTestId('spar-fight').first().click()
+    await page.getByTestId('battle').waitFor()
+    // 短いバトルはスキップのボタンが出る前に終わる
+    await page.getByTestId('battle-skip').click({ timeout: 2000 }).catch(() => {})
+    await page.getByTestId('spar-note').waitFor()
+    const note = await page.getByTestId('spar-note').innerText()
+    await page.getByTestId('battle-close').click()
+    await page.getByTestId('battle').waitFor({ state: 'detached' })
+    return note.includes('練習試合')
+  })
+
+  await step('季節イベントの限定ボス (開催中だけ)', async () => {
+    const ev = await (await page.request.get(`${base}/api/event/boss`)).json()
+    const shown = await page.getByTestId('event-boss').isVisible().catch(() => false)
+    return ev.event ? shown && (await page.getByTestId('event-gear').innerText()).includes(ev.gear[0].name) : !shown
   })
 
   await step('冒険のショップ', async () => {

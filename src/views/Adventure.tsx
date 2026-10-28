@@ -32,7 +32,8 @@ import { GearIcon } from '../components/GearIcon'
 import { Avatar } from '../components/Dock'
 import type { Celebration } from '../components/Rewards'
 import { Achievements } from '../components/Achievements'
-import { EventBanner, PetPanel, RaidPanel, ShopPanel } from '../components/GameExtras'
+import { EventBanner, EventBossPanel, PetPanel, RaidPanel, ShopPanel, SparPanel } from '../components/GameExtras'
+import type { BattleMode } from '../components/BattleModal'
 import { EVENT_SKINS, hasEventSkin } from '../../shared/extras'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train' | 'achieve'
@@ -66,7 +67,9 @@ interface Props {
 export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate }: Props) {
   const [tab, setTab] = useState<Tab>('battle')
   const [busy, setBusy] = useState(false)
-  const [battle, setBattle] = useState<{ result: BattleResult; reward: { gold: number; item: Item | null } | null } | null>(null)
+  const [battle, setBattle] = useState<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; mode?: BattleMode } | null>(null)
+  // 腕試し・限定ボスのあとに一覧を読み直す
+  const [arenaTick, setArenaTick] = useState(0)
   const [reveal, setReveal] = useState<Item | null>(null)
   const [openItem, setOpenItem] = useState<Item | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
@@ -149,6 +152,18 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
               toast(`💰${r.gold} を受け取りました`)
             }}
           />
+          <EventBossPanel
+            player={player}
+            busy={busy}
+            refresh={arenaTick}
+            onFight={async () => {
+              const r = await run(api.fightEventBoss)
+              if (r) {
+                setBattle({ result: r.result, reward: r.reward, mode: 'event' })
+                setArenaTick((n) => n + 1)
+              }
+            }}
+          />
           <section className="panel glass boss" data-testid="boss">
             <div className="boss-icon">{enemy.icon}</div>
             <div className="boss-body">
@@ -177,6 +192,22 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             </div>
             <StageMap stage={player.stage} />
           </section>
+          <SparPanel
+            busy={busy}
+            refresh={arenaTick}
+            onSpar={async (p) => {
+              setBusy(true)
+              try {
+                const r = await api.spar(p.id)
+                setBattle({ result: r.result, reward: null, mode: 'spar' })
+                setArenaTick((n) => n + 1)
+              } catch (e) {
+                toast(e instanceof HttpError && e.reason ? e.reason : '失敗しました')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          />
           <section className="panel glass mine">
             <div className="mine-stats">
               {STATS.map((s) => (
@@ -522,6 +553,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <BattleModal
             result={battle.result}
             reward={battle.reward}
+            mode={battle.mode}
             onClose={() => {
               setBattle(null)
             }}

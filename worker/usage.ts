@@ -35,6 +35,8 @@ const ROUTES: [string, RegExp, string][] = [
   ['POST', /^\/player\/(stat|skill|reset)$/, 'stat'],
   ['POST', /^\/missions\/[^/]+\/claim$/, 'mission'],
   ['POST', /^\/raid\/claim$/, 'raid'],
+  ['POST', /^\/spar\/[^/]+$/, 'spar'],
+  ['POST', /^\/event\/boss$/, 'event_boss'],
 ]
 
 export function featureOf(method: string, path: string) {

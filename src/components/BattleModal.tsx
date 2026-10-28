@@ -6,14 +6,18 @@ import { ItemCard } from './Loot'
 
 const TURN_MS = 380
 
+export type BattleMode = 'stage' | 'spar' | 'event'
+
 interface Props {
   result: BattleResult
   reward: { gold: number; item: Item | null } | null
   onClose: () => void
+  /** stage: ステージのボス / spar: メンバーと腕試し / event: 季節イベントの限定ボス */
+  mode?: BattleMode
 }
 
 /** サーバーで決まった戦闘結果をターンごとに再生する (演出は transform / opacity のみで軽量) */
-export function BattleModal({ result, reward, onClose }: Props) {
+export function BattleModal({ result, reward, onClose, mode = 'stage' }: Props) {
   const [step, setStep] = useState(0) // 再生済みターン数
   const done = step >= result.turns.length
   const turn = step > 0 ? result.turns[step - 1] : null
@@ -63,9 +67,9 @@ export function BattleModal({ result, reward, onClose }: Props) {
           )}
         </div>
         <div className="battle-name">
-          ステージ {result.enemy.stage} {result.enemy.name}
+          {mode === 'spar' ? `${result.enemy.name}と腕試し` : mode === 'event' ? `限定ボス ${result.enemy.name}` : `ステージ ${result.enemy.stage} ${result.enemy.name}`}
         </div>
-        <Bar label="敵" value={enemyHp} max={result.enemy.hp} kind="enemy" />
+        <Bar label={mode === 'spar' ? '相手' : '敵'} value={enemyHp} max={result.enemy.hp} kind="enemy" />
         <Bar label="自分" value={hp} max={result.maxHp} kind="me" />
         <div className="battle-turn">{turn ? `ターン ${turn.turn}` : 'バトル開始！'}</div>
 
@@ -79,10 +83,14 @@ export function BattleModal({ result, reward, onClose }: Props) {
               </div>
             )}
             <div className={`result-title ${result.win ? 'win' : 'lose'}`}>{result.win ? '勝利！' : '敗北…'}</div>
-            {result.win && reward ? (
+            {mode === 'spar' ? (
+              <div className="result-sub" data-testid="spar-note">
+                {result.win ? '🤝 練習試合なので、XP・ゴールドは変わりません' : '🤝 練習試合なので、何も失いません。装備やスキルを見直してまた挑戦！'}
+              </div>
+            ) : result.win && reward ? (
               <div className="result-rewards">
                 <span>💰 +{reward.gold}</span>
-                <span>ステージ {result.enemy.stage + 1} へ</span>
+                {mode === 'stage' && <span>ステージ {result.enemy.stage + 1} へ</span>}
                 {reward.item && (
                   <div className="result-item">
                     <ItemCard item={reward.item} />

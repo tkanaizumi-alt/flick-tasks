@@ -42,6 +42,8 @@ export const FEATURES: Record<string, string> = {
   stat: 'ステータス・スキル',
   mission: 'ミッション',
   raid: 'レイド報酬',
+  spar: 'メンバーと腕試し',
+  event_boss: 'イベントの限定ボス',
   // 画面だけで完結する操作 (画面から知らせる)
   csv: '履歴のCSV保存',
   copy: '履歴のコピー',
