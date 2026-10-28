@@ -54,6 +54,9 @@ export const api = {
   sparList: () => req<{ left: number; people: SparPerson[] }>('/api/spar'),
   spar: (id: string) => req<{ result: BattleResult }>(`/api/spar/${id}`, { method: 'POST', json: {} }),
   eventBoss: () => req<EventBossState>('/api/event/boss'),
+  rematchState: () => req<{ left: number; daily: number }>('/api/rematch'),
+  rematch: (stage: number) =>
+    req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState; left: number }>(`/api/rematch/${stage}`, { method: 'POST', json: {} }),
   fightEventBoss: () =>
     req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState }>('/api/event/boss', { method: 'POST', json: {} }),
   setTitle: (title: string | null) => req<{ player: PlayerState }>('/api/player/title', { method: 'POST', json: { title } }),
@@ -220,6 +223,11 @@ export interface SparPerson {
   stage: number
   wins: number
   losses: number
+  job: string
+  jobIcon: string
+  power: { atk: number; hp: number; crit: number; heal: number }
+  /** 勝率の目安 (0〜1) */
+  rate: number
 }
 export interface EventBossState {
   event: { id: string; name: string; icon: string; end: string } | null

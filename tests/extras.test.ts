@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, hasEventSkin, mondayOf, plusUp, raidForWeek, shopPrice, sparEnemy, srChestRarity } from '../shared/extras'
-import { INVENTORY_MAX, SKINS, computeXp, effectiveStats, enemyForStage, invMax, skinUnlocked, type BattleResult } from '../shared/game'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinUnlocked, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
   it('レイド: 週ごとに決まったボス、HP は人数 × 250', () => {
@@ -74,11 +74,19 @@ describe('ゲームの追加要素', () => {
 
 describe('腕試しと限定ボス', () => {
   const base = { stats: { atk: 0, hp: 0, crit: 0, heal: 0 }, skills: [] as string[] }
-  it('腕試しの相手: 会心を平均に含めた攻撃、回復 5 ターン分の体力', () => {
-    const e = sparEnemy({ ...base, stats: { atk: 5, hp: 5, crit: 10, heal: 2 } }, 'テスト', '🧑')
-    const s = effectiveStats({ ...base, stats: { atk: 5, hp: 5, crit: 10, heal: 2 } })
-    expect(e.hp).toBe(s.hp + s.heal * 5)
-    expect(e.atk).toBe(Math.round(s.atk * (1 + s.crit / 100)))
+  it('腕試し: お互いにスキルを使う 1 対 1。強い方が勝ちやすく、同じ強さならほぼ互角', () => {
+    const strong = { ...base, stats: { atk: 10, hp: 10, crit: 5, heal: 2 } }
+    expect(duelRate(strong, base)).toBeGreaterThan(0.9)
+    expect(duelRate(base, strong)).toBeLessThan(0.1)
+    const even = duelRate(base, base, 200)
+    expect(even).toBeGreaterThan(0.3)
+    expect(even).toBeLessThan(0.8)
+    // 相手の鉄壁・不屈も効く (同じステータスでも、守りのスキルを持つ相手には勝ちにくい)
+    const guard = { ...base, skills: ['wall', 'regen', 'guts'] }
+    expect(duelRate(base, guard, 200)).toBeLessThan(even)
+    const r = simulateDuel(strong, base, { name: '相手', icon: '🧑' }, 1)
+    expect(r.enemy.hp).toBe(effectiveStats(base).hp)
+    expect(r.turns.at(-1)!.enemyHp === 0 || r.turns.at(-1)!.hp === 0 || r.turns.length === 30).toBe(true)
   })
   it('限定ボスは今の進み具合に合わせた強さ', () => {
     const ev = EVENTS.find((x) => x.id === 'halloween')!
@@ -91,5 +99,13 @@ describe('腕試しと限定ボス', () => {
       expect(Object.keys(ev.gear).sort()).toEqual(['body', 'feet', 'head', 'weapon'])
     }
     expect(['SR', 'SSR', 'UR']).toContain(eventGearRarity(0.9))
+  })
+})
+
+describe('過去のボスと再戦', () => {
+  it('勝つと初めて倒したときの 3 割のゴールド', () => {
+    expect(rematchGold(1)).toBe(18)
+    expect(rematchGold(10)).toBe(72)
+    expect(REMATCH_DAILY).toBe(5)
   })
 })

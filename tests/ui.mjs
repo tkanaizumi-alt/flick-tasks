@@ -82,10 +82,11 @@ async function run(label, viewport) {
 
   await step('テンプレートを作って追加する', async () => {
     // メモ欄の横のボタンから開く
-    // 完了のお祝い (実績など) が重なっていたら閉じてから押し直す
+    // 完了のお祝い (実績など) が重なっていたら閉じてから押し直す (開くまで 3 回まで)
     for (let i = 0; i < 3; i++) {
       await dismiss()
-      if (await page.click('#tpl-btn', { timeout: 5000 }).then(() => true, () => false)) break
+      await page.click('#tpl-btn', { timeout: 5000 }).catch(() => {})
+      if (await page.getByTestId('templates').waitFor({ timeout: 5000 }).then(() => true, () => false)) break
       await page.keyboard.press('Escape')
       await page.waitForTimeout(800)
     }
@@ -172,6 +173,21 @@ async function run(label, viewport) {
     await page.getByTestId('battle-close').click()
     await page.getByTestId('battle').waitFor({ state: 'detached' })
     return note.includes('練習試合')
+  })
+
+  await step('地図から過去のボスを選んで再戦', async () => {
+    const st = await (await page.request.get(`${base}/api/rematch`)).json()
+    const picks = page.getByTestId('rematch-pick')
+    if (!(await picks.count())) return true // まだ倒したボスがいない
+    await picks.first().click()
+    await page.getByTestId('rematch').waitFor()
+    if (!st.left) return (await page.getByTestId('rematch-fight').isDisabled())
+    await page.getByTestId('rematch-fight').click()
+    await page.getByTestId('battle').waitFor()
+    await page.getByTestId('battle-skip').click({ timeout: 2000 }).catch(() => {})
+    await page.getByTestId('battle-close').click()
+    await page.getByTestId('battle').waitFor({ state: 'detached' })
+    return (await page.getByTestId('rematch-fight').innerText()).includes(String(st.left - 1)) || st.left - 1 === 0
   })
 
   await step('季節イベントの限定ボス (開催中だけ)', async () => {

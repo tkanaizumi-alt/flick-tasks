@@ -266,7 +266,7 @@ export function SparPanel({ busy, refresh, onSpar }: { busy: boolean; refresh: n
         <h2>メンバーと腕試し</h2>
         <span className="muted">練習試合・今日あと{s.left}回</span>
       </div>
-      <p className="muted spar-note">相手のキャラ（装備・職業・ステータス）と戦います。勝っても負けてもXP・ゴールドは変わりません。</p>
+      <p className="muted spar-note">相手のキャラ（装備・職業・ステータス・スキル）と1対1で戦います。レベルではなく、振ったステータスと装備で強さが決まります。勝っても負けてもXP・ゴールドは変わりません。</p>
       <ul className="spar-list">
         {s.people.map((p) => (
           <li key={p.id}>
@@ -274,9 +274,13 @@ export function SparPanel({ busy, refresh, onSpar }: { busy: boolean; refresh: n
             <span className="spar-who">
               <b>{p.name}</b>
               <span className="muted">
-                Lv{p.level} ・ St.{p.stage}
+                {p.jobIcon}
+                {p.job} Lv{p.level} ・ 攻撃{p.power.atk} 体力{p.power.hp}
                 {p.wins + p.losses > 0 ? ` ・ ${p.wins}勝${p.losses}敗` : ''}
               </span>
+            </span>
+            <span className={`spar-rate ${p.rate >= 0.6 ? 'good' : p.rate >= 0.3 ? 'mid' : 'bad'}`} title="勝率の目安">
+              勝率{Math.round(p.rate * 100)}%
             </span>
             <button className="pill-btn ghost small" disabled={busy || !s.left} onClick={() => onSpar(p)} data-testid="spar-fight">
               挑む

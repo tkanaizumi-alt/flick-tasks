@@ -1,7 +1,7 @@
 /** 冒険 (ミニゲーム) */
 import { addStat, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
-import { eventBossState, fightEventBoss, spar, sparList } from '../arena'
+import { eventBossState, fightEventBoss, rematch, rematchState, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
 import { eventProgress, syncAchievements } from '../achievements'
 import type { StatKey } from '../../shared/game'
@@ -79,6 +79,13 @@ game.post('/raid/claim', async (c) => {
 game.get('/spar', async (c) => c.json(await sparList(c.env, c.get('user').id)))
 game.post('/spar/:id', async (c) => {
   const r = await spar(c.env, c.get('user').id, c.req.param('id'))
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 過去のボスと再戦 */
+game.get('/rematch', async (c) => c.json(await rematchState(c.env, c.get('user').id)))
+game.post('/rematch/:stage', async (c) => {
+  const r = await rematch(c.env, c.get('user').id, Number(c.req.param('stage')))
   return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
 })
 

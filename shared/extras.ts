@@ -1,5 +1,5 @@
 /** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
-import { MAX_TURNS, effectiveStats, enemyForStage, type BattleResult, type BattleStats, type Enemy, type Rarity, type Slot } from './game'
+import { MAX_TURNS, bossGold, enemyForStage, type BattleResult, type Enemy, type Rarity, type Slot } from './game'
 import type { AchievementStats } from './achievements'
 
 const DAY = 86400000
@@ -200,11 +200,8 @@ export const eventBossGold = (stage: number) => 60 + stage * 20
 
 // ---------- メンバーと腕試し (練習試合。勝っても負けても何も増減しない) ----------
 export const SPAR_DAILY = 20
-/**
- * 相手のキャラを敵として扱う。相手はスキルを使わない代わりに、
- * 攻撃は会心を平均に含めた値、体力は回復 5 ターン分を足した値にする
- */
-export function sparEnemy(opp: BattleStats, name: string, icon: string): Enemy {
-  const s = effectiveStats(opp)
-  return { stage: 0, name, icon, hp: s.hp + s.heal * 5, atk: Math.max(1, Math.round(s.atk * (1 + s.crit / 100))) }
-}
+
+// ---------- 過去のボスと再戦 (倒したことのあるステージ。1 日 5 回まで、勝つと少しゴールド) ----------
+export const REMATCH_DAILY = 5
+/** 再戦で勝ったときのゴールド (初めて倒したときの 3 割) */
+export const rematchGold = (stage: number) => Math.round(bossGold(stage) * 0.3)

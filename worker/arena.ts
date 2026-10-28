@@ -1,18 +1,20 @@
 /** メンバーと腕試し (練習試合) と、季節イベントの限定ボス */
 import type { Env } from './env'
-import { getPlayer, insertItemFor, logActivity } from './game'
+import { ensureDaily, getPlayer, insertItemFor, logActivity } from './game'
 import { allowedUsers } from './lib'
-import { EVENT_SKIN_MAP, EVENT_BOSS_TRIES, SPAR_DAILY, activeEvent, eventBoss, eventBossGold, eventGearRarity, sparEnemy } from '../shared/extras'
-import { SKIN_MAP, invMax, jstDayStart, jstToday, levelInfo, rollItem, simulateBattle, effectiveStats, SLOTS, type Item } from '../shared/game'
+import { EVENT_SKIN_MAP, EVENT_BOSS_TRIES, REMATCH_DAILY, SPAR_DAILY, activeEvent, eventBoss, eventBossGold, eventGearRarity, rematchGold } from '../shared/extras'
+import { SKIN_MAP, duelRate, enemyForStage, invMax, jstDayStart, jstToday, levelInfo, rollItem, simulateBattle, simulateDuel, effectiveStats, SLOTS, type Item } from '../shared/game'
 
 const seed = () => crypto.getRandomValues(new Uint32Array(1))[0]
 const skinEmoji = (skin: string | null | undefined) => (skin ? (SKIN_MAP[skin] ?? EVENT_SKIN_MAP[skin])?.emoji : undefined) ?? '🧑'
 
 // ---------- メンバーと腕試し ----------
-/** 腕試しの相手 (自分以外のメンバー) と、相手ごとの通算成績・今日の残り回数 */
+/** 腕試しの相手 (自分以外のメンバー) と、相手ごとの通算成績・強さ・勝率の目安・今日の残り回数 */
 export async function sparList(env: Env, me: string) {
   const db = env.DB
   const users = (await allowedUsers(env)).filter((u) => u.id !== me)
+  const mine = await getPlayer(db, me)
+  const opps = new Map(await Promise.all(users.map(async (u) => [u.id, await getPlayer(db, u.id)] as const)))
   const [players, record, today] = await db.batch([
     db.prepare('SELECT user_id, xp, stage, skin FROM players'),
     db.prepare('SELECT opponent_id, SUM(win) AS wins, SUM(1 - win) AS losses FROM spars WHERE user_id = ? GROUP BY opponent_id').bind(me),
@@ -33,12 +35,16 @@ export async function sparList(env: Env, me: string) {
         stage: p?.stage ?? 1,
         wins: rec.get(u.id)?.wins ?? 0,
         losses: rec.get(u.id)?.losses ?? 0,
+        job: opps.get(u.id)!.job.name,
+        jobIcon: opps.get(u.id)!.job.icon,
+        power: effectiveStats(opps.get(u.id)!),
+        rate: duelRate(mine, opps.get(u.id)!),
       }
     }),
   }
 }
 
-/** 腕試し: 相手のキャラと戦う。勝っても負けても XP・ゴールド・装備は変わらない */
+/** 腕試し: 相手のキャラと 1 対 1 (お互いにスキル・装備の効果を使う)。勝っても負けても XP・ゴールド・装備は変わらない */
 export async function spar(env: Env, me: string, opponentId: string) {
   if (opponentId === me) return { error: '自分とは戦えません' }
   const opp = (await allowedUsers(env)).find((u) => u.id === opponentId)
@@ -46,8 +52,7 @@ export async function spar(env: Env, me: string, opponentId: string) {
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM spars WHERE user_id = ? AND created_at >= ?').bind(me, jstDayStart(Date.now())).first<{ n: number }>()
   if ((n?.n ?? 0) >= SPAR_DAILY) return { error: `腕試しは1日${SPAR_DAILY}回までです` }
   const [p, o] = await Promise.all([getPlayer(env.DB, me), getPlayer(env.DB, opponentId)])
-  const enemy = sparEnemy(o, `${opp.name}`, skinEmoji(o.skin))
-  const result = simulateBattle(p, enemy, seed())
+  const result = simulateDuel(p, o, { name: opp.name, icon: skinEmoji(o.skin) }, seed())
   await env.DB.prepare('INSERT INTO spars (user_id, opponent_id, win, created_at) VALUES (?, ?, ?, ?)').bind(me, opponentId, result.win ? 1 : 0, Date.now()).run()
   const s = effectiveStats(o)
   return { result, opponent: { id: opp.id, name: opp.name, job: o.job.name, jobIcon: o.job.icon, stats: s } }
@@ -110,4 +115,35 @@ export async function fightEventBoss(env: Env, me: string) {
     reward = { gold, item }
   }
   return { result, reward, player: await getPlayer(db, me) }
+}
+
+// ---------- 過去のボスと再戦 ----------
+/** 今日の再戦の残り回数 */
+export async function rematchState(env: Env, me: string) {
+  const r = await env.DB.prepare('SELECT rematches FROM daily WHERE user_id = ? AND day = ?').bind(me, jstDayStart(Date.now())).first<{ rematches: number }>()
+  return { left: Math.max(0, REMATCH_DAILY - (r?.rematches ?? 0)), daily: REMATCH_DAILY }
+}
+
+/** 倒したことのあるステージのボスともう一度戦う。勝つと少しゴールド (ステージは進まない・装備は出ない) */
+export async function rematch(env: Env, me: string, stage: number) {
+  const db = env.DB
+  const p = await getPlayer(db, me)
+  if (!Number.isInteger(stage) || stage < 1 || stage >= p.stage) return { error: 'まだ倒していないボスです' }
+  const day = jstDayStart(Date.now())
+  await ensureDaily(db, me, day)
+  // 回数を先に数える (同時に押しても上限を超えない)。ミッションの「バトル」にも数える
+  const take = await db
+    .prepare('UPDATE daily SET rematches = rematches + 1, battles = battles + 1 WHERE user_id = ? AND day = ? AND rematches < ?')
+    .bind(me, day, REMATCH_DAILY)
+    .run()
+  if (!take.meta.changes) return { error: `再戦は1日${REMATCH_DAILY}回までです。また明日` }
+  const enemy = enemyForStage(stage)
+  const result = simulateBattle(p, enemy, seed())
+  let reward: { gold: number; item: Item | null } | null = null
+  if (result.win) {
+    const gold = rematchGold(stage)
+    await db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), me).run()
+    reward = { gold, item: null }
+  }
+  return { result, reward, player: await getPlayer(db, me), ...(await rematchState(env, me)) }
 }

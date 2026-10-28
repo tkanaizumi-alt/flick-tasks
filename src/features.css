@@ -314,3 +314,18 @@ body[data-layout='pc'] .cal-day { position: sticky; top: calc(var(--safe-t) + va
 @media (max-width: 767px) {
   .cal-toggle .lt-text { display: inline; }
 }
+
+.spar-rate { flex: none; font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.05); }
+.spar-rate.good { color: #2f9e44; }
+.spar-rate.mid { color: #e8890c; }
+.spar-rate.bad { color: #e03131; }
+
+/* ---------- 過去のボスと再戦 ---------- */
+.sn-btn { all: unset; position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; cursor: pointer; }
+.sn-btn:focus-visible { outline: 2px solid #6f7dff; outline-offset: -2px; }
+.stage-node.cleared:has(.sn-btn) { cursor: pointer; }
+.stage-node.picked { outline: 2px solid #6f7dff; outline-offset: -2px; }
+.rematch-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.65); }
+.rematch-icon { font-size: 26px; }
+.rematch-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rematch-body .muted { font-size: 12px; }

@@ -6,13 +6,13 @@ import { ItemCard } from './Loot'
 
 const TURN_MS = 380
 
-export type BattleMode = 'stage' | 'spar' | 'event'
+export type BattleMode = 'stage' | 'spar' | 'event' | 'rematch'
 
 interface Props {
   result: BattleResult
   reward: { gold: number; item: Item | null } | null
   onClose: () => void
-  /** stage: ステージのボス / spar: メンバーと腕試し / event: 季節イベントの限定ボス */
+  /** stage: ステージのボス / spar: メンバーと腕試し / event: 季節イベントの限定ボス / rematch: 過去のボスと再戦 */
   mode?: BattleMode
 }
 
@@ -67,7 +67,11 @@ export function BattleModal({ result, reward, onClose, mode = 'stage' }: Props) 
           )}
         </div>
         <div className="battle-name">
-          {mode === 'spar' ? `${result.enemy.name}と腕試し` : mode === 'event' ? `限定ボス ${result.enemy.name}` : `ステージ ${result.enemy.stage} ${result.enemy.name}`}
+          {mode === 'spar'
+            ? `${result.enemy.name}と腕試し`
+            : mode === 'event'
+              ? `限定ボス ${result.enemy.name}`
+              : `${mode === 'rematch' ? '再戦 ' : ''}ステージ ${result.enemy.stage} ${result.enemy.name}`}
         </div>
         <Bar label={mode === 'spar' ? '相手' : '敵'} value={enemyHp} max={result.enemy.hp} kind="enemy" />
         <Bar label="自分" value={hp} max={result.maxHp} kind="me" />

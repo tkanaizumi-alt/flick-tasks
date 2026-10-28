@@ -34,7 +34,7 @@ import type { Celebration } from '../components/Rewards'
 import { Achievements } from '../components/Achievements'
 import { EventBanner, EventBossPanel, PetPanel, RaidPanel, ShopPanel, SparPanel } from '../components/GameExtras'
 import type { BattleMode } from '../components/BattleModal'
-import { EVENT_SKINS, hasEventSkin } from '../../shared/extras'
+import { EVENT_SKINS, REMATCH_DAILY, hasEventSkin, rematchGold } from '../../shared/extras'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train' | 'achieve'
 
@@ -70,6 +70,14 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   const [battle, setBattle] = useState<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; mode?: BattleMode } | null>(null)
   // 腕試し・限定ボスのあとに一覧を読み直す
   const [arenaTick, setArenaTick] = useState(0)
+  // 過去のボスと再戦: 地図で選んだステージと、今日の残り回数
+  const [picked, setPicked] = useState<number | null>(null)
+  const [rematchLeft, setRematchLeft] = useState<number | null>(null)
+  useEffect(() => {
+    api.rematchState().then((r) => setRematchLeft(r.left), () => {})
+  }, [arenaTick])
+  const pickedEnemy = picked ? enemyForStage(picked) : null
+  const pickedRate = useMemo(() => (pickedEnemy ? winRate(player, pickedEnemy) : 0), [player, pickedEnemy?.stage])
   const [reveal, setReveal] = useState<Item | null>(null)
   const [openItem, setOpenItem] = useState<Item | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
@@ -188,9 +196,37 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <section className="panel glass">
             <div className="panel-head">
               <h2>冒険の地図</h2>
-              <span className="muted">撃破で 💰 と 🎁</span>
+              <span className="muted">{player.stage > 1 ? '倒したボスを押すと再戦' : '撃破で 💰 と 🎁'}</span>
             </div>
-            <StageMap stage={player.stage} />
+            <StageMap stage={player.stage} picked={picked} onPick={(n) => setPicked(picked === n ? null : n)} />
+            {pickedEnemy && (
+              <div className="rematch-bar" data-testid="rematch">
+                <span className="rematch-icon">{pickedEnemy.icon}</span>
+                <span className="rematch-body">
+                  <b>
+                    再戦 ステージ{pickedEnemy.stage} {pickedEnemy.name}
+                  </b>
+                  <span className="muted">
+                    勝率 {Math.round(pickedRate * 100)}% ・ 勝つと💰{rematchGold(pickedEnemy.stage)}（ステージは進みません）
+                  </span>
+                </span>
+                <button
+                  className="pill-btn primary small"
+                  disabled={busy || rematchLeft === 0}
+                  onClick={async () => {
+                    const r = await run(() => api.rematch(pickedEnemy.stage))
+                    if (r) {
+                      setBattle({ result: r.result, reward: r.reward, mode: 'rematch' })
+                      setRematchLeft(r.left)
+                      loadMissions()
+                    }
+                  }}
+                  data-testid="rematch-fight"
+                >
+                  {rematchLeft === 0 ? 'また明日' : `再戦（今日あと${rematchLeft ?? REMATCH_DAILY}回）`}
+                </button>
+              </div>
+            )}
           </section>
           <SparPanel
             busy={busy}

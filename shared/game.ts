@@ -394,6 +394,118 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
   return { win: enemyHp <= 0, turns, maxHp: s.hp, enemy }
 }
 
+/**
+ * 1 対 1 (メンバーと腕試し)。両方ともステータス・装備・職業・スキル・隠しスキルの効果を使って戦う。
+ * ログは自分から見た形 (hits = 自分の攻撃、taken = 受けたダメージ)。enemy は表示用の名前・アイコンと相手の最大 HP
+ */
+export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: string; icon: string }, seed: number): BattleResult {
+  const r = rng(seed)
+  const fighter = (p: BattleStats) => {
+    const s = effectiveStats(p)
+    const job = p.job ?? DEFAULT_JOB
+    const bonus = p.bonus ?? NO_BONUS
+    const has = (id: string) => hasEffect(p, id)
+    return { s, job, bonus, has, hp: s.hp, gutsUsed: false, phoenixUsed: false, critMult: 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg }
+  }
+  type F = ReturnType<typeof fighter>
+  const A = fighter(me)
+  const B = fighter(opp)
+
+  /** att の 1 撃。守る側の軽減 (職業・鉄壁・結界・隠しスキル) もここで */
+  const strike = (att: F, def: F, turn: number, first: boolean, scale = 1) => {
+    const crit = r() * 100 < att.s.crit
+    const smash = first && att.has('smash') && turn % 3 === 0
+    let dmg = att.s.atk * (0.9 + r() * 0.2) * scale
+    if (crit) dmg *= att.critMult
+    if (smash) dmg *= 3
+    if (turn === 1 && first && att.has('first')) dmg *= 2
+    if (att.has('berserk') && att.hp <= att.s.hp / 2) dmg *= 1.5
+    if (att.has('finisher') && def.hp <= def.s.hp * 0.25) dmg *= 2
+    dmg *= def.job.guard * def.bonus.guard
+    if (def.has('wall')) dmg *= 0.8
+    if (def.has('barrier') && turn <= 3) dmg *= 0.5
+    dmg = Math.max(1, Math.round(dmg))
+    def.hp -= dmg
+    // 受けた側の反撃 (棘・カウンター)
+    if (def.has('thorns')) att.hp -= Math.round(dmg * 0.3)
+    if (def.has('counter')) att.hp -= Math.round(dmg * 0.25)
+    return { dmg, crit, smash }
+  }
+  /** 倒れたときの不屈・不死鳥 */
+  const survive = (f: F) => {
+    if (f.hp > 0) return { guts: false, revive: false }
+    if (f.has('guts') && !f.gutsUsed) {
+      f.hp = 1
+      f.gutsUsed = true
+      return { guts: true, revive: false }
+    }
+    if (f.has('phoenix') && !f.phoenixUsed) {
+      f.hp = Math.round(f.s.hp * 0.5)
+      f.phoenixUsed = true
+      return { guts: false, revive: true }
+    }
+    return { guts: false, revive: false }
+  }
+  /** att の手番: 回避されなければ連撃・追撃・吸収 */
+  const attack = (att: F, def: F, turn: number) => {
+    if (def.has('dodge') && r() < 0.15) return { hits: [] as TurnLog['hits'], dealt: 0, dodged: true, stolen: 0 }
+    const hits: TurnLog['hits'] = []
+    const swings = att.has('double') && r() < 0.25 ? 2 : 1
+    for (let i = 0; i < swings && def.hp > 0; i++) {
+      const h = strike(att, def, turn, i === 0)
+      hits.push(h)
+      if (h.crit && att.has('combo') && def.hp > 0) hits.push(strike(att, def, turn, false, 0.6))
+    }
+    const dealt = hits.reduce((a, h) => a + h.dmg, 0)
+    const before = att.hp
+    if (att.has('lifesteal') && dealt > 0 && att.hp > 0) att.hp = Math.min(att.s.hp, att.hp + Math.round(dealt * 0.1))
+    return { hits, dealt, dodged: false, stolen: att.hp - before }
+  }
+  const heal = (f: F) => {
+    if (f.hp <= 0) return 0
+    const before = f.hp
+    f.hp = Math.min(f.s.hp, f.hp + f.s.heal + (f.has('regen') ? Math.round(f.s.hp * 0.05) : 0))
+    return f.hp - before
+  }
+
+  const turns: TurnLog[] = []
+  for (let turn = 1; turn <= MAX_TURNS; turn++) {
+    const mine = attack(A, B, turn)
+    // 相手の棘・カウンターで自分が倒れることもある
+    let saved = survive(A)
+    survive(B)
+    let theirs = { hits: [] as TurnLog['hits'], dealt: 0, dodged: false, stolen: 0 }
+    if (B.hp > 0 && A.hp > 0) {
+      theirs = attack(B, A, turn)
+      const s2 = survive(A)
+      saved = { guts: saved.guts || s2.guts, revive: saved.revive || s2.revive }
+      survive(B)
+    }
+    const healed = heal(A)
+    heal(B)
+    turns.push({
+      turn,
+      hits: mine.hits,
+      taken: theirs.dealt,
+      dodged: theirs.dodged,
+      healed: mine.stolen + healed,
+      guts: saved.guts,
+      revive: saved.revive,
+      hp: Math.max(0, A.hp),
+      enemyHp: Math.max(0, B.hp),
+    })
+    if (B.hp <= 0 || A.hp <= 0) break
+  }
+  return { win: B.hp <= 0 && A.hp > 0, turns, maxHp: A.s.hp, enemy: { stage: 0, name: who.name, icon: who.icon, hp: B.s.hp, atk: B.s.atk } }
+}
+
+/** 腕試しの勝率の目安 */
+export function duelRate(me: BattleStats, opp: BattleStats, trials = 40) {
+  let wins = 0
+  for (let i = 0; i < trials; i++) if (simulateDuel(me, opp, { name: '', icon: '' }, 7919 * (i + 1)).win) wins++
+  return wins / trials
+}
+
 /** 勝率の目安 (表示用) */
 export function winRate(p: BattleStats, enemy: Enemy, trials = 60) {
   let wins = 0

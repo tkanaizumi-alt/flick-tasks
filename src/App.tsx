@@ -11,6 +11,7 @@ import { Dock, type Theme, type View } from './components/Dock'
 import { MeToolbar } from './components/StatusTabs'
 import { SelectBar } from './components/SelectBar'
 import { CalendarView } from './components/CalendarView'
+import { retryImport } from './reload'
 import { CalendarIcon } from './components/icons'
 import { FONT_KEY, FONT_ZOOM, SIMPLE_KEY, type FontSize } from './display'
 import { Sheet } from './components/Sheet'
@@ -23,13 +24,13 @@ import { DONE_CMP, DONE_SORTS, DONE_SORT_KEY, SORTS, SORT_CMP, SORT_KEY, type Do
 import { LayoutGuide, LayoutToggle } from './components/LayoutToggle'
 import { useLayouts } from './layout'
 // 開いた瞬間のメモを速くするため、みんな・冒険・履歴は使うときに読み込む
-const People = lazy(() => import('./views/People').then((m) => ({ default: m.People })))
-const Adventure = lazy(() => import('./views/Adventure').then((m) => ({ default: m.Adventure })))
-const History = lazy(() => import('./components/History').then((m) => ({ default: m.History })))
-const Help = lazy(() => import('./components/Help').then((m) => ({ default: m.Help })))
-const AdminStats = lazy(() => import('./components/AdminStats').then((m) => ({ default: m.AdminStats })))
-const TemplatesSheet = lazy(() => import('./components/Tools').then((m) => ({ default: m.TemplatesSheet })))
-const CalendarSheet = lazy(() => import('./components/Tools').then((m) => ({ default: m.CalendarSheet })))
+const People = lazy(retryImport(() => import('./views/People').then((m) => ({ default: m.People }))))
+const Adventure = lazy(retryImport(() => import('./views/Adventure').then((m) => ({ default: m.Adventure }))))
+const History = lazy(retryImport(() => import('./components/History').then((m) => ({ default: m.History }))))
+const Help = lazy(retryImport(() => import('./components/Help').then((m) => ({ default: m.Help }))))
+const AdminStats = lazy(retryImport(() => import('./components/AdminStats').then((m) => ({ default: m.AdminStats }))))
+const TemplatesSheet = lazy(retryImport(() => import('./components/Tools').then((m) => ({ default: m.TemplatesSheet }))))
+const CalendarSheet = lazy(retryImport(() => import('./components/Tools').then((m) => ({ default: m.CalendarSheet }))))
 const ViewSkeleton = () => (
   <div className="skel-list">
     <div className="skel skel-card tall" />

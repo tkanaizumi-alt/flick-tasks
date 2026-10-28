@@ -95,6 +95,7 @@
 :root[data-theme='dark'] .cal-cell.on { background: hsla(0, 0%, 12%, 0.833); }
 :root[data-theme='dark'] .cal-item { background: hsla(0, 0%, 12%, 0.72); }
 :root[data-theme='dark'] .cal-add input { background: hsla(0, 0%, 12%, 0.765); }
+:root[data-theme='dark'] .rematch-bar { background: hsla(0, 0%, 12%, 0.743); }
 
 /* ---- src/desktop.css ---- */
 :root[data-theme='dark'] .lt-pill { background: hsla(0, 0%, 12%, 1); }

@@ -268,6 +268,27 @@ if (eb.event && eb.left === 0) {
   check('開催していないときは限定ボスに挑めない', (await A.call('/api/event/boss', 'POST', {})).status === 400)
 }
 
+// 過去のボスと再戦 (倒したステージだけ。1 日 5 回まで、勝つと少しゴールド)
+let pa = (await A.call('/api/player')).player
+check('倒していないボスとは再戦できない', (await A.call(`/api/rematch/${pa.stage}`, 'POST', {})).status === 400)
+// ステージ 1 をまだ倒していなければ倒しておく (スライムはほぼ勝てる)
+for (let i = 0; i < 5 && pa.stage < 2; i++) pa = (await A.call('/api/battle', 'POST', {})).player ?? pa
+if (pa.stage >= 2) {
+  const st = await A.call('/api/rematch')
+  let fights = 0
+  let goldOk = true
+  for (let i = 0; i < 7; i++) {
+    const g0 = (await A.call('/api/player')).player.gold
+    const r = await A.call('/api/rematch/1', 'POST', {})
+    if (r.status === 400) break
+    fights++
+    // 勝てば 💰 (初回の 3 割)、負ければ何も変わらない。ステージは進まない
+    goldOk &&= r.player.gold === g0 + (r.result.win ? Math.round((40 + 20) * 0.3) : 0) && r.player.stage === pa.stage && !r.reward?.item
+  }
+  check('再戦は1日5回まで', fights === st.left && (await A.call('/api/rematch')).left === 0, { fights, st })
+  check('再戦で勝つと少しゴールド (ステージは進まない)', goldOk || fights === 0)
+}
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')
