@@ -1,6 +1,7 @@
 import { FLAGS, san, type Task } from '../../shared/types'
 import { WEIGHT_LABEL, baseXp } from '../../shared/game'
 import { ruleLabel } from '../../shared/recurring'
+import { ReactionSummary } from './Reactions'
 
 /** 分解のグループ (元タスク + 子タスク) ごとの色相。グループでなければ null */
 export function groupHue(task: Pick<Task, 'id' | 'parent' | 'children'>) {
@@ -45,6 +46,7 @@ export function TaskLinks({ task, showFlagNote = false, compact = false }: { tas
   return (
     <>
       <PriorityBadge task={task} compact={compact} />
+      <ReactionSummary task={task} />
       {task.recurring && (
         <span className={`recur-chip ${compact ? 'mini' : ''}`} data-testid="recur-chip" title={ruleLabel(task.recurring.rule)}>
           🔁{compact ? '' : ` ${ruleLabel(task.recurring.rule)}`}

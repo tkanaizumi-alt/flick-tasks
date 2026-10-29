@@ -1,5 +1,5 @@
 import { enemyForStage, levelInfo, type PlayerState } from '../../shared/game'
-import { ACHIEVEMENT_MAP } from '../../shared/achievements'
+import { ACHIEVEMENT_MAP, tierClass } from '../../shared/achievements'
 import { PET_MAP } from '../../shared/extras'
 import { Avatar } from './Dock'
 
@@ -21,7 +21,7 @@ export function CharacterHeader({ name, picture, player, gold }: { name: string;
         <div className="char-top">
           <span className="char-name">{name}</span>
           {player.title && ACHIEVEMENT_MAP[player.title] && (
-            <span className="title-chip" data-testid="char-title">
+            <span className={`title-chip ${tierClass(player.title)}`} data-testid="char-title">
               {ACHIEVEMENT_MAP[player.title].icon} {ACHIEVEMENT_MAP[player.title].name}
             </span>
           )}

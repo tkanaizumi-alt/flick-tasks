@@ -25,6 +25,18 @@ export interface Ref {
   name: string
 }
 
+/** 他の人のタスクへのリアクション */
+export type ReactionKind = 'like' | 'party' | 'cheer' | 'thanks' | 'eyes'
+export const REACTIONS: { kind: ReactionKind; emoji: string; label: string }[] = [
+  { kind: 'like', emoji: '👍', label: 'いいね' },
+  { kind: 'party', emoji: '🎉', label: 'おめでとう' },
+  { kind: 'cheer', emoji: '💪', label: 'がんばれ' },
+  { kind: 'thanks', emoji: '🙏', label: 'ありがとう' },
+  { kind: 'eyes', emoji: '👀', label: '見てるよ' },
+]
+export const REACTION_MAP = Object.fromEntries(REACTIONS.map((r) => [r.kind, r])) as Record<ReactionKind, (typeof REACTIONS)[number]>
+export const isReaction = (v: unknown): v is ReactionKind => typeof v === 'string' && v in REACTION_MAP
+
 export interface Task {
   id: string
   title: string
@@ -60,6 +72,8 @@ export interface Task {
   recurring?: { id: string; rule: string } | null
   /** コメントの数 */
   comments?: number
+  /** 他の人からのリアクション (誰が・どれを) */
+  reactions?: { kind: ReactionKind; user: Ref }[]
   /** このタスクの前に待っている依頼 (自分が出した依頼) */
   waitingOn?: { id: string; title: string; status: Status; owner: Ref } | null
 }

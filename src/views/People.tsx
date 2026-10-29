@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FLAGS, type Activity, type ActivityKind, type AttentionItem, type Notice, type Person, type RequestItem, san } from '../../shared/types'
 import { enemyForStage, levelInfo } from '../../shared/game'
-import { ACHIEVEMENT_MAP } from '../../shared/achievements'
+import { ACHIEVEMENT_MAP, tierClass } from '../../shared/achievements'
 import { api, STATUS_LABEL, type FeedKind, type XpChange } from '../api'
 import { Avatar } from '../components/Dock'
 import { DueBadge } from '../components/DueBadge'
@@ -409,7 +409,7 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
                 <div className="person-top">
                   <span className="person-name">{p.name}</span>
                   {p.isMe && <span className="me-tag">自分</span>}
-                  {p.title && ACHIEVEMENT_MAP[p.title] && <span className="title-chip">{ACHIEVEMENT_MAP[p.title].name}</span>}
+                  {p.title && ACHIEVEMENT_MAP[p.title] && <span className={`title-chip ${tierClass(p.title)}`}>{ACHIEVEMENT_MAP[p.title].name}</span>}
                   {!!p.streak && <span className="streak-chip">🔥{p.streak}</span>}
                   <span className="person-job">
                     {p.jobIcon} {p.jobName}
@@ -478,6 +478,7 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
           <PersonSheet
             key={openId}
             id={openId}
+            meId={meId}
             onClose={() => setOpenId(null)}
             canRename={isAdmin}
             onRenamed={(id, name) => {

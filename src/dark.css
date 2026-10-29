@@ -70,7 +70,6 @@
 /* ---- src/features.css ---- */
 :root[data-theme='dark'] .tag-filter { background: hsla(0, 0%, 12%, 0.72); color: hsla(175, 77%, 64%, 1); }
 :root[data-theme='dark'] .tag-inline { color: hsla(175, 77%, 64%, 1); }
-:root[data-theme='dark'] .title-chip { color: hsla(39, 100%, 63%, 1); background: linear-gradient(135deg, hsla(48, 35%, 16%, 1), #ffe08a); }
 :root[data-theme='dark'] .ach { background: hsla(0, 0%, 12%, 0.72); }
 :root[data-theme='dark'] .ach.got { background: linear-gradient(160deg, hsla(40, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
 :root[data-theme='dark'] .comments { background: hsla(0, 0%, 12%, 0.698); }
@@ -96,6 +95,12 @@
 :root[data-theme='dark'] .cal-item { background: hsla(0, 0%, 12%, 0.72); }
 :root[data-theme='dark'] .cal-add input { background: hsla(0, 0%, 12%, 0.765); }
 :root[data-theme='dark'] .rematch-bar { background: hsla(0, 0%, 12%, 0.743); }
+:root[data-theme='dark'] .ach.got.t-bronze { background: linear-gradient(160deg, hsla(28, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .ach.got.t-silver { background: linear-gradient(160deg, hsla(216, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .ach.got.t-gold { background: linear-gradient(160deg, hsla(40, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .ach.got.t-legend { background: linear-gradient(160deg, hsla(276, 35%, 13%, 1), hsla(198, 35%, 13%, 1)); }
+:root[data-theme='dark'] .react-sum { color: hsla(39, 100%, 63%, 1); }
+:root[data-theme='dark'] .react-btn { background: hsla(0, 0%, 12%, 0.765); }
 
 /* ---- src/desktop.css ---- */
 :root[data-theme='dark'] .lt-pill { background: hsla(0, 0%, 12%, 1); }

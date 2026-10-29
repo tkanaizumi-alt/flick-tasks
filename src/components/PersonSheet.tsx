@@ -9,6 +9,7 @@ import { DueBadge } from './DueBadge'
 import { DueField } from './DueField'
 import { TaskLinks } from './TaskMeta'
 import { Comments } from './Comments'
+import { ReactionBar } from './Reactions'
 import { doneLabel } from './TaskCard'
 
 interface Data {
@@ -21,6 +22,8 @@ interface Props {
   id: string
   onClose: () => void
   /** 管理者だけ名前を変更できる (自分も含む) */
+  /** 自分の ID (リアクションの「自分が付けたか」の判定用) */
+  meId?: string
   canRename?: boolean
   onRenamed?: (id: string, name: string) => void
   /** この人にタスクを依頼する (自分以外) */
@@ -31,7 +34,7 @@ interface Props {
 }
 
 /** 他の人のタスクとキャラクター。タスクは期限の設定と 進行中 / 完了 への移動ができる (管理者は名前の変更も可) */
-export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, onXp, toast }: Props) {
+export function PersonSheet({ id, meId, onClose, canRename, onRenamed, onRequest, onXp, toast }: Props) {
   const [data, setData] = useState<Data | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -232,6 +235,9 @@ export function PersonSheet({ id, onClose, canRename, onRenamed, onRequest, onXp
                           {dueOpen === t.id && (
                             <>
                               <DueField due={t.due ?? null} dueBy={t.dueBy?.name} onChange={(due) => saveDue(t, due)} disabled={savingDue} compact />
+                              {!data.person.isMe && meId && (
+                                <ReactionBar task={t} meId={meId} toast={toast} onChange={(x) => setData((d) => (d ? { ...d, tasks: d.tasks.map((y) => (y.id === x.id ? x : y)) } : d))} />
+                              )}
                               <div className="ps-comments">
                                 <Comments taskId={t.id} toast={toast} />
                               </div>

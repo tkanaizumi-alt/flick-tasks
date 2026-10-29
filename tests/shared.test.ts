@@ -16,7 +16,7 @@ import {
   type DailyCounts,
   type PlayerState,
 } from '../shared/game'
-import { bestStreakOf, streakOf } from '../shared/achievements'
+import { ACHIEVEMENTS, bestStreakOf, streakOf, TIERS, tierClass } from '../shared/achievements'
 import { isRule, ruleLabel, ruleMatches } from '../shared/recurring'
 import { mentionsIn, san, tagsOf } from '../shared/types'
 
@@ -139,5 +139,15 @@ describe('@名前', () => {
     ]
     expect(mentionsIn('@tomoya kanaizumi 確認お願いします ＠よしお', people)).toEqual(['a', 'b'])
     expect(mentionsIn('メールアドレス a@example.com', people)).toEqual([])
+  })
+})
+
+describe('称号の色', () => {
+  it('どの実績にも難しさがあり、レジェンドは一番難しいものだけ', () => {
+    expect(ACHIEVEMENTS.every((a) => a.tier && TIERS[a.tier])).toBe(true)
+    expect(ACHIEVEMENTS.filter((a) => a.tier === 4).map((a) => a.id).sort()).toEqual(['stage30', 'streak30'])
+    expect(tierClass('first')).toBe('t-bronze')
+    expect(tierClass('stage30')).toBe('t-legend')
+    expect(tierClass(null)).toBe('t-bronze')
   })
 })

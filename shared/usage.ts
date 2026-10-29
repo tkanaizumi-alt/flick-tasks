@@ -14,6 +14,7 @@ export const FEATURES: Record<string, string> = {
   move: '他の人のタスクを動かす',
   recurring: '繰り返し',
   comment: 'コメント',
+  reaction: 'リアクション',
   reorder: '手動の並べ替え',
   bulk: 'まとめて操作',
   request: '依頼',

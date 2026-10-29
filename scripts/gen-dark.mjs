@@ -105,7 +105,8 @@ function convert(css) {
       if (inner) out.push(`${r.media} {\n${inner}\n}`)
       continue
     }
-    if (SKIP.has(r.selector)) continue
+    // 称号のチップは金属・虹の色なので、ダークでも同じ色のまま
+    if (SKIP.has(r.selector) || r.selector.includes('.title-chip')) continue
     const changed = []
     for (const [k, v] of decls(r.body)) {
       if (k === 'background' || k === 'background-color' || k === 'background-image' || k === '--glass' || k === 'fill') {

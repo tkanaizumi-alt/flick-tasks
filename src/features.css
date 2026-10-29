@@ -329,3 +329,34 @@ body[data-layout='pc'] .cal-day { position: sticky; top: calc(var(--safe-t) + va
 .rematch-icon { font-size: 26px; }
 .rematch-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .rematch-body .muted { font-size: 12px; }
+
+/* ---------- 称号の色 (実績の難しさ) ---------- */
+.title-chip.t-bronze { color: #7a4519; background: linear-gradient(135deg, #f8dcc0, #e2a674); }
+.title-chip.t-silver { color: #3f4a59; background: linear-gradient(135deg, #f4f6f9, #c5ced9); }
+.title-chip.t-gold { color: #7a5000; background: linear-gradient(135deg, #fff3c4, #ffd55a); box-shadow: 0 0 0 1px rgba(240, 164, 0, 0.35); }
+.title-chip.t-legend {
+  color: #fff; text-shadow: 0 1px 2px rgba(60, 20, 120, 0.45);
+  background: linear-gradient(110deg, #ff5fa2, #8b6bff, #3fb8ff, #4ade80, #ff5fa2); background-size: 300% 100%;
+  box-shadow: 0 0 10px -2px rgba(139, 107, 255, 0.7); animation: legend-shine 4s linear infinite;
+}
+@keyframes legend-shine { to { background-position: 300% 0; } }
+@media (prefers-reduced-motion: reduce) { .title-chip.t-legend { animation: none; } }
+.tier-chip { margin-left: 6px; vertical-align: 1px; font-size: 9.5px; padding: 1px 6px; }
+.ach-note .title-chip { font-size: 10px; padding: 1px 6px; }
+/* 取った実績のカードも難しさの色に */
+.ach.got.t-bronze { background: linear-gradient(160deg, #fff6ee, #fff); box-shadow: inset 0 0 0 1px rgba(200, 120, 60, 0.3); }
+.ach.got.t-silver { background: linear-gradient(160deg, #f6f8fb, #fff); box-shadow: inset 0 0 0 1px rgba(120, 135, 155, 0.35); }
+.ach.got.t-gold { background: linear-gradient(160deg, #fffaf0, #fff); box-shadow: inset 0 0 0 1px rgba(240, 164, 0, 0.45); }
+.ach.got.t-legend { background: linear-gradient(160deg, #fbf5ff, #f2fbff); box-shadow: inset 0 0 0 1.5px rgba(139, 107, 255, 0.55); }
+.ach.on { box-shadow: inset 0 0 0 2px #f0a400; }
+
+/* ---------- リアクション ---------- */
+.react-sum { display: inline-flex; gap: 4px; padding: 1px 7px; border-radius: 999px; background: rgba(255, 196, 0, 0.14); font-size: 11.5px; font-weight: 800; color: #8a5a00; }
+.react-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.react-btn { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 999px; background: rgba(255, 255, 255, 0.7); font: inherit; font-size: 12px; color: var(--ink-2); cursor: pointer; transition: transform 0.12s ease, background 0.12s ease; }
+.react-btn:active { transform: scale(0.92); }
+.react-btn.on { background: rgba(111, 125, 255, 0.16); border-color: rgba(111, 125, 255, 0.55); color: #3d47c9; }
+.react-btn .react-emoji { font-size: 16px; }
+.react-btn b { font-size: 12.5px; }
+.react-list { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 4px 0 10px; font-size: 12.5px; color: var(--ink-2); }
+.react-who b { margin-right: 4px; color: var(--ink); font-weight: 800; }

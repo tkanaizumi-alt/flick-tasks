@@ -1,4 +1,4 @@
-import type { Activity, AttentionItem, Comment, Flag, Notice, Person, RequestItem, Status, Task, User } from '../shared/types'
+import type { Activity, AttentionItem, Comment, Flag, Notice, Person, ReactionKind, RequestItem, Status, Task, User } from '../shared/types'
 import type { BattleResult, Enemy, Item, MissionDef, PlayerState, Slot, StatKey, Weight } from '../shared/game'
 import type { AchievementDef, AchievementStats } from '../shared/achievements'
 import type { ClientFeature } from '../shared/usage'
@@ -117,6 +117,7 @@ export const api = {
   report: (from: string, to: string, tag: string | null = null) => req<{ text: string }>('/api/history/report', { method: 'POST', json: { from, to, tag } }),
   setSkin: (skin: string | null) => req<{ player: PlayerState }>('/api/player/skin', { method: 'POST', json: { skin } }),
   /** 期限の設定 (自分・他の人のタスクどちらも可。null で解除) */
+  react: (id: string, kind: ReactionKind) => req<{ task: Task; on: boolean }>(`/api/tasks/${id}/reactions`, { method: 'POST', json: { kind } }),
   setDue: (id: string, due: string | null) => req<{ task: Task }>(`/api/tasks/${id}/due`, { method: 'PUT', json: { due } }),
   // 管理者のみ
   adminStats: () => req<AdminStats>('/api/admin/stats'),

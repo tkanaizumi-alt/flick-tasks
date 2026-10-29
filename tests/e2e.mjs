@@ -289,6 +289,20 @@ if (pa.stage >= 2) {
   check('再戦で勝つと少しゴールド (ステージは進まない)', goldOk || fights === 0)
 }
 
+// 他の人のタスクへのリアクション (5 種類。もう一度で取り消し、付けたら持ち主に通知)
+const rt = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} リアクション` }] })).tasks[0]
+const r1 = await B.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'party' })
+await B.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'like' })
+check('リアクションを付ける', r1.on === true && r1.task.reactions.some((r) => r.kind === 'party' && r.user.id === meB.id), r1)
+const mineList = (await A.call('/api/tasks')).tasks.find((t) => t.id === rt.id)
+check('自分のタスクに付いたリアクションが見える', mineList?.reactions?.filter((r) => r.user.id === meB.id).length === 2 && mineList.reactions.every((r) => r.user.name), mineList?.reactions)
+const rn = (await A.call('/api/notifications')).notices?.find((n) => n.kind === 'reaction' && n.taskId === rt.id && n.text.includes('🎉'))
+check('リアクションで持ち主に通知', !!rn && rn.text.includes('🎉'), rn)
+const r2 = await B.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'party' })
+check('もう一度押すと取り消し', r2.on === false && !r2.task.reactions.some((r) => r.kind === 'party'), r2)
+check('自分のタスクにはリアクションできない', (await A.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'like' })).status === 400)
+check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'angry' })).status === 400)
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')

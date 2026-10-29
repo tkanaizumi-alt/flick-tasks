@@ -9,6 +9,7 @@ import { DueField } from './DueField'
 import { TaskLinks, XpChip } from './TaskMeta'
 import { XpGuide } from './XpGuide'
 import { Comments } from './Comments'
+import { ReactionList } from './Reactions'
 import { ruleChoices, ruleLabel } from '../../shared/recurring'
 
 interface Props {
@@ -164,6 +165,7 @@ export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue,
           </div>
         )}
 
+        <ReactionList task={task} />
         <Comments taskId={task.id} toast={toast} />
 
         <div className="seg" role="radiogroup">

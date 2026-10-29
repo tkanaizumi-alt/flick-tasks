@@ -234,6 +234,38 @@ async function run(label, viewport) {
     return hidden
   })
 
+  // 本物のメンバーに通知が届かないよう、リアクションはローカルだけで試す
+  if (!process.env.E2E_TOKEN_A) {
+    await step('他の人のタスクにリアクション (付けて取り消す)', async () => {
+      await dismiss()
+      await page.getByTestId('nav-people').click()
+      const rows = page.locator('[data-testid="person"]:not(:has(.me-tag))')
+      await rows.first().waitFor({ timeout: 10000 })
+      // 自分以外で、タスクのある人
+      const n = await rows.count()
+      for (let i = 0; i < n; i++) {
+        await rows.nth(i).click()
+        await page.getByTestId('person-sheet').waitFor()
+        await page.waitForTimeout(800)
+        if (await page.getByTestId('person-task').count()) break
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(400)
+      }
+      await page.getByTestId('person-task').first().click()
+      const btn = page.getByTestId('react-like').first()
+      await btn.waitFor()
+      const before = await btn.getAttribute('aria-pressed')
+      await btn.click()
+      await page.waitForTimeout(1200)
+      const after = await btn.getAttribute('aria-pressed')
+      await btn.click() // 元に戻す
+      await page.waitForTimeout(1200)
+      const back = await btn.getAttribute('aria-pressed')
+      await page.keyboard.press('Escape')
+      return before !== after && back === before ? true : { before, after, back }
+    })
+  }
+
   await step('みんなの画面', async () => {
     await page.getByTestId('nav-people').click()
     await page.waitForTimeout(1200)

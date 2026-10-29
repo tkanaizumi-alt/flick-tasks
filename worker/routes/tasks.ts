@@ -2,7 +2,7 @@
 import { displayName, isAllowed, type Env } from '../env'
 import { aiTasks } from '../ai'
 import { applyTaskXp, awardHelp, classifyWeights, doneCutoff, countDaily, logActivity, notify } from '../game'
-import { FLAGS, mentionsIn, type Flag, type Status, type Task, type User, san } from '../../shared/types'
+import { FLAGS, REACTION_MAP, isReaction, mentionsIn, type Flag, type Status, type Task, type User, san } from '../../shared/types'
 import { isRule, ruleMatches } from '../../shared/recurring'
 import { BREAKDOWN_MAX, helpXp, jstToday, weightChoices, type Weight } from '../../shared/game'
 import { router, toTask, nameOf, TASK_SELECT, isDate, cleanTitle, cleanNote, isStatus, STATUS_LABEL_JA, isFlag, isId, getTask, allowedUsers, allowedUser, VISIBLE } from '../lib'
@@ -409,6 +409,24 @@ tasks.post('/tasks/:id/comments', async (c) => {
     ),
   ])
   return c.json({ ok: true }, 201)
+})
+
+/** リアクション: 他の人のタスクに付ける (もう一度で取り消し)。付けたときは持ち主に知らせる */
+tasks.post('/tasks/:id/reactions', async (c) => {
+  const { kind } = await c.req.json<{ kind?: unknown }>().catch(() => ({ kind: null }))
+  if (!isReaction(kind)) return c.json({ error: 'invalid kind' }, 400)
+  const t = await taskOwner(c.env, c.req.param('id'))
+  if (!t) return c.json({ error: 'not found' }, 404)
+  const me = c.get('user')
+  if (t.user_id === me.id) return c.json({ error: '自分のタスクにはリアクションできません' }, 400)
+  const db = c.env.DB
+  const ins = await db.prepare('INSERT OR IGNORE INTO reactions (task_id, user_id, kind, created_at) VALUES (?, ?, ?, ?)').bind(t.id, me.id, kind, Date.now()).run()
+  if (ins.meta.changes) {
+    await notify(db, t.user_id, me.id, 'reaction', t.id, `${san(me.name)}が「${t.title}」に ${REACTION_MAP[kind].emoji} ${REACTION_MAP[kind].label}`).run()
+  } else {
+    await db.prepare('DELETE FROM reactions WHERE task_id = ? AND user_id = ? AND kind = ?').bind(t.id, me.id, kind).run()
+  }
+  return c.json({ task: await getTask(db, t.id), on: !!ins.meta.changes })
 })
 
 /** 自分のコメントを消す */

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { displayName, isAllowed, type Env, type Vars } from './env'
-import { FLAGS, STATUSES, type Flag, type Status, type Task } from '../shared/types'
+import { FLAGS, STATUSES, type Flag, type Status, type Task, isReaction, type ReactionKind } from '../shared/types'
 
 /** ルートで使う Hono の型 (ログイン済みのユーザーが c.get('user') に入る) */
 export type Api = Hono<{ Bindings: Env; Variables: Vars }>
@@ -10,6 +10,15 @@ export const router = (): Api => new Hono<{ Bindings: Env; Variables: Vars }>()
 export const VISIBLE = "NOT (t.status = 'done' AND COALESCE(t.done_at, t.updated_at) < ?)"
 
 export const ref = (id: unknown, name: unknown) => (id ? { id: id as string, name: (name as string) ?? '' } : null)
+
+/** リアクションの JSON (SQL の json_group_array) をタスクの形に */
+const parseReactions = (v: unknown): Task['reactions'] => {
+  try {
+    return (JSON.parse(String(v ?? '[]')) as { k: string; u: string; n: string }[]).filter((x) => isReaction(x.k)).map((x) => ({ kind: x.k as ReactionKind, user: { id: x.u, name: x.n ?? '' } }))
+  } catch {
+    return []
+  }
+}
 
 export const toTask = (r: any): Task => ({
   id: r.id,
@@ -34,6 +43,7 @@ export const toTask = (r: any): Task => ({
   follow: r.follow_id && r.follow_title != null ? { id: r.follow_id, title: r.follow_title } : null,
   recurring: r.recurring_id && r.recurring_rule ? { id: r.recurring_id, rule: r.recurring_rule } : null,
   comments: r.comment_count ?? 0,
+  reactions: parseReactions(r.reactions_json),
   waitingOn: r.wait_id ? { id: r.wait_id, title: r.wait_title, status: r.wait_status, owner: { id: r.wait_owner, name: r.wait_owner_name ?? '' } } : null,
 })
 
@@ -48,6 +58,7 @@ export const TASK_SELECT = `SELECT t.*, ${nameOf('du')} AS due_by_name,
     (SELECT COUNT(*) FROM tasks c WHERE c.parent_id = t.id AND c.status = 'done') AS child_done,
     ${nameOf('fu')} AS flag_to_name, ${nameOf('ru')} AS requested_by_name, ft.title AS follow_title,
     rc.rule AS recurring_rule, (SELECT COUNT(*) FROM comments cm WHERE cm.task_id = t.id) AS comment_count,
+    (SELECT json_group_array(json_object('k', rx.kind, 'u', rx.user_id, 'n', ${nameOf('rxu')})) FROM reactions rx JOIN users rxu ON rxu.id = rx.user_id WHERE rx.task_id = t.id) AS reactions_json,
     w.id AS wait_id, w.title AS wait_title, w.status AS wait_status, w.user_id AS wait_owner, ${nameOf('wu')} AS wait_owner_name
   FROM tasks t
   LEFT JOIN users du ON du.id = t.due_by

@@ -6,10 +6,10 @@ export const JOB_UNLOCK_LEVEL = 10
 
 export const ADVANCED_JOBS: (JobDef & { from: string })[] = [
   { id: 'blademaster', from: 'warrior', name: '剣聖', icon: '⚡', desc: '攻撃・体力・会心すべてが高い', tier: 2, atk: 1.4, hp: 1.25, crit: 10, heal: 1, healAdd: 0, guard: 1, critDmg: 0.3 },
-  { id: 'paladin', from: 'knight', name: '聖騎士', icon: '🌟', desc: '鉄壁の守りと回復を兼ね備える', tier: 2, atk: 1.25, hp: 1.7, crit: 0, heal: 1, healAdd: 4, guard: 0.75, critDmg: 0 },
-  { id: 'assassin', from: 'thief', name: 'アサシン', icon: '🌙', desc: '会心率+30%、会心ダメージ+70%', tier: 2, atk: 1.4, hp: 1.05, crit: 30, heal: 1, healAdd: 0, guard: 1, critDmg: 0.7 },
-  { id: 'saint', from: 'cleric', name: '聖女', icon: '👑', desc: '圧倒的な回復力で倒れない', tier: 2, atk: 1.15, hp: 1.35, crit: 0, heal: 3, healAdd: 8, guard: 0.9, critDmg: 0 },
-  { id: 'archmage', from: 'mage', name: '大賢者', icon: '🔮', desc: '全職業で最高の攻撃力', tier: 2, atk: 1.8, hp: 0.95, crit: 10, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
+  { id: 'paladin', from: 'knight', name: '聖騎士', icon: '🌟', desc: '守りが固く（受けるダメージ-20%）、回復もできる', tier: 2, atk: 1.2, hp: 1.45, crit: 0, heal: 1, healAdd: 4, guard: 0.8, critDmg: 0 },
+  { id: 'assassin', from: 'thief', name: 'アサシン', icon: '🌙', desc: '会心率+30%、会心ダメージ+90%', tier: 2, atk: 1.4, hp: 1.15, crit: 30, heal: 1, healAdd: 0, guard: 1, critDmg: 0.9 },
+  { id: 'saint', from: 'cleric', name: '聖女', icon: '👑', desc: '圧倒的な回復力で倒れない', tier: 2, atk: 1.15, hp: 1.3, crit: 0, heal: 1.6, healAdd: 5, guard: 0.9, critDmg: 0 },
+  { id: 'archmage', from: 'mage', name: '大賢者', icon: '🔮', desc: '全職業で最高の攻撃力', tier: 2, atk: 2, hp: 1.05, crit: 12, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
 ]
 
 export const ALL_JOBS: JobDef[] = [...BASE_JOBS, ...ADVANCED_JOBS]

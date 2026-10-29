@@ -38,3 +38,7 @@
 :root[data-theme='dark'] .cal-status.s-doing, :root[data-theme='dark'] .cal-chip.doing { color: #ffcc75; }
 :root[data-theme='dark'] .cal-chip.late, :root[data-theme='dark'] .cal-late { color: #ff8a8e; }
 :root[data-theme='dark'] .cal-week .sat, :root[data-theme='dark'] .cal-cell.sat .cal-num { color: #8fa8ff; }
+
+/* リアクション */
+:root[data-theme='dark'] .react-btn.on { color: #b3bbff; }
+:root[data-theme='dark'] .react-sum { color: #ffcc75; }

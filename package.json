@@ -13,7 +13,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:e2e": "node tests/e2e.mjs",
-    "test:ui": "node tests/ui.mjs"
+    "test:ui": "node tests/ui.mjs",
+    "sim:jobs": "vitest run --config tests/balance.config.ts"
   },
   "dependencies": {
     "hono": "^4.13.13",

@@ -106,11 +106,11 @@ export type BattleStats = Pick<PlayerState, 'stats' | 'skills'> &
 
 // ---------- 冒険職 (基本職) ----------
 export const BASE_JOBS: JobDef[] = [
-  { id: 'warrior', name: '戦士', icon: '⚔️', desc: '攻撃と体力のバランスが良い', tier: 1, atk: 1.15, hp: 1.1, crit: 0, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
-  { id: 'knight', name: '騎士', icon: '🛡️', desc: '体力が高く、受けるダメージ-15%', tier: 1, atk: 1, hp: 1.4, crit: 0, heal: 1, healAdd: 0, guard: 0.85, critDmg: 0 },
-  { id: 'thief', name: '盗賊', icon: '🗡️', desc: '会心率+15%、会心ダメージ+30%', tier: 1, atk: 1.05, hp: 0.95, crit: 15, heal: 1, healAdd: 0, guard: 1, critDmg: 0.3 },
-  { id: 'cleric', name: '僧侶', icon: '✨', desc: '毎ターンの回復が大きい', tier: 1, atk: 0.95, hp: 1.15, crit: 0, heal: 2, healAdd: 3, guard: 1, critDmg: 0 },
-  { id: 'mage', name: '魔法使い', icon: '🪄', desc: '攻撃力がとても高いが打たれ弱い', tier: 1, atk: 1.45, hp: 0.8, crit: 5, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
+  { id: 'warrior', name: '戦士', icon: '⚔️', desc: '攻撃と体力のバランスが良い', tier: 1, atk: 1.2, hp: 1.1, crit: 0, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
+  { id: 'knight', name: '騎士', icon: '🛡️', desc: '体力が高く、受けるダメージ-12%', tier: 1, atk: 1.1, hp: 1.3, crit: 0, heal: 1, healAdd: 0, guard: 0.88, critDmg: 0 },
+  { id: 'thief', name: '盗賊', icon: '🗡️', desc: '会心率+18%、会心ダメージ+40%', tier: 1, atk: 1.15, hp: 1.05, crit: 18, heal: 1, healAdd: 0, guard: 1, critDmg: 0.4 },
+  { id: 'cleric', name: '僧侶', icon: '✨', desc: '毎ターンの回復が大きい', tier: 1, atk: 1.05, hp: 1.15, crit: 0, heal: 1.45, healAdd: 4, guard: 1, critDmg: 0 },
+  { id: 'mage', name: '魔法使い', icon: '🪄', desc: '攻撃力がとても高いが打たれ弱い', tier: 1, atk: 1.55, hp: 0.8, crit: 8, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
 ]
 export const DEFAULT_JOB = BASE_JOBS[0]
 
@@ -470,17 +470,11 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
 
   const turns: TurnLog[] = []
   for (let turn = 1; turn <= MAX_TURNS; turn++) {
+    // お互いに同時に攻撃する (先に動く側が有利にならないように)。倒れたかどうかは両方の攻撃のあとで見る
     const mine = attack(A, B, turn)
-    // 相手の棘・カウンターで自分が倒れることもある
-    let saved = survive(A)
+    const theirs = attack(B, A, turn)
+    const saved = survive(A)
     survive(B)
-    let theirs = { hits: [] as TurnLog['hits'], dealt: 0, dodged: false, stolen: 0 }
-    if (B.hp > 0 && A.hp > 0) {
-      theirs = attack(B, A, turn)
-      const s2 = survive(A)
-      saved = { guts: saved.guts || s2.guts, revive: saved.revive || s2.revive }
-      survive(B)
-    }
     const healed = heal(A)
     heal(B)
     turns.push({
@@ -496,7 +490,10 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
     })
     if (B.hp <= 0 || A.hp <= 0) break
   }
-  return { win: B.hp <= 0 && A.hp > 0, turns, maxHp: A.s.hp, enemy: { stage: 0, name: who.name, icon: who.icon, hp: B.s.hp, atk: B.s.atk } }
+  // 相打ち・時間切れは、残った体力の割合が多い方の勝ち
+  const ratio = (f: F) => f.hp / f.s.hp
+  const win = A.hp > 0 && B.hp <= 0 ? true : A.hp <= 0 && B.hp > 0 ? false : ratio(A) > ratio(B)
+  return { win, turns, maxHp: A.s.hp, enemy: { stage: 0, name: who.name, icon: who.icon, hp: B.s.hp, atk: B.s.atk } }
 }
 
 /** 腕試しの勝率の目安 */
