@@ -360,3 +360,9 @@ body[data-layout='pc'] .cal-day { position: sticky; top: calc(var(--safe-t) + va
 .react-btn b { font-size: 12.5px; }
 .react-list { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 4px 0 10px; font-size: 12.5px; color: var(--ink-2); }
 .react-who b { margin-right: 4px; color: var(--ink); font-weight: 800; }
+
+/* ---------- 隠し実績 ---------- */
+.ach.secret .ach-name { letter-spacing: 0.2em; }
+.ach.secret { background: repeating-linear-gradient(135deg, rgba(120, 110, 200, 0.06) 0 8px, rgba(255, 255, 255, 0.5) 8px 16px); }
+.hidden-chip { margin-left: 6px; vertical-align: 1px; font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: rgba(60, 50, 120, 0.85); color: #fff; }
+.ach.secret .hidden-chip { letter-spacing: 0; }

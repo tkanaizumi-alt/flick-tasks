@@ -145,7 +145,13 @@ describe('@名前', () => {
 describe('称号の色', () => {
   it('どの実績にも難しさがあり、レジェンドは一番難しいものだけ', () => {
     expect(ACHIEVEMENTS.every((a) => a.tier && TIERS[a.tier])).toBe(true)
-    expect(ACHIEVEMENTS.filter((a) => a.tier === 4).map((a) => a.id).sort()).toEqual(['stage30', 'streak30'])
+    expect(ACHIEVEMENTS.filter((a) => a.tier === 4).map((a) => a.id).sort()).toEqual(['h_days100', 'stage30', 'streak30'])
+    // 連続ではなく、完了した日の合計で数える
+    expect(ACHIEVEMENTS.find((a) => a.id === 'streak7')!.stat).toBe('days')
+    expect(ACHIEVEMENTS.find((a) => a.id === 'streak30')!.stat).toBe('days')
+    // 隠し実績は ID が重ならない
+    expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length)
+    expect(ACHIEVEMENTS.filter((a) => a.hidden).length).toBe(8)
     expect(tierClass('first')).toBe('t-bronze')
     expect(tierClass('stage30')).toBe('t-legend')
     expect(tierClass(null)).toBe('t-bronze')

@@ -259,7 +259,7 @@ export function App() {
     setTimeout(
       () =>
         setLevelUp({
-          label: 'ACHIEVEMENT',
+          label: a.hidden ? '隠し実績を発見！' : 'ACHIEVEMENT',
           title: `${a.icon} ${a.name}`,
           sub: list.length > 1 ? `ほか${list.length - 1}個の実績を獲得。冒険の「実績」で称号にできます` : `${a.desc}。冒険の「実績」で称号にできます`,
         }),

@@ -17,7 +17,7 @@ export function Achievements({ player, busy, onTitle }: { player: PlayerState; b
       <div className="panel-head">
         <h2>実績</h2>
         <span className="muted">
-          {got.size}/{ACHIEVEMENTS.length} ・ 🔥{stats?.streak ?? player.streak ?? 0}日連続（最長{stats?.bestStreak ?? 0}日）
+          {got.size}/{ACHIEVEMENTS.length} ・ 📅完了した日 {stats?.days ?? 0}日 ・ 🔥{stats?.streak ?? player.streak ?? 0}日連続
         </span>
       </div>
       <p className="muted ach-note">
@@ -36,30 +36,35 @@ export function Achievements({ player, busy, onTitle }: { player: PlayerState; b
           const on = player.title === a.id
           const value = Math.min(stats?.[a.stat] ?? 0, a.goal)
           const tier = TIERS[a.tier ?? 1]
+          // 隠し実績は取るまで名前・条件・進み具合を見せない
+          const secret = a.hidden && !at
           return (
             <li key={a.id}>
               <button
-                className={`ach t-${tier.key} ${at ? 'got' : 'locked'} ${on ? 'on' : ''}`}
+                className={`ach t-${tier.key} ${at ? 'got' : 'locked'} ${on ? 'on' : ''} ${secret ? 'secret' : ''} ${a.hidden && at ? 'found' : ''}`}
                 disabled={!at || busy}
                 onClick={() => onTitle(on ? null : a.id)}
                 data-testid={`ach-${a.id}`}
               >
-                <span className="ach-icon">{at ? a.icon : '🔒'}</span>
+                <span className="ach-icon">{at ? a.icon : secret ? '❓' : '🔒'}</span>
                 <span className="ach-body">
                   <span className="ach-name">
-                    {a.name}
-                    <span className={`title-chip tier-chip t-${tier.key}`} data-testid="ach-tier">
-                      {tier.label}
-                    </span>
+                    {secret ? '？？？' : a.name}
+                    {!secret && (
+                      <span className={`title-chip tier-chip t-${tier.key}`} data-testid="ach-tier">
+                        {tier.label}
+                      </span>
+                    )}
+                    {a.hidden && <span className="hidden-chip">隠し</span>}
                   </span>
-                  <span className="ach-desc">{a.desc}</span>
-                  {!at && stats && (
+                  <span className="ach-desc">{secret ? '条件はひみつ。いつもと違う使い方をすると見つかるかも' : a.desc}</span>
+                  {!at && !secret && stats && (
                     <span className="ach-bar">
                       <span style={{ transform: `scaleX(${value / a.goal})` }} />
                     </span>
                   )}
                 </span>
-                <span className="ach-side">{on ? '称号にしています' : at ? new Date(at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : stats ? `${value}/${a.goal}` : ''}</span>
+                <span className="ach-side">{on ? '称号にしています' : at ? new Date(at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : secret ? '' : stats ? `${value}/${a.goal}` : ''}</span>
               </button>
             </li>
           )

@@ -32,7 +32,7 @@ export async function streaks(db: D1Database) {
 }
 
 export async function achievementStats(db: D1Database, userId: string): Promise<AchievementStats> {
-  const [agg, helps, player, ssr] = await db.batch([
+  const [agg, helps, player, ssr, maxDay, misc] = await db.batch([
     db
       .prepare(
         `SELECT COUNT(*) AS done,
@@ -40,13 +40,19 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
                 SUM(COALESCE(weight_user, weight) = 'XL') AS xl,
                 SUM(requested_by IS NOT NULL) AS requests,
                 SUM(parent_id IS NOT NULL) AS split,
-                SUM(((done_at + ${JST}) % ${DAY}) < ${10 * 3600000}) AS early
+                SUM(((done_at + ${JST}) % ${DAY}) < ${10 * 3600000}) AS early,
+                SUM(((done_at + ${JST}) % ${DAY}) >= ${22 * 3600000} OR ((done_at + ${JST}) % ${DAY}) < ${4 * 3600000}) AS night,
+                SUM(((CAST((done_at + ${JST}) / ${DAY} AS INTEGER) + 4) % 7) IN (0, 6)) AS weekend
            FROM tasks WHERE user_id = ? AND status = 'done' AND xp_awarded > 0`,
       )
       .bind(userId),
     db.prepare('SELECT COUNT(*) AS n FROM helps WHERE user_id = ?').bind(userId),
     db.prepare('SELECT xp, stage FROM players WHERE user_id = ?').bind(userId),
-    db.prepare("SELECT COUNT(*) AS n FROM items WHERE user_id = ? AND rarity IN ('SSR', 'UR')").bind(userId),
+    db.prepare("SELECT COUNT(*) AS n, SUM(rarity = 'UR') AS ur FROM items WHERE user_id = ? AND rarity IN ('SSR', 'UR')").bind(userId),
+    db
+      .prepare(`SELECT MAX(n) AS n FROM (SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND status = 'done' AND xp_awarded > 0 GROUP BY CAST((done_at + ${JST}) / ${DAY} AS INTEGER))`)
+      .bind(userId),
+    db.prepare('SELECT (SELECT COUNT(*) FROM comments WHERE user_id = ?1) AS comments, (SELECT COUNT(*) FROM reactions WHERE user_id = ?1) AS reactions').bind(userId),
   ])
   const a = agg.results[0] as any
   const p = (player.results[0] as any) ?? { xp: 0, stage: 1 }
@@ -64,6 +70,13 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
     cleared: Math.max(0, (p.stage ?? 1) - 1),
     level: levelInfo(p.xp ?? 0).level,
     ssr: (ssr.results[0] as any).n ?? 0,
+    days: days.length,
+    night: a.night ?? 0,
+    weekend: a.weekend ?? 0,
+    maxDay: (maxDay.results[0] as any)?.n ?? 0,
+    ur: (ssr.results[0] as any).ur ?? 0,
+    comments: (misc.results[0] as any)?.comments ?? 0,
+    reactions: (misc.results[0] as any)?.reactions ?? 0,
   }
 }
 

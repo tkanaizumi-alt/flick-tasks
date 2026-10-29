@@ -13,6 +13,13 @@ export interface AchievementStats {
   cleared: number // クリアしたステージ数
   level: number
   ssr: number // 持っている SSR 以上の装備
+  days: number // タスクを完了した日の合計 (連続でなくてよい)
+  night: number // 夜 22 時〜朝 4 時の完了
+  weekend: number // 土日の完了
+  maxDay: number // 1 日に完了した数の最多
+  ur: number // 持っている UR の装備
+  comments: number // 書いたコメント
+  reactions: number // 他の人のタスクに付けたリアクション
 }
 
 export interface AchievementDef {
@@ -25,6 +32,8 @@ export interface AchievementDef {
   goal: number
   /** 難しさ。称号の色が変わる (1 ブロンズ / 2 シルバー / 3 ゴールド / 4 レジェンド) */
   tier?: Tier
+  /** 隠し実績: 取るまで名前も条件も見せない */
+  hidden?: boolean
 }
 
 export type Tier = 1 | 2 | 3 | 4
@@ -43,8 +52,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'done50', name: '働き者', icon: '📘', desc: 'タスクを50件完了', stat: 'done', goal: 50, tier: 2 },
   { id: 'done200', name: '仕事の鬼', icon: '📕', desc: 'タスクを200件完了', stat: 'done', goal: 200, tier: 3 },
   { id: 'streak3', name: '三日坊主卒業', icon: '🔥', desc: '3日連続で完了', stat: 'bestStreak', goal: 3, tier: 1 },
-  { id: 'streak7', name: '習慣の人', icon: '🔥', desc: '7日連続で完了', stat: 'bestStreak', goal: 7, tier: 2 },
-  { id: 'streak30', name: '継続の達人', icon: '☄️', desc: '30日連続で完了', stat: 'bestStreak', goal: 30, tier: 4 },
+  { id: 'streak7', name: '習慣の人', icon: '📅', desc: 'タスクを完了した日が合計7日', stat: 'days', goal: 7, tier: 2 },
+  { id: 'streak30', name: '継続の達人', icon: '☄️', desc: 'タスクを完了した日が合計30日', stat: 'days', goal: 30, tier: 4 },
   { id: 'big10', name: '大物狙い', icon: '🐋', desc: '「大」以上のタスクを10件完了', stat: 'big', goal: 10, tier: 2 },
   { id: 'xl1', name: '伝説の案件', icon: '🏔️', desc: '「特大」のタスクを完了', stat: 'xl', goal: 1, tier: 3 },
   { id: 'help5', name: '助っ人', icon: '🤝', desc: '他の人のタスクを5回進める', stat: 'helps', goal: 5, tier: 1 },
@@ -57,6 +66,19 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'lv20', name: 'ベテラン', icon: '🎖️', desc: 'レベル20になる', stat: 'level', goal: 20, tier: 3 },
   { id: 'ssr', name: '幸運の持ち主', icon: '🍀', desc: 'SSR以上の装備を手に入れる', stat: 'ssr', goal: 1, tier: 3 },
 ]
+/** 隠し実績 (取るまで「？？？」) */
+export const HIDDEN_ACHIEVEMENTS: AchievementDef[] = [
+  { id: 'h_night', name: '夜ふかしの番人', icon: '🦉', desc: '夜22時〜朝4時に10件完了', stat: 'night', goal: 10, tier: 2, hidden: true },
+  { id: 'h_weekend', name: '休日出勤', icon: '🏖️', desc: '土日に10件完了', stat: 'weekend', goal: 10, tier: 2, hidden: true },
+  { id: 'h_rush', name: '電光石火', icon: '⚡', desc: '1日に15件完了', stat: 'maxDay', goal: 15, tier: 3, hidden: true },
+  { id: 'h_talker', name: '話し上手', icon: '💬', desc: 'コメントを50件書く', stat: 'comments', goal: 50, tier: 2, hidden: true },
+  { id: 'h_cheer', name: '応援団長', icon: '📣', desc: 'リアクションを30回付ける', stat: 'reactions', goal: 30, tier: 2, hidden: true },
+  { id: 'h_xl5', name: '伝説の請負人', icon: '🏰', desc: '「特大」のタスクを5件完了', stat: 'xl', goal: 5, tier: 3, hidden: true },
+  { id: 'h_ur', name: '虹をつかむ者', icon: '🌈', desc: 'URの装備を手に入れる', stat: 'ur', goal: 1, tier: 3, hidden: true },
+  { id: 'h_days100', name: '百日の功', icon: '💯', desc: 'タスクを完了した日が合計100日', stat: 'days', goal: 100, tier: 4, hidden: true },
+]
+ACHIEVEMENTS.push(...HIDDEN_ACHIEVEMENTS)
+
 export const ACHIEVEMENT_MAP: Record<string, AchievementDef> = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]))
 
 export const achieved = (a: AchievementDef, s: AchievementStats) => s[a.stat] >= a.goal
