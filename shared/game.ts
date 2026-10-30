@@ -832,6 +832,8 @@ export interface SkinDef {
   stage?: number
   /** ゴールドで買うスキン */
   price?: number
+  /** 絵文字のかわりに使うイラスト (public/skins/ の画像) */
+  img?: string
 }
 export const SKINS: SkinDef[] = [
   // 最初から選べる
@@ -847,6 +849,7 @@ export const SKINS: SkinDef[] = [
   { id: 'owl', name: 'ふくろう', emoji: '🦉', bg: 'linear-gradient(135deg,#d7c9b8,#a68a6d)' },
   { id: 'whale', name: 'くじら', emoji: '🐳', bg: 'linear-gradient(135deg,#b5e8ff,#6ec6ff)' },
   { id: 'cactus', name: 'サボテン', emoji: '🌵', bg: 'linear-gradient(135deg,#d8f5c4,#9be15d)' },
+  { id: 'bigguy', name: '大男', emoji: '💪', bg: 'linear-gradient(135deg,#7fd3e8,#f6d39b)', img: '/skins/big-guy.svg' },
   // レベル・ステージで解放
   { id: 'cat', name: 'ねこ', emoji: '🐱', bg: 'linear-gradient(135deg,#ffe0b2,#ffb74d)', level: 2 },
   { id: 'dog', name: 'いぬ', emoji: '🐶', bg: 'linear-gradient(135deg,#ffecd2,#fcb69f)', level: 3 },

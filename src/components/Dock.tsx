@@ -163,7 +163,7 @@ export function Avatar({ name, picture, size = 44, skin }: { name: string; pictu
   if (sk)
     return (
       <span className="av-skin" style={{ width: size, height: size, fontSize: size * 0.58, background: sk.bg }} role="img" aria-label={sk.name}>
-        {sk.emoji}
+        {'img' in sk && sk.img ? <img className="av-skin-img" src={sk.img} alt="" width={size} height={size} draggable={false} /> : sk.emoji}
       </span>
     )
   return picture ? (

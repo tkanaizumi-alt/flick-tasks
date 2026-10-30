@@ -225,3 +225,7 @@
 .confirm-task { font-size: 15px !important; font-weight: 700; color: var(--ink) !important; margin: 6px 0 !important; word-break: break-word; }
 .pill-btn.primary.move-done { background: linear-gradient(160deg, #4ee3a5, var(--c-done)); box-shadow: 0 6px 16px -6px rgba(22, 199, 132, 0.6); }
 .pill-btn.primary.move-doing { background: linear-gradient(160deg, #ffc35c, var(--c-doing)); box-shadow: 0 6px 16px -6px rgba(255, 159, 46, 0.6); }
+
+/* イラストのスキン */
+.av-skin { overflow: hidden; }
+.av-skin-img { display: block; width: 100%; height: 100%; }
