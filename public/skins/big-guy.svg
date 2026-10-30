@@ -1,25 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-26 -22 172 172">
-  <!-- スキン「大男」: もじゃもじゃ頭・ハチマキ・タトゥーの陽気な大男 (デフォルメ) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-17 -30 154 154">
+  <!-- スキン「大男」: もじゃもじゃ頭・ハチマキの陽気な大男の顔 (デフォルメ) -->
   <defs>
     <radialGradient id="skin" cx="45%" cy="40%" r="65%">
       <stop offset="0" stop-color="#d89566"/>
       <stop offset="1" stop-color="#a8673f"/>
     </radialGradient>
-    <radialGradient id="body" cx="50%" cy="20%" r="80%">
-      <stop offset="0" stop-color="#c98454"/>
-      <stop offset="1" stop-color="#94562f"/>
-    </radialGradient>
   </defs>
-
-  <!-- 肩と胸 (タトゥー入り) -->
-  <path d="M14 116 C15 96 32 86 60 86 C88 86 105 96 106 116 C106 124 14 124 14 116 Z" fill="url(#body)"/>
-  <g fill="none" stroke="#5a3420" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M18 108 l6 -7 l6 7 l6 -7 l6 7"/>
-    <path d="M78 108 l6 -7 l6 7 l6 -7 l6 7"/>
-    <path d="M24 114 h14 M82 114 h14"/>
-  </g>
-  <!-- 首 -->
-  <rect x="47" y="76" width="26" height="14" rx="6" fill="#a8673f"/>
 
   <!-- もじゃもじゃの髪 (後ろ) -->
   <g fill="#2b221d">
