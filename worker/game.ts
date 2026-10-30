@@ -555,6 +555,26 @@ export async function equipItem(db: D1Database, userId: string, itemId: string, 
   return { player: await getPlayer(db, userId) }
 }
 
+/** まとめて装備する (おまかせ装備)。部位ごとに自分の装備の ID か、外すなら null */
+export async function equipSet(db: D1Database, userId: string, set: Partial<Record<Slot, string | null>>) {
+  const p = await getPlayer(db, userId)
+  const cols: string[] = []
+  const vals: (string | null)[] = []
+  for (const s of SLOTS) {
+    if (!(s.key in set)) continue
+    const id = set[s.key] ?? null
+    if (id !== null) {
+      const item = p.items.find((i) => i.id === id)
+      if (!item || item.slot !== s.key) return { error: 'その装備はつけられません' }
+    }
+    cols.push(`${SLOT_COL[s.key]} = ?`)
+    vals.push(id)
+  }
+  if (!cols.length) return { player: p }
+  await db.prepare(`UPDATE players SET ${cols.join(', ')}, updated_at = ? WHERE user_id = ?`).bind(...vals, Date.now(), userId).run()
+  return { player: await getPlayer(db, userId) }
+}
+
 export async function sellItem(db: D1Database, userId: string, itemId: string) {
   const p = await getPlayer(db, userId)
   const item = p.items.find((i) => i.id === itemId)

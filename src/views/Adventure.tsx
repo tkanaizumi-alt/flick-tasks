@@ -24,6 +24,7 @@ import {
 } from '../../shared/game'
 import { api, HttpError, type Mission } from '../api'
 import { store } from '../store'
+import { bestGear } from '../../shared/optimize'
 import { BattleModal } from '../components/BattleModal'
 import { CharacterHeader } from '../components/CharacterHeader'
 import { ChestReveal, ItemCard, ItemSheet } from '../components/Loot'
@@ -115,6 +116,32 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
       return null
     } finally {
       setBusy(false)
+    }
+  }
+
+  // おまかせ装備: 組み合わせをシミュレーションで比べて、一番勝てるものをまとめて装備する
+  const [optimizing, setOptimizing] = useState(false)
+  const autoEquip = async () => {
+    setOptimizing(true)
+    // 計算の前に「考え中」を描くため 1 フレーム待つ
+    await new Promise((ok) => setTimeout(ok, 30))
+    try {
+      const best = bestGear(player)
+      if (!best.changed) {
+        toast(`今の装備が一番です（勝率 ${Math.round(best.rate * 100)}%）`)
+        return
+      }
+      const set = Object.fromEntries(SLOTS.map((s) => [s.key, best.equipped[s.key] ?? null]))
+      const r = await run(() => api.equipSet(set))
+      if (!r) return
+      // 勝率が変わらないとき (どちらも 0% や 100%) は、攻撃と体力の変化を出す
+      const a = effectiveStats(player)
+      const b = effectiveStats(r.player)
+      const before = Math.round(best.before * 100)
+      const after = Math.round(best.rate * 100)
+      toast(before !== after ? `おまかせで装備しました（勝率 ${before}% → ${after}%）` : `おまかせで装備しました（攻撃 ${a.atk}→${b.atk}・体力 ${a.hp}→${b.hp}）`)
+    } finally {
+      setOptimizing(false)
     }
   }
 
@@ -291,6 +318,11 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <section className="panel glass">
             <div className="panel-head">
               <h2>装備中</h2>
+              {player.items.length > 0 && (
+                <button className="pill-btn primary small" disabled={busy || optimizing} onClick={autoEquip} data-testid="auto-equip" title="持っている装備から、今のボスに一番勝ちやすい組み合わせを選びます">
+                  {optimizing ? '考え中…' : '✨ おまかせ装備'}
+                </button>
+              )}
             </div>
             <div className="equip-slots">
               {SLOTS.map((s) => {

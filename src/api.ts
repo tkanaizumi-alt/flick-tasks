@@ -74,6 +74,7 @@ export const api = {
   bulk: (ids: string[], action: { status: Status } | { delete: true }) =>
     req<{ tasks?: Task[]; xp?: XpChange | null }>('/api/tasks/bulk', { method: 'POST', json: { ids, ...action } }),
   chest: () => req<{ item: Item; player: PlayerState }>('/api/chest', { method: 'POST', json: {} }),
+  equipSet: (equipped: Partial<Record<Slot, string | null>>) => req<{ player: PlayerState }>('/api/equip-set', { method: 'POST', json: { equipped } }),
   equip: (id: string, on: boolean) => req<{ player: PlayerState }>(`/api/items/${id}/equip`, { method: 'POST', json: { on } }),
   sell: (id: string) => req<{ player: PlayerState }>(`/api/items/${id}/sell`, { method: 'POST', json: {} }),
   missions: () => req<{ missions: Mission[] }>('/api/missions'),

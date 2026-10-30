@@ -28,6 +28,7 @@ export const FEATURES: Record<string, string> = {
   chest: '宝箱',
   sell: '装備を売る',
   equip: '装備の付け替え',
+  equip_best: 'おまかせ装備',
   enhance: '装備の強化（装備で）',
   enhance_gold: '装備の強化（ゴールドで）',
   shop_boost: 'XP2倍チケット',

@@ -1,5 +1,5 @@
 /** 冒険 (ミニゲーム) */
-import { addStat, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
+import { addStat, equipSet, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
 import { eventBossState, fightEventBoss, rematch, rematchState, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
@@ -105,6 +105,13 @@ game.get('/event', async (c) => c.json({ event: await eventProgress(c.env.DB, c.
 game.post('/chest', async (c) => {
   const r = await openChest(c.env.DB, c.get('user').id)
   return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** まとめて装備 (おまかせ装備) */
+game.post('/equip-set', async (c) => {
+  const { equipped } = await c.req.json<{ equipped?: Record<string, string | null> }>().catch(() => ({}) as any)
+  if (!equipped || typeof equipped !== 'object') return c.json({ error: 'invalid' }, 400)
+  return gameResponse(c, await equipSet(c.env.DB, c.get('user').id, equipped as any))
 })
 
 game.post('/items/:id/equip', async (c) => {

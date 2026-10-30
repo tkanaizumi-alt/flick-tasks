@@ -130,6 +130,21 @@ if (sameKind) {
   }
 }
 
+// まとめて装備 (おまかせ装備)
+{
+  const pe = (await A.call('/api/player')).player
+  const it = pe.items[0]
+  if (it) {
+    const other = ['head', 'body', 'feet', 'weapon'].find((x) => x !== it.slot)
+    check('違う部位にはつけられない', (await A.call('/api/equip-set', 'POST', { equipped: { [other]: it.id } })).status === 400)
+    const on = await A.call('/api/equip-set', 'POST', { equipped: { [it.slot]: it.id } })
+    const off = await A.call('/api/equip-set', 'POST', { equipped: { [it.slot]: null } })
+    check('まとめて装備・外す', on.player?.equipped?.[it.slot] === it.id && !off.player?.equipped?.[it.slot], { on: on.player?.equipped, off: off.player?.equipped })
+    await A.call('/api/equip-set', 'POST', { equipped: pe.equipped })
+  }
+  check('他の人の装備はつけられない', (await B.call('/api/equip-set', 'POST', { equipped: { head: it?.id ?? 'nope-0000' } })).status === 400)
+}
+
 // ゴールドの使い道: 持ち物の枠・スキン・ゴールドで強化・差し入れ (お金が足りないときは断られることを確かめる)
 const now = async () => (await A.call('/api/player')).player
 check('買っていないスキンは着られない', (await A.call('/api/player/skin', 'POST', { skin: 'crown' })).status === 400)

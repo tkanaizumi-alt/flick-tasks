@@ -197,6 +197,18 @@ async function run(label, viewport) {
     return ev.event ? shown && (await page.getByTestId('event-gear').innerText()).includes(ev.gear[0].name) : !shown
   })
 
+  await step('おまかせ装備', async () => {
+    await dismiss()
+    await page.getByTestId('nav-game').click()
+    await page.getByTestId('adv-loot').click()
+    const btn = page.getByTestId('auto-equip')
+    if (!(await btn.count())) return true // 装備をまだ持っていない
+    await btn.click()
+    const t = page.getByTestId('toast').filter({ hasText: /おまかせで装備しました|今の装備が一番です/ })
+    await t.first().waitFor({ timeout: 15000 })
+    return true
+  })
+
   await step('冒険のショップ', async () => {
     await dismiss()
     await page.getByTestId('nav-game').click()
