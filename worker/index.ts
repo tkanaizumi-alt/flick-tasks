@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env, Vars } from './env'
 import { auth, resolveUser } from './auth'
-import { purgeOldDone } from './game'
+import { purgeOldDone, sweepUnjudged } from './game'
 import { dueReminders, errorDigest, weeklyReviews } from './cron'
 import { tools } from './routes/tools'
 import { usageLog } from './usage'
@@ -99,6 +99,8 @@ export default {
             await recordError(env, { source: 'server', path: 'cron backup', message: String(e?.message ?? e), stack: e?.stack })
           }
           console.log('purged done tasks', await purgeOldDone(env.DB))
+          // 判定に失敗したまま残っているタスクの作業量
+          console.log('rejudged weights', await sweepUnjudged(env))
         })(),
       )
   },

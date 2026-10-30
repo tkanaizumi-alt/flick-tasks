@@ -660,8 +660,18 @@ S (小): 15 分以内。連絡・予約・登録・コピー・回覧・確認�
 
 入力は「番号: タスク」の行です。JSON {"weights": ["S"|"M"|"L"|"XL", ...]} を入力と同じ順で返してください。`
 
+/**
+ * AI で作業量 (小・中・大・特大) を判定して保存する。失敗した分は 1 回だけやり直す。
+ * それでも残ったものは、一覧を開いたときや毎晩の整理で判定し直す (sweepUnjudged)
+ */
 export async function classifyWeights(env: Env, tasks: { id: string; title: string }[]) {
   if (!tasks.length) return
+  const left = await classifyOnce(env, tasks)
+  if (left.length) await classifyOnce(env, left)
+}
+
+/** 1 回判定して、判定できなかったタスクを返す */
+async function classifyOnce(env: Env, tasks: { id: string; title: string }[]) {
   try {
     const res: any = await env.AI.run('@cf/google/gemma-4-26b-a4b-it' as any, {
       messages: [
@@ -683,12 +693,36 @@ export async function classifyWeights(env: Env, tasks: { id: string; title: stri
     const text = res?.choices?.[0]?.message?.content ?? res?.response
     const data = typeof text === 'string' ? JSON.parse(text) : text
     const weights: string[] = data?.weights ?? []
-    const stmts = tasks
-      .map((t, i) => (['S', 'M', 'L', 'XL'].includes(weights[i]) ? env.DB.prepare('UPDATE tasks SET weight = ? WHERE id = ? AND weight IS NULL').bind(weights[i], t.id) : null))
-      .filter((s): s is D1PreparedStatement => !!s)
+    const ok = (i: number) => ['S', 'M', 'L', 'XL'].includes(weights[i])
+    const stmts = tasks.flatMap((t, i) => (ok(i) ? [env.DB.prepare('UPDATE tasks SET weight = ? WHERE id = ? AND weight IS NULL').bind(weights[i], t.id)] : []))
     if (stmts.length) await env.DB.batch(stmts)
+    return tasks.filter((_, i) => !ok(i))
   } catch (e) {
-    // 判定できなければ M 扱い (XP 計算側の既定値)
+    // 判定できないあいだは「中」として XP を計算する (XP 計算側の既定値)
     console.error('weight classify failed', e)
+    return tasks
   }
+}
+
+/** 同じ人の判定し直しは 5 分に 1 回まで (この Worker のインスタンスの中で) */
+const lastSweep = new Map<string, number>()
+
+/**
+ * 判定が終わっていない未完了のタスク (追加から 1 分以上たったもの) を判定し直す。
+ * userId を渡すとその人の分だけ (一覧を開いたとき)、渡さなければ全員分 (毎晩)
+ */
+export async function sweepUnjudged(env: Env, userId?: string) {
+  const now = Date.now()
+  if (userId) {
+    if (now - (lastSweep.get(userId) ?? 0) < 5 * 60000) return 0
+    lastSweep.set(userId, now)
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT id, title FROM tasks WHERE weight IS NULL AND status <> 'done' AND created_at < ? AND created_at > ? ${userId ? 'AND user_id = ?' : ''} ORDER BY created_at LIMIT ${userId ? 10 : 50}`,
+  )
+    .bind(now - 60000, now - 30 * 86400000, ...(userId ? [userId] : []))
+    .all<{ id: string; title: string }>()
+  // 一度に頼みすぎないよう 10 件ずつ
+  for (let i = 0; i < results.length; i += 10) await classifyWeights(env, results.slice(i, i + 10))
+  return results.length
 }

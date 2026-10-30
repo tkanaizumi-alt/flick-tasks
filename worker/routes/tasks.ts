@@ -1,7 +1,7 @@
 /** タスク (追加・更新・分解・期限・フラグ・繰り返し・コメント・並べ替え・AI) */
 import { displayName, isAllowed, type Env } from '../env'
 import { aiTasks } from '../ai'
-import { applyTaskXp, awardHelp, classifyWeights, doneCutoff, countDaily, logActivity, notify } from '../game'
+import { applyTaskXp, awardHelp, classifyWeights, doneCutoff, countDaily, logActivity, notify, sweepUnjudged } from '../game'
 import { FLAGS, REACTION_MAP, isReaction, mentionsIn, type Flag, type Status, type Task, type User, san } from '../../shared/types'
 import { isRule, ruleMatches } from '../../shared/recurring'
 import { BREAKDOWN_MAX, helpXp, jstToday, weightChoices, type Weight } from '../../shared/game'
@@ -15,6 +15,8 @@ tasks.get('/tasks', async (c) => {
   // 繰り返しタスクの今日の分を (まだなら) 作ってから返す。作業量の判定は裏で
   const made = await ensureRecurring(c.env.DB, c.get('user').id)
   if (made.length) c.executionCtx.waitUntil(classifyWeights(c.env, made))
+  // 前に判定に失敗したまま残っているタスクがあれば、もう一度
+  c.executionCtx.waitUntil(sweepUnjudged(c.env, c.get('user').id).catch((e) => console.error('sweep failed', e)))
   const { results } = await c.env.DB.prepare(`${TASK_SELECT} WHERE t.user_id = ? AND ${VISIBLE} ORDER BY t.position DESC`)
     .bind(c.get('user').id, doneCutoff())
     .all()
