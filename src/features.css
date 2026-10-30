@@ -366,3 +366,13 @@ body[data-layout='pc'] .cal-day { position: sticky; top: calc(var(--safe-t) + va
 .ach.secret { background: repeating-linear-gradient(135deg, rgba(120, 110, 200, 0.06) 0 8px, rgba(255, 255, 255, 0.5) 8px 16px); }
 .hidden-chip { margin-left: 6px; vertical-align: 1px; font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: rgba(60, 50, 120, 0.85); color: #fff; }
 .ach.secret .hidden-chip { letter-spacing: 0; }
+
+/* ---------- 強化: 素材を選ぶ ---------- */
+.enhance-head { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.enhance-head .muted { font-size: 12px; }
+.mat-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+.mat { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 12px; background: rgba(255, 255, 255, 0.7); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.mat:active { transform: scale(0.98); }
+.mat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.mat-to { flex: none; font-size: 12px; color: var(--ink-2); }
+.mat-to b { color: #e8590c; font-size: 14px; }

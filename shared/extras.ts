@@ -91,6 +91,14 @@ export const enhanceGold = (rarity: Rarity, plus: number) => ENHANCE_GOLD[rarity
 export const PLUS_MAX = 10
 /** 強化 1 回で各ステータス +10% (最低 +1) */
 export const plusUp = (v: number) => (v > 0 ? v + Math.max(1, Math.round(v * 0.1)) : 0)
+/** n 段階ぶん強化したステータス */
+export const plusUpN = (v: number, n: number) => Array.from({ length: Math.max(0, n) }).reduce<number>((x) => plusUp(x), v)
+/**
+ * 素材を使った強化のあとの段階。同じレア度の素材は強化段階を引き継ぐ (+2 の素材なら 1 + 2 = 3 段階上がる)。
+ * 1 つ下のレア度の +10 は 1 段階。上限 +10
+ */
+export const enhanceTo = (item: Pick<Item, 'rarity' | 'plus'>, material: Pick<Item, 'rarity' | 'plus'>) =>
+  Math.min(PLUS_MAX, (item.plus ?? 0) + 1 + (material.rarity === item.rarity ? (material.plus ?? 0) : 0))
 
 const RARITY_UP: Rarity[] = ['N', 'R', 'SR', 'SSR', 'UR']
 /** 1 つ下 / 上のレア度 (無ければ null) */

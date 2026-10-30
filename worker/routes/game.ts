@@ -56,8 +56,8 @@ game.post('/player/pet', async (c) => {
 })
 
 game.post('/items/:id/enhance', async (c) => {
-  const { by } = await c.req.json<{ by?: string }>().catch(() => ({ by: 'item' }))
-  return gameResponse(c, await enhanceItem(c.env.DB, c.get('user').id, c.req.param('id'), by === 'gold' ? 'gold' : 'item'))
+  const { by, material } = await c.req.json<{ by?: string; material?: string }>().catch(() => ({}) as any)
+  return gameResponse(c, await enhanceItem(c.env.DB, c.get('user').id, c.req.param('id'), by === 'gold' ? 'gold' : 'item', typeof material === 'string' ? material : undefined))
 })
 
 game.post('/shop/skin/:id', async (c) => gameResponse(c, await buySkin(c.env.DB, c.get('user').id, c.req.param('id'))))

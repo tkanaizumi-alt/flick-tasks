@@ -44,7 +44,8 @@ export const api = {
     req<{ task: Task; xp: XpChange | null }>(`/api/tasks/${id}`, { method: 'PATCH', json: patch }),
   player: () => req<{ player: PlayerState; stats?: AchievementStats; unlocked?: AchievementDef[] }>('/api/player'),
   setPet: (pet: string | null) => req<{ player: PlayerState }>('/api/player/pet', { method: 'POST', json: { pet } }),
-  enhance: (id: string, by: 'item' | 'gold' = 'item') => req<{ player: PlayerState }>(`/api/items/${id}/enhance`, { method: 'POST', json: { by } }),
+  enhance: (id: string, by: 'item' | 'gold' = 'item', material?: string) =>
+    req<{ player: PlayerState; plus?: number; gained?: number }>(`/api/items/${id}/enhance`, { method: 'POST', json: { by, material } }),
   buySkin: (id: string) => req<{ player: PlayerState }>(`/api/shop/skin/${id}`, { method: 'POST', json: {} }),
   buy: (id: string) => req<{ player: PlayerState; item: Item | null }>(`/api/shop/${id}`, { method: 'POST', json: {} }),
   raid: () => req<RaidState>('/api/raid'),

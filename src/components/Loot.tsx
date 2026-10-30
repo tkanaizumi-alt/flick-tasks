@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { EFFECTS, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
-import { PLUS_MAX, enhanceGold, higherRarity, lowerRarity } from '../../shared/extras'
+import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
 const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
@@ -86,11 +86,11 @@ interface SheetProps {
   onClose: () => void
   onEquip: (on: boolean) => void
   onSell: () => void
-  /** 強化に使える装備 (同じ部位・同じレア度・装備していない) の数 */
-  materials: number
+  /** 強化の素材に使える装備 (同じ部位で、同じレア度か 1 つ下のレア度の +10。装備していないもの) */
+  materials: Item[]
   /** 持っているゴールド (ゴールドで強化できるか) */
   gold: number
-  onEnhance: (by: 'item' | 'gold') => void
+  onEnhance: (by: 'item' | 'gold', material?: string) => void
 }
 
 /** アイテムの詳細と 装備 / 外す / 売る */
@@ -142,20 +142,36 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
             })}
         </ul>
         {item.effect && <p className="is-fx">✦ {EFFECTS[item.effect]}</p>}
-        <div className="enhance-row">
-          <button className="pill-btn ghost small" disabled={busy || !materials || maxed} onClick={() => onEnhance('item')} data-testid="enhance">
-            ⚒️ 強化 {maxed ? '(最大)' : `+${(item.plus ?? 0) + 1}`}
-          </button>
+        <div className="enhance-head">
+          <b>⚒️ 強化</b>
           <span className="muted">
             {maxed
               ? higher
                 ? `+${PLUS_MAX}が最大です。同じ部位の${higher}を強化する素材に使えます`
                 : `+${PLUS_MAX}が最大です`
-              : materials
-                ? `${need}の装備を1つ使って全ステータス+10%（使える装備 ${materials}個）`
+              : materials.length
+                ? `素材にする装備を選んでください（${need}）。1段階ごとに全ステータス+10%。同じレア度の素材は強化段階を引き継ぎます`
                 : `${need}の装備がもう1つあると強化できます`}
           </span>
         </div>
+        {!maxed && materials.length > 0 && (
+          <ul className="mat-list" data-testid="enhance-materials">
+            {materials.map((m) => (
+              <li key={m.id}>
+                <button className={`mat r-${m.rarity}`} disabled={busy} onClick={() => onEnhance('item', m.id)} data-testid="enhance-material">
+                  <GearIcon slot={m.slot} rarity={m.rarity} size={22} />
+                  <span className="mat-name">
+                    <span className="item-rarity inline">{m.rarity}</span> {m.name}
+                    {m.plus ? <b className="item-plus">+{m.plus}</b> : null}
+                  </span>
+                  <span className="mat-to">
+                    → <b>+{enhanceTo(item, m)}</b>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {!maxed && (
           <div className="enhance-row">
             <button className="pill-btn ghost small" disabled={busy || gold < cost} onClick={() => onEnhance('gold')} data-testid="enhance-gold">

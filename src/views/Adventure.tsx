@@ -611,14 +611,14 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             onSell={async () => {
               if (await run(() => api.sell(openItem.id))) setOpenItem(null)
             }}
-            materials={materialsFor(openItem, player.items, Object.values(player.equipped) as string[]).length}
+            materials={materialsFor(openItem, player.items, Object.values(player.equipped) as string[])}
             gold={player.gold}
-            onEnhance={async (by) => {
-              const r = await run(() => api.enhance(openItem.id, by))
+            onEnhance={async (by, material) => {
+              const r = await run(() => api.enhance(openItem.id, by, material))
               if (r) {
                 const next = r.player.items.find((i) => i.id === openItem.id)
                 if (next) setOpenItem(next)
-                toast('強化しました')
+                toast(next ? `+${next.plus ?? 0} になりました` : '強化しました')
               }
             }}
           />

@@ -23,6 +23,8 @@ import {
   hasEventSkin,
   petUnlocked,
   plusUp,
+  plusUpN,
+  enhanceTo,
   srChestRarity,
   type ShopId,
 } from '../shared/extras'
@@ -247,7 +249,7 @@ export async function setPet(db: D1Database, userId: string, pet: string | null)
  * 装備の強化 (+1)。同じ部位・同じレア度の (装備していない) 装備を 1 つ使うか、
  * by = 'gold' ならゴールドを払う (値段はレア度 × 次の段階)
  */
-export async function enhanceItem(db: D1Database, userId: string, itemId: string, by: 'item' | 'gold' = 'item') {
+export async function enhanceItem(db: D1Database, userId: string, itemId: string, by: 'item' | 'gold' = 'item', materialId?: string) {
   const p = await getPlayer(db, userId)
   const item = p.items.find((i) => i.id === itemId)
   if (!item) return { error: 'アイテムがありません' }
@@ -264,13 +266,26 @@ export async function enhanceItem(db: D1Database, userId: string, itemId: string
     await up.run()
     return { player: await getPlayer(db, userId) }
   }
-  const material = materialsFor(item, p.items, Object.values(p.equipped) as string[])[0]
+  // 素材は選んだもの (選んでいなければ使える中の先頭)
+  const usable = materialsFor(item, p.items, Object.values(p.equipped) as string[])
+  const material = materialId ? usable.find((i) => i.id === materialId) : usable[0]
   if (!material) {
+    if (materialId) return { error: 'その装備は素材に使えません' }
     const lower = lowerRarity(item.rarity)
     return { error: `同じ部位の${item.rarity}の装備${lower ? `か、${lower}の+${PLUS_MAX}の装備` : ''}がもう1つ必要です` }
   }
-  await db.batch([db.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(material.id, userId), up])
-  return { player: await getPlayer(db, userId) }
+  // 素材の強化段階を引き継ぐ (同じレア度のとき)。強化前の段階が変わっていなければ (同時に押していなければ) 反映
+  const before = item.plus ?? 0
+  const after = enhanceTo(item, material)
+  const steps = after - before
+  const r = await db.batch([
+    db
+      .prepare('UPDATE items SET plus = ?, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
+      .bind(after, plusUpN(item.atk, steps), plusUpN(item.hp, steps), plusUpN(item.crit, steps), plusUpN(item.heal, steps), item.id, userId, before),
+    db.prepare('DELETE FROM items WHERE id = ? AND user_id = ? AND changes() > 0').bind(material.id, userId),
+  ])
+  if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
+  return { player: await getPlayer(db, userId), plus: after, gained: steps }
 }
 
 /**

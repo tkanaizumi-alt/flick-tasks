@@ -121,9 +121,12 @@ const sameKind = Object.values(
 ).find((list) => list.length >= 2)
 if (sameKind) {
   const target = sameKind.find((i) => (i.plus ?? 0) < 10)
-  if (target) {
-    const e = await A.call(`/api/items/${target.id}/enhance`, 'POST', {})
-    check('装備の強化', e.player?.items.find((i) => i.id === target.id)?.plus === (target.plus ?? 0) + 1, e)
+  const material = target && sameKind.find((i) => i.id !== target.id && !Object.values(before.equipped).includes(i.id))
+  if (target && material) {
+    // 同じレア度の素材は強化段階を引き継ぐ (1 + 素材の段階、上限 +10)
+    const e = await A.call(`/api/items/${target.id}/enhance`, 'POST', { by: 'item', material: material.id })
+    const want = Math.min(10, (target.plus ?? 0) + 1 + (material.plus ?? 0))
+    check('装備の強化 (素材の段階を引き継ぐ)', e.player?.items.find((i) => i.id === target.id)?.plus === want && !e.player.items.some((i) => i.id === material.id), e)
   }
 }
 

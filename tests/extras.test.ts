@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, higherRarity, lowerRarity, materialsFor, PLUS_MAX, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, plusUpN, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
 import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinUnlocked, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
@@ -124,5 +124,16 @@ describe('装備の強化の素材', () => {
     expect(higherRarity('UR')).toBeNull()
     expect(higherRarity('SSR')).toBe('UR')
     expect(PLUS_MAX).toBe(10)
+  })
+})
+
+describe('強化の引き継ぎ', () => {
+  it('同じレア度の素材は段階を引き継ぐ。1 つ下のレア度の +10 は 1 段階。上限 +10', () => {
+    expect(enhanceTo({ rarity: 'R', plus: 0 }, { rarity: 'R', plus: 2 })).toBe(3)
+    expect(enhanceTo({ rarity: 'R', plus: 4 }, { rarity: 'R', plus: 0 })).toBe(5)
+    expect(enhanceTo({ rarity: 'R', plus: 0 }, { rarity: 'N', plus: 10 })).toBe(1)
+    expect(enhanceTo({ rarity: 'R', plus: 8 }, { rarity: 'R', plus: 5 })).toBe(10)
+    expect(plusUpN(100, 3)).toBe(133)
+    expect(plusUpN(100, 0)).toBe(100)
   })
 })
