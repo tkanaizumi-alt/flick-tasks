@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Env, Vars } from './env'
 import { auth, resolveUser } from './auth'
 import { purgeOldDone, sweepUnjudged } from './game'
-import { dueReminders, errorDigest, weeklyReviews } from './cron'
+import { dueReminders, errorDigest, staleNotices, weeklyReviews } from './cron'
 import { tools } from './routes/tools'
 import { usageLog } from './usage'
 import { calendarFeed } from './calendar'
@@ -88,6 +88,8 @@ export default {
       ctx.waitUntil(weeklyReviews(env).then((n) => console.log('weekly reviews', n)))
       // 管理者に今週のエラーの件数を知らせる
       ctx.waitUntil(errorDigest(env).then((n) => console.log('error digest', n)))
+      // 動いていないタスクの見直しのきっかけ
+      ctx.waitUntil(staleNotices(env).then((n) => console.log('stale notices', n)))
     }
     // 毎日 3:00 (JST): バックアップ → 古い履歴・ログ・通知を整理
     else

@@ -15,6 +15,7 @@ const ROUTES: [string, RegExp, string][] = [
   ['POST', /^\/tasks\/[^/]+\/recurring$/, 'recurring'],
   ['POST', /^\/tasks\/[^/]+\/comments$/, 'comment'],
   ['POST', /^\/tasks\/[^/]+\/reactions$/, 'reaction'],
+  ['POST', /^\/tasks\/[^/]+\/keep$/, 'stale_keep'],
   ['POST', /^\/tasks\/reorder$/, 'reorder'],
   ['POST', /^\/tasks\/bulk$/, 'bulk'],
   ['POST', /^\/ai\//, 'ai'],

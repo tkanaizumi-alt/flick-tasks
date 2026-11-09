@@ -43,12 +43,29 @@ async function run(label, viewport) {
   // 初めての案内やお祝いが出ていたら閉じる
   const dismiss = async () => {
     // お祝いは「閉じる」で (「冒険へ」を押すと画面が変わってしまう)
-    for (const id of ['layout-guide-ok', 'levelup-close', 'xp-guide-close']) {
+    for (const id of ['whats-new-close', 'layout-guide-ok', 'levelup-close', 'xp-guide-close']) {
       const b = page.getByTestId(id)
       if (await b.isVisible().catch(() => false)) await b.click().catch(() => {})
     }
   }
-  await page.waitForTimeout(1800)
+  // 「新しくなったこと」は 2.5 秒後に出る
+  await step('新しくなったことが一度だけ出る', async () => {
+    // PC では先に「見え方の切り替え」の案内が出る (重ならないよう、それを閉じてから出る)
+    for (let i = 0; i < 16 && !(await page.getByTestId('whats-new').isVisible().catch(() => false)); i++) {
+      const g = page.getByTestId('layout-guide-ok')
+      if (await g.isVisible().catch(() => false)) await g.click().catch(() => {})
+      await page.waitForTimeout(500)
+    }
+    await page.getByTestId('whats-new').waitFor({ timeout: 8000 })
+    await page.getByTestId('whats-new-close').click()
+    await page.getByTestId('whats-new').waitFor({ state: 'detached' })
+    await page.getByTestId('avatar').click()
+    await page.getByTestId('menu-whatsnew').click()
+    await page.getByTestId('whats-new').waitFor()
+    await page.getByTestId('whats-new-close').click()
+    await page.getByTestId('whats-new').waitFor({ state: 'detached' })
+  })
+  await page.waitForTimeout(400)
   await dismiss()
   const title = `${PREFIX} ${label} ${Date.now().toString(36)}`
 

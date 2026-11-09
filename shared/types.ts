@@ -178,3 +178,13 @@ export function mentionsIn(text: string, people: { id: string; name: string }[])
 /** タイトル・詳細の中の #タグ (例: #A社 #社内)。全角の＃も使える */
 export const TAG_RE = /[#＃]([^\s#＃、。,.!?！？「」()（）]+)/g
 export const tagsOf = (t: { title: string; note?: string }) => [...new Set([...`${t.title} ${t.note ?? ''}`.matchAll(TAG_RE)].map((m) => m[1]))]
+
+/**
+ * しばらく動いていないタスク (見直しの候補): 未完了で、最後に触ってから STALE_DAYS 日以上たったもの。
+ * 期限を付けたもの (予定どおり待っている) と繰り返しタスクは外す
+ */
+export const STALE_DAYS = 10
+export const isStale = (t: Pick<Task, 'status' | 'updatedAt' | 'due' | 'recurring'>, now = Date.now()) =>
+  t.status !== 'done' && !t.due && !t.recurring && now - t.updatedAt >= STALE_DAYS * 86400000
+/** 何日動いていないか */
+export const idleDays = (t: Pick<Task, 'updatedAt'>, now = Date.now()) => Math.floor((now - t.updatedAt) / 86400000)

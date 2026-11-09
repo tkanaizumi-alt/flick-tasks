@@ -321,6 +321,15 @@ check('もう一度押すと取り消し', r2.on === false && !r2.task.reactions
 check('自分のタスクにはリアクションできない', (await A.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'like' })).status === 400)
 check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reactions`, 'POST', { kind: 'angry' })).status === 400)
 
+// 動いていないタスクの見直し: 「まだやる」で最後に触った日が今になる (自分のタスクだけ)
+{
+  const kt = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} 見直し` }] })).tasks[0]
+  await new Promise((ok) => setTimeout(ok, 30))
+  const kept = await A.call(`/api/tasks/${kt.id}/keep`, 'POST', {})
+  check('見直し: まだやる', kept.task?.updatedAt > kt.updatedAt, kept)
+  check('他の人のタスクは「まだやる」にできない', (await B.call(`/api/tasks/${kt.id}/keep`, 'POST', {})).status === 404)
+}
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')

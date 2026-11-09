@@ -1,5 +1,6 @@
 import { displayName, isAdmin, isAllowed, type Env } from './env'
 import { aiReport } from './ai'
+import { STALE_DAYS } from '../shared/types'
 import { jstDayStart, jstToday } from '../shared/game'
 
 /** アプリからのお知らせの送り主 (users には居ない) */
@@ -92,4 +93,21 @@ export async function errorDigest(env: Env) {
     admins.map((u) => systemNotice(env, u.id, 'errors', null, `⚠️ 今週のエラー ${server + client}件（サーバー${server}・画面${client}）。メニューの「集計」から見られます`)),
   )
   return admins.length
+}
+
+/** 毎週金曜: しばらく動いていないタスクが 3 件以上ある人に、本人だけにお知らせ (見直しのきっかけ) */
+export async function staleNotices(env: Env) {
+  const users = new Map((await allowedUsers(env)).map((u) => [u.id, u]))
+  const { results } = await env.DB.prepare(
+    `SELECT user_id, COUNT(*) AS n FROM tasks
+      WHERE status <> 'done' AND due_date IS NULL AND recurring_id IS NULL AND updated_at < ?
+      GROUP BY user_id`,
+  )
+    .bind(Date.now() - STALE_DAYS * DAY)
+    .all<{ user_id: string; n: number }>()
+  const stmts = results
+    .filter((r) => users.has(r.user_id) && r.n >= 3)
+    .map((r) => systemNotice(env, r.user_id, 'stale', null, `🕰️ ${STALE_DAYS}日以上動いていないタスクが${r.n}件あります。自分の画面の「見直す」から、まだやる・期限を付ける・やめるを選べます`))
+  if (stmts.length) await env.DB.batch(stmts)
+  return stmts.length
 }

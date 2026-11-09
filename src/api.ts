@@ -119,6 +119,7 @@ export const api = {
   report: (from: string, to: string, tag: string | null = null) => req<{ text: string }>('/api/history/report', { method: 'POST', json: { from, to, tag } }),
   setSkin: (skin: string | null) => req<{ player: PlayerState }>('/api/player/skin', { method: 'POST', json: { skin } }),
   /** 期限の設定 (自分・他の人のタスクどちらも可。null で解除) */
+  keep: (id: string) => req<{ task: Task }>(`/api/tasks/${id}/keep`, { method: 'POST', json: {} }),
   react: (id: string, kind: ReactionKind) => req<{ task: Task; on: boolean }>(`/api/tasks/${id}/reactions`, { method: 'POST', json: { kind } }),
   setDue: (id: string, due: string | null) => req<{ task: Task }>(`/api/tasks/${id}/due`, { method: 'PUT', json: { due } }),
   // 管理者のみ

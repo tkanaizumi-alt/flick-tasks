@@ -15,6 +15,8 @@ export const FEATURES: Record<string, string> = {
   recurring: '繰り返し',
   comment: 'コメント',
   reaction: 'リアクション',
+  stale_keep: '見直し（まだやる）',
+  stale_review: '動いていないタスクの見直し',
   reorder: '手動の並べ替え',
   bulk: 'まとめて操作',
   request: '依頼',
@@ -57,8 +59,9 @@ export const FEATURES: Record<string, string> = {
   font: '文字の大きさの変更',
   simple: 'シンプル表示',
   calendar_view: 'カレンダー表示（自分）',
+  whatsnew: '新しくなったことを見る',
 }
 
 /** 画面から知らせる機能 (サーバーでは分からないもの) */
-export const CLIENT_FEATURES = ['csv', 'copy', 'layout', 'theme', 'shortcut', 'help', 'template', 'font', 'simple', 'calendar_view'] as const
+export const CLIENT_FEATURES = ['csv', 'copy', 'layout', 'theme', 'shortcut', 'help', 'template', 'font', 'simple', 'calendar_view', 'whatsnew', 'stale_review'] as const
 export type ClientFeature = (typeof CLIENT_FEATURES)[number]

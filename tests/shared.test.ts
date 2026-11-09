@@ -18,7 +18,7 @@ import {
 } from '../shared/game'
 import { ACHIEVEMENTS, bestStreakOf, streakOf, TIERS, tierClass } from '../shared/achievements'
 import { isRule, ruleLabel, ruleMatches } from '../shared/recurring'
-import { mentionsIn, san, tagsOf } from '../shared/types'
+import { STALE_DAYS, idleDays, isStale, mentionsIn, san, tagsOf } from '../shared/types'
 
 const now = Date.UTC(2026, 9, 27, 3, 0) // JST 12:00
 const xp = (over: Partial<Parameters<typeof computeXp>[0]> = {}) =>
@@ -155,5 +155,21 @@ describe('称号の色', () => {
     expect(tierClass('first')).toBe('t-bronze')
     expect(tierClass('stage30')).toBe('t-legend')
     expect(tierClass(null)).toBe('t-bronze')
+  })
+})
+
+describe('動いていないタスク', () => {
+  const now = Date.UTC(2026, 10, 10)
+  const day = 86400000
+  const t = { status: 'todo' as const, updatedAt: now - (STALE_DAYS + 1) * day, due: null, recurring: null }
+  it('未完了で 10 日以上さわっていないもの', () => {
+    expect(isStale(t, now)).toBe(true)
+    expect(idleDays(t, now)).toBe(STALE_DAYS + 1)
+    expect(isStale({ ...t, updatedAt: now - (STALE_DAYS - 1) * day }, now)).toBe(false)
+  })
+  it('完了・期限つき・繰り返しは外す', () => {
+    expect(isStale({ ...t, status: 'done' }, now)).toBe(false)
+    expect(isStale({ ...t, due: '2026-12-01' }, now)).toBe(false)
+    expect(isStale({ ...t, recurring: { id: 'r', rule: 'daily' } }, now)).toBe(false)
   })
 })

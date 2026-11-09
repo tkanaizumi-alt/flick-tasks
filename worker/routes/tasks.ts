@@ -431,6 +431,14 @@ tasks.post('/tasks/:id/reactions', async (c) => {
   return c.json({ task: await getTask(db, t.id), on: !!ins.meta.changes })
 })
 
+/** 見直し: 「まだやる」。最後に触った日を今日にして、しばらく見直しの候補から外す (自分の未完了のタスクだけ) */
+tasks.post('/tasks/:id/keep', async (c) => {
+  const id = c.req.param('id')
+  const r = await c.env.DB.prepare("UPDATE tasks SET updated_at = ? WHERE id = ? AND user_id = ? AND status <> 'done'").bind(Date.now(), id, c.get('user').id).run()
+  if (!r.meta.changes) return c.json({ error: 'not found' }, 404)
+  return c.json({ task: await getTask(c.env.DB, id) })
+})
+
 /** 自分のコメントを消す */
 tasks.delete('/comments/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM comments WHERE id = ? AND user_id = ?').bind(Number(c.req.param('id')), c.get('user').id).run()

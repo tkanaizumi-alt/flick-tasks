@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { STATUSES, tagsOf, type Flag, type Status, type Task, type User } from '../shared/types'
+import { STATUSES, tagsOf, type Flag, type Status, type Task, type User, isStale } from '../shared/types'
 import { spInfo, type PlayerState, type Weight } from '../shared/game'
 import type { AchievementDef } from '../shared/achievements'
 import { api, HttpError, pending, STATUS_LABEL, trackUsage, type PendingMemo, type XpChange } from './api'
@@ -11,6 +11,9 @@ import { Dock, type Theme, type View } from './components/Dock'
 import { MeToolbar } from './components/StatusTabs'
 import { SelectBar } from './components/SelectBar'
 import { CalendarView } from './components/CalendarView'
+import { WhatsNew } from './components/WhatsNew'
+import { StaleBar, StaleSheet } from './components/Stale'
+import { WHATS_NEW_VERSION, type WhatsNewAction } from '../shared/whatsnew'
 import { retryImport } from './reload'
 import { CalendarIcon } from './components/icons'
 import { FONT_KEY, FONT_ZOOM, SIMPLE_KEY, type FontSize } from './display'
@@ -231,6 +234,20 @@ export function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [phase, setView, setHelpOpen])
+
+  // 「新しくなったこと」: まだ見ていない版があれば、ほかの案内と重ならないよう少し待って一度だけ出す
+  const [whatsNew, setWhatsNew] = useState(false)
+  useEffect(() => {
+    if (phase !== 'ready' || !user) return
+    if (store.get<string>(`flick.whatsnew.${user.id}`, '') >= WHATS_NEW_VERSION) return
+    const t = setTimeout(() => setWhatsNew(true), 2500)
+    return () => clearTimeout(t)
+  }, [phase, user])
+  const closeWhatsNew = useCallback(() => {
+    setWhatsNew(false)
+    if (user) store.set(`flick.whatsnew.${user.id}`, WHATS_NEW_VERSION)
+    trackUsage('whatsnew')
+  }, [user])
 
   // 見え方を切り替えられることを、メンバーごとに最初の 1 回だけ案内する
   useEffect(() => {
@@ -798,6 +815,46 @@ export function App() {
       showToast('追加できませんでした')
     }
   }
+  // しばらく動いていない自分のタスク (古い順)。「×」で 1 週間かくせる
+  const stale = useMemo(() => tasks.filter((t) => !t.syncing && isStale(t)).sort((a, b) => a.updatedAt - b.updatedAt), [tasks])
+  const [staleOpen, setStaleOpen] = useState(false)
+  const [staleHidden, setStaleHidden] = useState(false)
+  // 「×」で隠したのが 1 週間以内なら出さない (ログインした人ごと)
+  useEffect(() => {
+    if (user) setStaleHidden(Date.now() - store.get<number>(`flick.stale.hide.${user.id}`, 0) < 7 * 86400000)
+  }, [user])
+  const keepTask = async (t: UITask) => {
+    upsert([{ ...t, updatedAt: Date.now() }])
+    try {
+      const { task } = await api.keep(t.id)
+      upsert([task])
+    } catch {
+      upsert([t])
+      showToast('保存できませんでした')
+    }
+  }
+  const dueTask = async (t: UITask, due: string) => {
+    upsert([{ ...t, due, dueBy: null }])
+    try {
+      const { task } = await api.setDue(t.id, due)
+      upsert([task])
+      showToast(`期限を ${Number(due.slice(5, 7))}/${Number(due.slice(8))} にしました`)
+    } catch {
+      upsert([t])
+      showToast('期限を保存できませんでした')
+    }
+  }
+  const whatsNewAction = (a: WhatsNewAction) => {
+    closeWhatsNew()
+    if (a === 'history') setHistoryOpen(true)
+    else if (a === 'templates') setTemplates([])
+    else if (a === 'people') setView('people')
+    else if (a === 'game') setView('game')
+    else if (a === 'calendar') {
+      setView('me')
+      setCalendar(true)
+    }
+  }
   const selectedTasks = selected ? visible.filter((t) => selected.has(t.id)) : []
   const selStatuses = new Set(selectedTasks.map((t) => t.status))
   const selStatus = selStatuses.size === 1 ? [...selStatuses][0] : selectedTasks.length === 0 && !q && !board ? tab : null
@@ -825,6 +882,19 @@ export function App() {
                 )}
                 {view === 'me' && !calendar && (
                   <>
+                    {stale.length > 0 && !staleHidden && !selected && !q && (
+                      <StaleBar
+                        count={stale.length}
+                        onOpen={() => {
+                          setStaleOpen(true)
+                          trackUsage('stale_review')
+                        }}
+                        onHide={() => {
+                          setStaleHidden(true)
+                          if (user) store.set(`flick.stale.hide.${user.id}`, Date.now())
+                        }}
+                      />
+                    )}
                     <MeToolbar
                       tab={tab}
                       counts={counts}
@@ -984,6 +1054,7 @@ export function App() {
                 onHistory={() => setHistoryOpen(true)}
                 onHelp={() => setHelpOpen(true)}
                 onCalendar={() => setCalendarOpen(true)}
+                onWhatsNew={() => setWhatsNew(true)}
                 font={font}
                 onFont={setFont}
                 simple={simple}
@@ -1070,6 +1141,24 @@ export function App() {
                 {templates && <TemplatesSheet initial={templates} onClose={() => setTemplates(null)} toast={showToast} onApply={applyTemplate} />}
               </AnimatePresence>
               <AnimatePresence>{calendarOpen && <CalendarSheet onClose={() => setCalendarOpen(false)} toast={showToast} />}</AnimatePresence>
+            </Suspense>
+            <AnimatePresence>{whatsNew && !layoutGuide && <WhatsNew simple={simple} onAction={whatsNewAction} onClose={closeWhatsNew} />}</AnimatePresence>
+            <AnimatePresence>
+              {staleOpen && (
+                <StaleSheet
+                  tasks={stale}
+                  onClose={() => setStaleOpen(false)}
+                  onKeep={keepTask}
+                  onDue={dueTask}
+                  onOpen={(t) => {
+                    setStaleOpen(false)
+                    setOpenId(t.id)
+                  }}
+                  onDrop={(t) => deleteTask(t)}
+                />
+              )}
+            </AnimatePresence>
+            <Suspense fallback={null}>
             </Suspense>
 
             <AnimatePresence>

@@ -25,6 +25,8 @@ interface Props {
   onHistory: () => void
   onHelp: () => void
   onCalendar: () => void
+  /** 「新しくなったこと」をもう一度見る */
+  onWhatsNew: () => void
   font: FontSize
   onFont: (f: FontSize) => void
   /** シンプル表示 (冒険のタブを出さない) */
@@ -40,7 +42,7 @@ export type Theme = 'auto' | 'light' | 'dark'
 const THEME_LABEL: Record<Theme, string> = { auto: '自動', light: 'ライト', dark: 'ダーク' }
 const NEXT_THEME: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' }
 
-export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onCalendar, font, onFont, simple, onSimple, onStats, theme, onTheme }: Props) {
+export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, onHistory, onHelp, onCalendar, onWhatsNew, font, onFont, simple, onSimple, onStats, theme, onTheme }: Props) {
   const [menu, setMenu] = useState(false)
   const items = simple ? ITEMS.filter((i) => i.key !== 'game') : ITEMS
   return (
@@ -106,6 +108,16 @@ export function Dock({ view, onChange, user, onLogout, badge, peopleBadge = 0, o
                   }}
                 >
                   📅 カレンダーに表示
+                </button>
+                <button
+                  className="menu-item"
+                  data-testid="menu-whatsnew"
+                  onClick={() => {
+                    setMenu(false)
+                    onWhatsNew()
+                  }}
+                >
+                  ✨ 新しくなったこと
                 </button>
                 <button
                   className="menu-item"
