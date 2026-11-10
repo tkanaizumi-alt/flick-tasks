@@ -398,3 +398,7 @@ body[data-layout='pc'] .cal-day { position: sticky; top: calc(var(--safe-t) + va
 .stale-actions, .stale-due { display: flex; flex-wrap: wrap; gap: 6px; }
 .stale-due input { border: 1px solid rgba(0, 0, 0, 0.12); border-radius: 10px; padding: 6px 10px; font: inherit; background: rgba(255, 255, 255, 0.8); color: inherit; }
 .danger-text { color: #e03131; }
+
+/* 登録日 */
+.sheet-dates { margin: 2px 0 8px; font-size: 12px; color: var(--ink-2); }
+.ps-created { margin: 6px 0 2px; font-size: 12px; color: var(--ink-2); }

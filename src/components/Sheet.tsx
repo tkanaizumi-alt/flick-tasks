@@ -9,6 +9,7 @@ import { DueField } from './DueField'
 import { TaskLinks, XpChip } from './TaskMeta'
 import { XpGuide } from './XpGuide'
 import { Comments } from './Comments'
+import { createdLabel, doneLabel } from './TaskCard'
 import { ReactionList } from './Reactions'
 import { ruleChoices, ruleLabel } from '../../shared/recurring'
 
@@ -124,6 +125,10 @@ export function Sheet({ task, onClose, onStatus, onDelete, onAddChildren, onDue,
             XPの決まり方
           </button>
         </div>
+        <p className="sheet-dates" data-testid="sheet-created">
+          📝 登録 {createdLabel(task.createdAt)}
+          {task.status === 'done' && task.doneAt ? <span> ・ ✓ 完了 {doneLabel(task.doneAt)}</span> : null}
+        </p>
         {task.status !== 'done' && !task.parent && <WeightField task={task} onWeight={onWeight} />}
         {task.requestedBy && task.follow && <p className="sheet-info">📨 {san(task.requestedBy.name)}はこの後「{task.follow.title}」に進みます</p>}
 

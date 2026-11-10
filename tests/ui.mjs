@@ -82,6 +82,9 @@ async function run(label, viewport) {
   await step('タスクを開いて完了にする', async () => {
     await page.getByTestId('task').filter({ hasText: title }).first().click()
     await page.getByTestId('sheet').waitFor()
+    // 詳細には登録日が出る (いま追加したので「今日」)
+    const created = await page.getByTestId('sheet-created').innerText()
+    if (!created.includes('登録 今日')) return { created }
     await page.getByTestId('sheet-status-done').click()
     await page.waitForTimeout(800)
     await page.keyboard.press('Escape')

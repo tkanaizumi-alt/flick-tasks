@@ -20,6 +20,17 @@ export function doneLabel(t: number) {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日月火水木金土'[d.getUTCDay()]}）${time}`
 }
 
+/** 登録日 (タスクの詳細用)。去年より前は年も付け、2 日以上前なら「○日前」も */
+export function createdLabel(t: number, now = Date.now()) {
+  const JST = 9 * 3600000
+  const day = (x: number) => Math.floor((x + JST) / 86400000)
+  const diff = day(now) - day(t)
+  const year = new Date(t + JST).getUTCFullYear()
+  const base = doneLabel(t)
+  const withYear = year !== new Date(now + JST).getUTCFullYear() ? `${year}/${base}` : base
+  return diff >= 2 ? `${withYear}・${diff}日前` : withYear
+}
+
 /** #タグの部分だけ色を付けて表示 */
 function Tagged({ text }: { text: string }) {
   const parts = text.split(/([#＃][^\s#＃、。,.!?！？「」()（）]+)/g)

@@ -10,7 +10,7 @@ import { DueField } from './DueField'
 import { TaskLinks } from './TaskMeta'
 import { Comments } from './Comments'
 import { ReactionBar } from './Reactions'
-import { doneLabel } from './TaskCard'
+import { createdLabel, doneLabel } from './TaskCard'
 
 interface Data {
   person: { id: string; name: string; picture: string; isMe?: boolean }
@@ -234,6 +234,9 @@ export function PersonSheet({ id, meId, onClose, canRename, onRenamed, onRequest
                           </button>
                           {dueOpen === t.id && (
                             <>
+                              <p className="ps-created" data-testid="ps-created">
+                                📝 登録 {createdLabel(t.createdAt)}
+                              </p>
                               <DueField due={t.due ?? null} dueBy={t.dueBy?.name} onChange={(due) => saveDue(t, due)} disabled={savingDue} compact />
                               {!data.person.isMe && meId && (
                                 <ReactionBar task={t} meId={meId} toast={toast} onChange={(x) => setData((d) => (d ? { ...d, tasks: d.tasks.map((y) => (y.id === x.id ? x : y)) } : d))} />
