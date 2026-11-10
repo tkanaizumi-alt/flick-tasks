@@ -746,3 +746,14 @@ body:not([data-view='me']) .composer { opacity: 0; transform: translateY(-120%);
 @media (prefers-reduced-motion: reduce) {
   .skel::after, .pill-btn.ai, .battle-enemy.hit { animation: none !important; }
 }
+
+/*
+ * スクロールするシート・ダイアログでは、ガラスの縁の光 (::before / ::after) が中身と一緒に流れて、
+ * 下辺の白い線が途中のボタンなどに重なってしまう。縁は動かない内側の影で描く
+ */
+.sheet.glass::before,
+.sheet.glass::after,
+.guide.glass::before,
+.guide.glass::after { display: none; }
+.sheet.glass,
+.guide.glass { box-shadow: var(--glass-edge), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
