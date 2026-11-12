@@ -1,8 +1,8 @@
 /** メンバーと腕試し (練習試合) と、季節イベントの限定ボス */
 import type { Env } from './env'
-import { ensureDaily, getPlayer, insertItemFor, logActivity } from './game'
+import { addSeed, ensureDaily, getPlayer, insertItemFor, logActivity } from './game'
 import { allowedUsers } from './lib'
-import { EVENT_SKIN_MAP, EVENT_BOSS_TRIES, REMATCH_DAILY, SPAR_DAILY, activeEvent, eventBoss, eventBossGold, eventGearRarity, rematchGold } from '../shared/extras'
+import { SEED_DROP_EVENT, EVENT_SKIN_MAP, EVENT_BOSS_TRIES, REMATCH_DAILY, SPAR_DAILY, activeEvent, eventBoss, eventBossGold, eventGearRarity, rematchGold } from '../shared/extras'
 import { SKIN_MAP, duelRate, enemyForStage, invMax, jstDayStart, jstToday, levelInfo, rollItem, simulateBattle, simulateDuel, effectiveStats, SLOTS, type Item } from '../shared/game'
 
 const seed = () => crypto.getRandomValues(new Uint32Array(1))[0]
@@ -93,9 +93,10 @@ export async function fightEventBoss(env: Env, me: string) {
   if (!take.meta.changes) return { error: '今日の挑戦は終わりました。また明日' }
   const enemy = eventBoss(ev, p.stage)
   const result = simulateBattle(p, enemy, seed())
-  let reward: { gold: number; item: Item | null } | null = null
+  let reward: { gold: number; item: Item | null; seed?: boolean } | null = null
   if (result.win) {
     const gold = eventBossGold(enemy.stage)
+    const gotSeed = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 < SEED_DROP_EVENT
     const stmts: D1PreparedStatement[] = [
       db.prepare('UPDATE event_battles SET wins = wins + 1 WHERE user_id = ? AND day = ?').bind(me, day),
       db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), me),
@@ -111,8 +112,9 @@ export async function fightEventBoss(env: Env, me: string) {
       item = ins.item
       stmts.push(ins.stmt, logActivity(db, me, 'item', `${item.rarity} ${item.name}`))
     }
+    if (gotSeed) stmts.push(addSeed(db, me))
     await db.batch(stmts)
-    reward = { gold, item }
+    reward = { gold, item, seed: gotSeed }
   }
   return { result, reward, player: await getPlayer(db, me) }
 }

@@ -52,7 +52,7 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
     db
       .prepare(`SELECT MAX(n) AS n FROM (SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND status = 'done' AND xp_awarded > 0 GROUP BY CAST((done_at + ${JST}) / ${DAY} AS INTEGER))`)
       .bind(userId),
-    db.prepare('SELECT (SELECT COUNT(*) FROM comments WHERE user_id = ?1) AS comments, (SELECT COUNT(*) FROM reactions WHERE user_id = ?1) AS reactions').bind(userId),
+    db.prepare('SELECT (SELECT COUNT(*) FROM comments WHERE user_id = ?1) AS comments, (SELECT COUNT(*) FROM reactions WHERE user_id = ?1) AS reactions, (SELECT COUNT(*) FROM owned_skins WHERE user_id = ?1) AS skins').bind(userId),
   ])
   const a = agg.results[0] as any
   const p = (player.results[0] as any) ?? { xp: 0, stage: 1 }
@@ -77,6 +77,7 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
     ur: (ssr.results[0] as any).ur ?? 0,
     comments: (misc.results[0] as any)?.comments ?? 0,
     reactions: (misc.results[0] as any)?.reactions ?? 0,
+    paidSkins: (misc.results[0] as any)?.skins ?? 0,
   }
 }
 

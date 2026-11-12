@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
-import { EVENT_BOSS_TRIES, BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
+import { mondayOf, EVENT_BOSS_TRIES, BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
 import { ACHIEVEMENT_MAP, type AchievementStats } from '../../shared/achievements'
-import { winRate, type Item, type PlayerState } from '../../shared/game'
+import { jstToday, winRate, type Item, type PlayerState } from '../../shared/game'
 import { api, HttpError, type EventBossState, type EventState, type Mvp, type RaidState, type SparPerson } from '../api'
 import { Avatar } from './Dock'
 
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
 
 /** 今週のレイドボス: 全員の今週の XP がダメージになる */
-export function RaidPanel({ onReward, toast, refresh }: { onReward: (r: { gold: number; item: Item | null; player: PlayerState }) => void; toast: (t: string) => void; refresh: number }) {
+export function RaidPanel({ onReward, toast, refresh }: { onReward: (r: { gold: number; item: Item | null; seed?: boolean; player: PlayerState }) => void; toast: (t: string) => void; refresh: number }) {
   const [s, setS] = useState<RaidState | null>(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
@@ -107,6 +107,7 @@ export function ShopPanel({ player, busy, onBuy }: { player: PlayerState; busy: 
           const price = shopPrice(s.id, player.invExtra)
           const bagFull = s.id === 'bag' && (player.invExtra ?? 0) >= BAG_STEP * BAG_MAX_BUYS
           const treated = s.id === 'treat' && player.treated
+          const seeded = s.id === 'seed' && player.seedWeek === mondayOf(jstToday())
           const desc =
             s.id === 'boost' ? `次の${BOOST_COUNT}回の完了でXPが2倍` : s.id === 'bag' ? `持てる装備が${BAG_STEP}個増える（今 +${player.invExtra ?? 0} / 最大 +${BAG_STEP * BAG_MAX_BUYS}）` : s.desc
           return (
@@ -116,8 +117,8 @@ export function ShopPanel({ player, busy, onBuy }: { player: PlayerState; busy: 
                 <b>{s.name}</b>
                 <span className="muted">{desc}</span>
               </span>
-              <button className="pill-btn primary small" disabled={busy || bagFull || treated || player.gold < price} onClick={() => onBuy(s.id)} data-testid={`buy-${s.id}`}>
-                {bagFull ? '最大' : treated ? '今日は済み' : `💰${price}`}
+              <button className="pill-btn primary small" disabled={busy || bagFull || treated || seeded || player.gold < price} onClick={() => onBuy(s.id)} data-testid={`buy-${s.id}`}>
+                {bagFull ? '最大' : treated ? '今日は済み' : seeded ? '今週は済み' : `💰${price}`}
               </button>
             </li>
           )

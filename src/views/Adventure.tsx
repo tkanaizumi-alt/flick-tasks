@@ -14,6 +14,7 @@ import {
   enemyForStage,
   levelInfo,
   skinCondition,
+  skinEffectLabel,
   skinUnlocked,
   spInfo,
   winRate,
@@ -68,7 +69,7 @@ interface Props {
 export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate }: Props) {
   const [tab, setTab] = useState<Tab>('battle')
   const [busy, setBusy] = useState(false)
-  const [battle, setBattle] = useState<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; mode?: BattleMode } | null>(null)
+  const [battle, setBattle] = useState<{ result: BattleResult; reward: { gold: number; item: Item | null; seed?: boolean } | null; mode?: BattleMode } | null>(null)
   // 腕試し・限定ボスのあとに一覧を読み直す
   const [arenaTick, setArenaTick] = useState(0)
   // 過去のボスと再戦: 地図で選んだステージと、今日の残り回数
@@ -184,7 +185,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             onReward={(r) => {
               onPlayer(r.player)
               if (r.item) setReveal(r.item)
-              toast(`💰${r.gold} を受け取りました`)
+              toast(`💰${r.gold}${r.seed ? ' と 🌱 SPのタネ（SP+1）' : ''} を受け取りました`)
             }}
           />
           <EventBossPanel
@@ -311,7 +312,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
               const r = await run(() => api.buy(id))
               if (!r) return
               if (r.item) setReveal(r.item)
-              else toast(id === 'boost' ? 'XP2倍チケットを手に入れました' : id === 'bag' ? '持ち物の枠が増えました' : 'みんなに差し入れしました 🍩')
+              else toast(id === 'boost' ? 'XP2倍チケットを手に入れました' : id === 'bag' ? '持ち物の枠が増えました' : id === 'seed' ? '🌱 SPのタネでSPが1増えました' : 'みんなに差し入れしました 🍩')
             }}
           />
 
@@ -439,6 +440,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                     >
                       <Avatar name={s.name} skin={s.id} size={44} />
                       <span className="skin-name">💰{s.price}</span>
+                      {s.effect && <span className="skin-fx">{skinEffectLabel(s.effect)}</span>}
                     </button>
                   )
                 }
@@ -453,6 +455,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                   >
                     {open ? <Avatar name={s.name} skin={s.id} size={44} /> : <span className="skin-lock">🔒</span>}
                     <span className="skin-name">{open ? s.name : skinCondition(s)}</span>
+                    {s.effect && <span className="skin-fx">{skinEffectLabel(s.effect)}</span>}
                   </button>
                 )
               })}
@@ -510,8 +513,15 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <section className="panel glass">
             <div className="panel-head">
               <h2>ステータス</h2>
-              <span className={`sp-pill ${sp.free > 0 ? 'on' : ''}`} data-testid="sp-free">
-                SP {Math.max(0, sp.free)}
+              <span className="sp-head">
+                {(player.bonusSp ?? 0) > 0 && (
+                  <span className="muted seed-count" title="SPのタネで増えたSP" data-testid="seed-count">
+                    🌱+{player.bonusSp}
+                  </span>
+                )}
+                <span className={`sp-pill ${sp.free > 0 ? 'on' : ''}`} data-testid="sp-free">
+                  SP {Math.max(0, sp.free)}
+                </span>
               </span>
             </div>
             <ul className="stat-list">

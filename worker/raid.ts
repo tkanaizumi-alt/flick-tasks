@@ -1,5 +1,5 @@
 import { displayName, isAllowed, type Env } from './env'
-import { getPlayer, insertItemFor } from './game'
+import { addSeed, getPlayer, insertItemFor } from './game'
 import { invMax, jstDayStart, jstToday, rollItem } from '../shared/game'
 import { RAID_GOLD, mondayOf, raidForWeek, shiftDay } from '../shared/extras'
 
@@ -52,7 +52,8 @@ export async function claimRaid(env: Env, me: string) {
   const ins = await env.DB.prepare('INSERT OR IGNORE INTO raid_claims (user_id, week, created_at) VALUES (?, ?, ?)').bind(me, s.week, Date.now()).run()
   if (!ins.meta.changes) return { error: '受け取り済みです' }
   const p = await getPlayer(env.DB, me)
-  const stmts: D1PreparedStatement[] = [env.DB.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(RAID_GOLD, Date.now(), me)]
+  // 週のレイド報酬: ゴールド + SP のタネ 1 個 + 装備
+  const stmts: D1PreparedStatement[] = [env.DB.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(RAID_GOLD, Date.now(), me), addSeed(env.DB, me)]
   let item = null
   if (p.items.length < invMax(p)) {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]
@@ -62,7 +63,7 @@ export async function claimRaid(env: Env, me: string) {
     stmts.push(x.stmt)
   }
   await env.DB.batch(stmts)
-  return { gold: RAID_GOLD, item, player: await getPlayer(env.DB, me) }
+  return { gold: RAID_GOLD, item, seed: true, player: await getPlayer(env.DB, me) }
 }
 
 /** 先週の MVP: いちばん完了した人・いちばん XP を得た人・いちばん手伝った人 */

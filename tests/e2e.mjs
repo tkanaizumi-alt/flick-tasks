@@ -330,6 +330,20 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   check('他の人のタスクは「まだやる」にできない', (await B.call(`/api/tasks/${kt.id}/keep`, 'POST', {})).status === 404)
 }
 
+// SP のタネ (ショップは 1 週間に 1 個) と、有料スキンの実績
+{
+  const p0 = (await A.call('/api/player')).player
+  const r = await A.call('/api/shop/seed', 'POST', {})
+  if (p0.gold >= 800 && p0.seedWeek == null) {
+    check('SPのタネを買う (SP+1)', r.player?.bonusSp === (p0.bonusSp ?? 0) + 1 && r.player.gold === p0.gold - 800, r.player)
+    check('SPのタネは1週間に1個まで', (await A.call('/api/shop/seed', 'POST', {})).status === 400)
+  } else {
+    check('SPのタネが買えないときは断る', r.status === 400, r)
+  }
+  const p1 = (await A.call('/api/player')).player
+  if (p1.ownedSkins?.length) check('有料スキンを買うと実績「おしゃれさん」', p1.achievements.some((a) => a.id === 'skin1'), p1.achievements)
+}
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')

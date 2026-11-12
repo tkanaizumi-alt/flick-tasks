@@ -13,6 +13,7 @@ export interface AchievementStats {
   cleared: number // クリアしたステージ数
   level: number
   ssr: number // 持っている SSR 以上の装備
+  paidSkins: number // ゴールドで買ったスキンの数
   days: number // タスクを完了した日の合計 (連続でなくてよい)
   night: number // 夜 22 時〜朝 4 時の完了
   weekend: number // 土日の完了
@@ -65,6 +66,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'stage30', name: '伝説の勇者', icon: '👑', desc: 'ステージ30をクリア', stat: 'cleared', goal: 30, tier: 4 },
   { id: 'lv20', name: 'ベテラン', icon: '🎖️', desc: 'レベル20になる', stat: 'level', goal: 20, tier: 3 },
   { id: 'ssr', name: '幸運の持ち主', icon: '🍀', desc: 'SSR以上の装備を手に入れる', stat: 'ssr', goal: 1, tier: 3 },
+  { id: 'skin1', name: 'おしゃれさん', icon: '👗', desc: 'ゴールドでスキンを買う', stat: 'paidSkins', goal: 1, tier: 1 },
+  { id: 'skin_all', name: 'コレクター', icon: '🎨', desc: 'ゴールドで買えるスキンを全部そろえる', stat: 'paidSkins', goal: 6, tier: 3 },
 ]
 /** 隠し実績 (取るまで「？？？」) */
 export const HIDDEN_ACHIEVEMENTS: AchievementDef[] = [

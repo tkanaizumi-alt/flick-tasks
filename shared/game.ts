@@ -73,6 +73,8 @@ export interface PlayerState {
   invExtra?: number // ショップで増やした持ち物の枠
   ownedSkins?: string[] // ゴールドで買ったスキン
   treated?: boolean // 今日もう差し入れをした
+  bonusSp?: number // SP のタネで増えた SP
+  seedWeek?: string | null // ショップで最後に SP のタネを買った週 (月曜の日付)
 }
 
 /** 持てる装備の数 (ショップで増やした分を含む) */
@@ -146,9 +148,9 @@ export function levelInfo(xp: number) {
   return { level, current: rest, next: xpForNext(level) }
 }
 
-export function spInfo(p: Pick<PlayerState, 'xp' | 'stats' | 'skills'> & Partial<Pick<PlayerState, 'secretSkills'>>) {
+export function spInfo(p: Pick<PlayerState, 'xp' | 'stats' | 'skills'> & Partial<Pick<PlayerState, 'secretSkills' | 'bonusSp'>>) {
   const { level } = levelInfo(p.xp)
-  const total = (level - 1) * SP_PER_LEVEL
+  const total = (level - 1) * SP_PER_LEVEL + (p.bonusSp ?? 0)
   const spentStats = Object.values(p.stats).reduce((a, b) => a + b, 0)
   const secretCost = (id: string) => p.secretSkills?.find((s) => s.id === id)?.cost ?? 0
   const spentSkills = p.skills.reduce((a, id) => a + (SKILL_MAP[id]?.cost ?? secretCost(id)), 0)
@@ -834,7 +836,29 @@ export interface SkinDef {
   price?: number
   /** 絵文字のかわりに使うイラスト (public/skins/ の画像) */
   img?: string
+  /** つけている間の効果 (ゴールドで買うスキン。値段が高いほど強い) */
+  effect?: SkinEffect
 }
+export interface SkinEffect {
+  xp?: number // タスク XP (加算倍率)
+  gold?: number // タスクのゴールド (加算倍率)
+  atk?: number // 攻撃 (倍率に加算)
+  hp?: number // 体力 (倍率に加算)
+  crit?: number // 会心率 (%)
+}
+/** 効果の説明 (XP+5%・会心率+8% など) */
+export const skinEffectLabel = (e?: SkinEffect) =>
+  e
+    ? [
+        e.xp && `XP+${Math.round(e.xp * 100)}%`,
+        e.gold && `ゴールド+${Math.round(e.gold * 100)}%`,
+        e.atk && `攻撃+${Math.round(e.atk * 100)}%`,
+        e.hp && `体力+${Math.round(e.hp * 100)}%`,
+        e.crit && `会心率+${e.crit}%`,
+      ]
+        .filter(Boolean)
+        .join('・')
+    : ''
 export const SKINS: SkinDef[] = [
   // 最初から選べる
   { id: 'rabbit', name: 'うさぎ', emoji: '🐰', bg: 'linear-gradient(135deg,#fde2e4,#fad0c4)' },
@@ -865,12 +889,12 @@ export const SKINS: SkinDef[] = [
   { id: 'dragon', name: 'ドラゴン', emoji: '🐉', bg: 'linear-gradient(135deg,#43e97b,#38f9d7)', stage: 20 },
   { id: 'king', name: 'おうさま', emoji: '🤴', bg: 'linear-gradient(135deg,#f7b733,#fc4a1a)', stage: 30 },
   // ゴールドで買う
-  { id: 'ghost', name: 'おばけ', emoji: '👻', bg: 'linear-gradient(135deg,#e0eafc,#cfdef3)', price: 300 },
-  { id: 'sushi', name: 'おすし', emoji: '🍣', bg: 'linear-gradient(135deg,#ffecd2,#ff9a8b)', price: 300 },
-  { id: 'alien', name: 'うちゅうじん', emoji: '👽', bg: 'linear-gradient(135deg,#a8ff78,#78ffd6)', price: 500 },
-  { id: 'rocket', name: 'ロケット', emoji: '🚀', bg: 'linear-gradient(135deg,#0f2027,#2c5364)', price: 600 },
-  { id: 'dino', name: 'きょうりゅう', emoji: '🦖', bg: 'linear-gradient(135deg,#b4ec51,#429321)', price: 800 },
-  { id: 'crown', name: 'ゴールドクラウン', emoji: '👑', bg: 'linear-gradient(135deg,#fceabb,#f8b500)', price: 1200 },
+  { id: 'ghost', name: 'おばけ', emoji: '👻', bg: 'linear-gradient(135deg,#e0eafc,#cfdef3)', price: 300, effect: { atk: 0.05 } },
+  { id: 'sushi', name: 'おすし', emoji: '🍣', bg: 'linear-gradient(135deg,#ffecd2,#ff9a8b)', price: 300, effect: { crit: 5 } },
+  { id: 'alien', name: 'うちゅうじん', emoji: '👽', bg: 'linear-gradient(135deg,#a8ff78,#78ffd6)', price: 500, effect: { xp: 0.08 } },
+  { id: 'rocket', name: 'ロケット', emoji: '🚀', bg: 'linear-gradient(135deg,#0f2027,#2c5364)', price: 600, effect: { gold: 0.1 } },
+  { id: 'dino', name: 'きょうりゅう', emoji: '🦖', bg: 'linear-gradient(135deg,#b4ec51,#429321)', price: 800, effect: { hp: 0.13 } },
+  { id: 'crown', name: 'ゴールドクラウン', emoji: '👑', bg: 'linear-gradient(135deg,#fceabb,#f8b500)', price: 1200, effect: { xp: 0.1, gold: 0.1, atk: 0.1, hp: 0.1 } },
 ]
 export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((s) => [s.id, s]))
 /** 選べるスキンか (買うスキンは買ったものだけ) */

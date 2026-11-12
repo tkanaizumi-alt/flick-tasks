@@ -10,7 +10,7 @@ export type BattleMode = 'stage' | 'spar' | 'event' | 'rematch'
 
 interface Props {
   result: BattleResult
-  reward: { gold: number; item: Item | null } | null
+  reward: { gold: number; item: Item | null; seed?: boolean } | null
   onClose: () => void
   /** stage: ステージのボス / spar: メンバーと腕試し / event: 季節イベントの限定ボス / rematch: 過去のボスと再戦 */
   mode?: BattleMode
@@ -95,6 +95,11 @@ export function BattleModal({ result, reward, onClose, mode = 'stage' }: Props) 
               <div className="result-rewards">
                 <span>💰 +{reward.gold}</span>
                 {mode === 'stage' && <span>ステージ {result.enemy.stage + 1} へ</span>}
+                {reward.seed && (
+                  <span className="seed-get" data-testid="seed-get">
+                    🌱 SPのタネ！ SP+1
+                  </span>
+                )}
                 {reward.item && (
                   <div className="result-item">
                     <ItemCard item={reward.item} />

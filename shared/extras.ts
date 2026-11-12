@@ -70,6 +70,7 @@ export const SHOP = [
   { id: 'srchest', name: 'SR以上確定の宝箱', desc: 'SR 78% ・ SSR 20% ・ UR 2%', icon: '💎', price: 400 },
   { id: 'bag', name: '持ち物の枠 +10', desc: '持てる装備が10個増える', icon: '🎒', price: 300 },
   { id: 'treat', name: 'みんなに差し入れ', desc: 'ほかのメンバー全員に💰30（1日1回）', icon: '🍩', price: 300 },
+  { id: 'seed', name: 'SPのタネ', desc: 'SPが1増える（1週間に1個まで）', icon: '🌱', price: 800 },
 ] as const
 export type ShopId = (typeof SHOP)[number]['id']
 export const BOOST_COUNT = 3
@@ -231,3 +232,8 @@ export const SPAR_DAILY = 20
 export const REMATCH_DAILY = 5
 /** 再戦で勝ったときのゴールド (初めて倒したときの 3 割) */
 export const rematchGold = (stage: number) => Math.round(bossGold(stage) * 0.3)
+
+// ---------- SP のタネ (手に入るとすぐ SP+1) ----------
+/** ステージのボスを初めて倒したとき / 季節イベントの限定ボスに勝ったときに出る確率。週のレイド報酬は必ず 1 個 */
+export const SEED_DROP_STAGE = 0.1
+export const SEED_DROP_EVENT = 0.25

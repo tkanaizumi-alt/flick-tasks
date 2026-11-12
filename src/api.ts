@@ -49,7 +49,7 @@ export const api = {
   buySkin: (id: string) => req<{ player: PlayerState }>(`/api/shop/skin/${id}`, { method: 'POST', json: {} }),
   buy: (id: string) => req<{ player: PlayerState; item: Item | null }>(`/api/shop/${id}`, { method: 'POST', json: {} }),
   raid: () => req<RaidState>('/api/raid'),
-  claimRaid: () => req<{ gold: number; item: Item | null; player: PlayerState }>('/api/raid/claim', { method: 'POST', json: {} }),
+  claimRaid: () => req<{ gold: number; item: Item | null; seed?: boolean; player: PlayerState }>('/api/raid/claim', { method: 'POST', json: {} }),
   mvp: () => req<Mvp>('/api/mvp'),
   event: () => req<{ event: EventState | null }>('/api/event'),
   sparList: () => req<{ left: number; people: SparPerson[] }>('/api/spar'),
@@ -59,7 +59,7 @@ export const api = {
   rematch: (stage: number) =>
     req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState; left: number }>(`/api/rematch/${stage}`, { method: 'POST', json: {} }),
   fightEventBoss: () =>
-    req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState }>('/api/event/boss', { method: 'POST', json: {} }),
+    req<{ result: BattleResult; reward: { gold: number; item: Item | null; seed?: boolean } | null; player: PlayerState }>('/api/event/boss', { method: 'POST', json: {} }),
   setTitle: (title: string | null) => req<{ player: PlayerState }>('/api/player/title', { method: 'POST', json: { title } }),
   addStat: (stat: StatKey) => req<{ player: PlayerState }>('/api/player/stat', { method: 'POST', json: { stat } }),
   learn: (id: string) =>
@@ -67,7 +67,7 @@ export const api = {
   resetBuild: () => req<{ player: PlayerState }>('/api/player/reset', { method: 'POST', json: {} }),
   setJob: (job: string) => req<{ player: PlayerState }>('/api/player/job', { method: 'POST', json: { job } }),
   battle: () =>
-    req<{ result: BattleResult; reward: { gold: number; item: Item | null } | null; player: PlayerState }>('/api/battle', {
+    req<{ result: BattleResult; reward: { gold: number; item: Item | null; seed?: boolean } | null; player: PlayerState }>('/api/battle', {
       method: 'POST',
       json: {},
     }),

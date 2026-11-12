@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, plusUpN, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
-import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinUnlocked, type BattleResult } from '../shared/game'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, plusUpN, SEED_DROP_STAGE, SEED_DROP_EVENT, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinEffectLabel, skinUnlocked, spInfo, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
   it('レイド: 週ごとに決まったボス、HP は人数 × 250', () => {
@@ -135,5 +135,24 @@ describe('強化の引き継ぎ', () => {
     expect(enhanceTo({ rarity: 'R', plus: 8 }, { rarity: 'R', plus: 5 })).toBe(10)
     expect(plusUpN(100, 3)).toBe(133)
     expect(plusUpN(100, 0)).toBe(100)
+  })
+})
+
+describe('SP のタネと有料スキンの効果', () => {
+  it('タネで増えた分も SP の合計に入る', () => {
+    const p = { xp: 0, stats: { atk: 0, hp: 0, crit: 0, heal: 0 }, skills: [] as string[] }
+    expect(spInfo(p).total).toBe(0)
+    expect(spInfo({ ...p, bonusSp: 2 }).free).toBe(2)
+    expect(shopPrice('seed')).toBe(800)
+    expect(SEED_DROP_STAGE).toBeLessThan(SEED_DROP_EVENT)
+  })
+  it('有料スキンは値段が高いほど効果が強い', () => {
+    const paid = SKINS.filter((s) => s.price)
+    expect(paid.every((s) => s.effect && skinEffectLabel(s.effect))).toBe(true)
+    // 効果の大きさ (%の合計) は値段の順に増える (同じ値段は同じ大きさ)
+    const size = (s: (typeof paid)[number]) => Object.values(s.effect!).reduce((a, v) => a + (v >= 1 ? v / 100 : v), 0)
+    const sorted = [...paid].sort((a, b) => a.price! - b.price!)
+    for (let i = 1; i < sorted.length; i++) if (sorted[i].price! > sorted[i - 1].price!) expect(size(sorted[i])).toBeGreaterThan(size(sorted[i - 1]))
+    expect(skinEffectLabel(SKINS.find((s) => s.id === 'crown')!.effect)).toBe('XP+10%・ゴールド+10%・攻撃+10%・体力+10%')
   })
 })

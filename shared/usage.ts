@@ -37,6 +37,7 @@ export const FEATURES: Record<string, string> = {
   shop_srchest: 'SR以上の宝箱',
   shop_bag: '持ち物の枠',
   shop_treat: '差し入れ',
+  shop_seed: 'SPのタネ',
   treat_received: '差し入れを受け取る',
   skin_buy: 'スキンを買う',
   skin: 'スキンの変更',

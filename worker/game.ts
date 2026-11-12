@@ -6,6 +6,8 @@ import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
 import { achievementStats, doneDays, jstDayNo } from './achievements'
 import { ACHIEVEMENT_MAP, streakOf } from '../shared/achievements'
 import {
+  SEED_DROP_STAGE,
+  mondayOf,
   BAG_MAX_BUYS,
   BAG_STEP,
   BOOST_COUNT,
@@ -123,10 +125,12 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
       ...jobLevelInfo(jobXp[j.id] ?? 0),
     })),
     secretSkills: visibleSecrets(ownedSkills),
-    bonus: bonusOf(ownedSkills),
+    bonus: withSkinBonus(bonusOf(ownedSkills), r.skin),
     skin: r.skin && (SKIN_MAP[r.skin] || EVENT_SKIN_MAP[r.skin]) ? r.skin : null,
     pet: r.pet && PET_MAP[r.pet] ? r.pet : null,
     boostLeft: r.boost_left ?? 0,
+    bonusSp: r.bonus_sp ?? 0,
+    seedWeek: r.seed_week ?? null,
     invExtra: r.inv_extra ?? 0,
     ownedSkins: (skinRows.results as any[]).map((s) => s.skin_id as string),
     treated: treatRow.results.length > 0,
@@ -135,6 +139,17 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
     achievements,
   }
 }
+
+/** 有料スキンの戦闘の効果 (攻撃・体力・会心率) を隠しスキルの効果に重ねる */
+function withSkinBonus(b: ReturnType<typeof bonusOf>, skin: string | null) {
+  const e = skin ? SKIN_MAP[skin]?.effect : undefined
+  if (!e) return b
+  return { ...b, atk: b.atk * (1 + (e.atk ?? 0)), hp: b.hp * (1 + (e.hp ?? 0)), crit: b.crit + (e.crit ?? 0) }
+}
+
+const rand = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
+/** SP のタネ: SP+1 する文 */
+export const addSeed = (db: D1Database, userId: string) => db.prepare('UPDATE players SET bonus_sp = bonus_sp + 1, updated_at = ? WHERE user_id = ?').bind(Date.now(), userId)
 
 export const logActivity = (db: D1Database, userId: string, kind: string, text: string) =>
   db.prepare('INSERT INTO activity (user_id, kind, text, created_at) VALUES (?, ?, ?, ?)').bind(userId, kind, text, Date.now())
@@ -221,6 +236,9 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
 /** ペット・開催中の季節イベント・XP 2 倍チケットの上乗せ */
 function taskExtras(p: PlayerState) {
   const list: { label: string; xp?: number; gold?: number; double?: boolean }[] = []
+  // 有料スキンの XP・ゴールドの効果
+  const sk = p.skin ? SKIN_MAP[p.skin] : undefined
+  if (sk?.effect && (sk.effect.xp || sk.effect.gold)) list.push({ label: `${sk.emoji}${sk.name}`, xp: sk.effect.xp, gold: sk.effect.gold })
   const pet = p.pet ? PET_MAP[p.pet] : undefined
   if (pet && (pet.xp || pet.gold)) list.push({ label: `${pet.emoji}${pet.name}`, xp: pet.xp, gold: pet.gold })
   const ev = activeEvent(jstToday())
@@ -312,6 +330,16 @@ export async function buyShop(db: D1Database, userId: string, id: ShopId, member
       .bind(price, BAG_STEP, now, userId, price, p.invExtra ?? 0)
       .run()
     if (!r.meta.changes) return { error: 'もう一度お試しください' }
+    return { player: await getPlayer(db, userId), item: null }
+  }
+  if (id === 'seed') {
+    const week = mondayOf(jstToday())
+    if (p.seedWeek === week) return { error: 'SPのタネは1週間に1個までです' }
+    const r = await db
+      .prepare('UPDATE players SET gold = gold - ?, bonus_sp = bonus_sp + 1, seed_week = ?, updated_at = ? WHERE user_id = ? AND gold >= ? AND (seed_week IS NULL OR seed_week <> ?)')
+      .bind(price, week, now, userId, price, week)
+      .run()
+    if (!r.meta.changes) return { error: 'SPのタネは1週間に1個までです' }
     return { player: await getPlayer(db, userId), item: null }
   }
   if (id === 'treat') {
@@ -509,9 +537,11 @@ export async function fight(db: D1Database, userId: string) {
   const day = jstDayStart(Date.now())
   await ensureDaily(db, userId, day)
   const stmts: D1PreparedStatement[] = [db.prepare('UPDATE daily SET battles = battles + 1 WHERE user_id = ? AND day = ?').bind(userId, day)]
-  let reward: { gold: number; item: Item | null } | null = null
+  let reward: { gold: number; item: Item | null; seed?: boolean } | null = null
   if (result.win) {
     const gold = bossGold(enemy.stage)
+    const gotSeed = rand() < SEED_DROP_STAGE
+    if (gotSeed) stmts.push(addSeed(db, userId))
     // 宝箱は R 以上確定。持ち物がいっぱいならゴールドのみ
     let item: Item | null = null
     if (p.items.length < invMax(p)) {
@@ -524,7 +554,7 @@ export async function fight(db: D1Database, userId: string) {
       db.prepare('UPDATE players SET stage = stage + 1, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), userId),
       logActivity(db, userId, 'boss', `${enemy.icon} ${enemy.name}`),
     )
-    reward = { gold, item }
+    reward = { gold, item, seed: gotSeed }
   }
   await db.batch(stmts)
   return { result, reward, player: await getPlayer(db, userId) }
