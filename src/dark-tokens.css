@@ -47,5 +47,4 @@
 :root[data-theme='dark'] .sheet.glass,
 :root[data-theme='dark'] .guide.glass { box-shadow: var(--glass-edge), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
 
-:root[data-theme='dark'] .skin-fx { color: #b197fc; }
 :root[data-theme='dark'] .seed-get { color: #69db7c; }

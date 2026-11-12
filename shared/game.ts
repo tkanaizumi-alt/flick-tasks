@@ -594,10 +594,11 @@ export function computeXp(x: XpInput) {
     bonuses.push('即完了 ×0.25')
   }
   let mult = 1
+  // label が空のもの (有料スキンなど、効果を見せないもの) は内訳に出さない
   const add = (ok: boolean, v: number, label: string) => {
     if (!ok) return
     mult += v
-    bonuses.push(label)
+    if (label) bonuses.push(label)
   }
   add(has('early') && jstHour(x.now) < EARLY_SKILL_HOUR, 0.2, '早起き +20%')
   add(has('focus') && x.doneToday >= 4, 0.3, '集中 +30%')

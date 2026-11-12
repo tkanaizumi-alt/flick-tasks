@@ -14,7 +14,6 @@ import {
   enemyForStage,
   levelInfo,
   skinCondition,
-  skinEffectLabel,
   skinUnlocked,
   spInfo,
   winRate,
@@ -440,7 +439,6 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                     >
                       <Avatar name={s.name} skin={s.id} size={44} />
                       <span className="skin-name">💰{s.price}</span>
-                      {s.effect && <span className="skin-fx">{skinEffectLabel(s.effect)}</span>}
                     </button>
                   )
                 }
@@ -455,7 +453,6 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                   >
                     {open ? <Avatar name={s.name} skin={s.id} size={44} /> : <span className="skin-lock">🔒</span>}
                     <span className="skin-name">{open ? s.name : skinCondition(s)}</span>
-                    {s.effect && <span className="skin-fx">{skinEffectLabel(s.effect)}</span>}
                   </button>
                 )
               })}

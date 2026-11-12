@@ -236,9 +236,9 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
 /** ペット・開催中の季節イベント・XP 2 倍チケットの上乗せ */
 function taskExtras(p: PlayerState) {
   const list: { label: string; xp?: number; gold?: number; double?: boolean }[] = []
-  // 有料スキンの XP・ゴールドの効果
+  // 有料スキンの XP・ゴールドの効果 (効果はひみつなので、内訳には出さない)
   const sk = p.skin ? SKIN_MAP[p.skin] : undefined
-  if (sk?.effect && (sk.effect.xp || sk.effect.gold)) list.push({ label: `${sk.emoji}${sk.name}`, xp: sk.effect.xp, gold: sk.effect.gold })
+  if (sk?.effect && (sk.effect.xp || sk.effect.gold)) list.push({ label: '', xp: sk.effect.xp, gold: sk.effect.gold })
   const pet = p.pet ? PET_MAP[p.pet] : undefined
   if (pet && (pet.xp || pet.gold)) list.push({ label: `${pet.emoji}${pet.name}`, xp: pet.xp, gold: pet.gold })
   const ev = activeEvent(jstToday())
