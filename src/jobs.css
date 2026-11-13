@@ -22,8 +22,15 @@
 }
 .job:active:not(:disabled) { transform: scale(0.98); }
 .job.on { box-shadow: inset 0 0 0 2px var(--c-todo); background: #fff; cursor: default; }
-.job.adv { background: linear-gradient(160deg, #fff8e1, #fff); box-shadow: inset 0 0 0 1.5px #f0a400; }
-.job.adv.on { box-shadow: inset 0 0 0 2.5px #f0a400; }
+.job.t2 { background: linear-gradient(160deg, #fff8e1, #fff); box-shadow: inset 0 0 0 1.5px #f0a400; }
+.job.t2.on { box-shadow: inset 0 0 0 2.5px #f0a400; }
+/* 複合職 (隠し職業) */
+.job.t3 { background: linear-gradient(160deg, #f3e8ff, #e7f5ff 60%, #fff); box-shadow: inset 0 0 0 1.5px #9b5de5; }
+.job.t3.on { box-shadow: inset 0 0 0 2.5px #9b5de5, 0 6px 16px -8px rgba(155, 93, 229, 0.6); }
+.job.t3 .job-name em { background: linear-gradient(135deg, #9b5de5, #4dabf7); }
+.job.locked { cursor: default; background: transparent; box-shadow: none; outline: 1.5px dashed rgba(20, 28, 48, 0.18); outline-offset: -1.5px; opacity: 0.75; }
+.job.locked .job-name { letter-spacing: 2px; color: var(--ink-3); }
+.job-hint { font-size: 11.5px; font-weight: 750; color: #9b5de5; }
 .job:disabled { opacity: 1; }
 .job-icon { font-size: 26px; width: 36px; text-align: center; flex: none; }
 .job-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -49,6 +56,8 @@
 .secret-skill.owned { background: linear-gradient(135deg, #f7b733, #fc4a1a); color: #fff; }
 .secret-skill .skill-cost { color: #b7791f; }
 .secret-skill.owned .skill-cost, .secret-skill.owned .skill-combo { color: rgba(255, 255, 255, 0.9); }
+.secret-skill.locked { background: transparent; box-shadow: none; outline: 1.5px dashed rgba(240, 164, 0, 0.5); outline-offset: -1.5px; opacity: 0.8; }
+.secret-skill.locked .skill-name { letter-spacing: 2px; color: #b7791f; }
 .skill-combo { font-size: 10.5px; font-weight: 800; color: #b7791f; }
 .chip.secret { color: #fff; background: linear-gradient(135deg, #f7b733, #fc4a1a); }
 

@@ -9,7 +9,7 @@ export interface XpChange {
   bonuses: string[]
   level: number
   leveledUp: boolean
-  unlocked?: { name: string; icon: string } | null
+  unlocked?: { name: string; icon: string; tier?: number } | null
 }
 
 export class HttpError extends Error {
@@ -80,6 +80,11 @@ export const api = {
   missions: () => req<{ missions: Mission[] }>('/api/missions'),
   claim: (id: string) =>
     req<{ item: Item | null; gold: number; player: PlayerState; missions: Mission[] }>(`/api/missions/${id}/claim`, {
+      method: 'POST',
+      json: {},
+    }),
+  claimAll: () =>
+    req<{ item: Item | null; gold: number; count: number; player: PlayerState; missions: Mission[] }>('/api/missions/claim-all', {
       method: 'POST',
       json: {},
     }),

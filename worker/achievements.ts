@@ -1,6 +1,7 @@
 import { ACHIEVEMENTS, achieved, bestStreakOf, streakOf, type AchievementDef, type AchievementStats } from '../shared/achievements'
-import { jstDayStart, jstToday, levelInfo } from '../shared/game'
+import { jobLevelInfo, jstDayStart, jstToday, levelInfo } from '../shared/game'
 import { EVENT_GOAL, activeEvent } from '../shared/extras'
+import { SECRET_JOBS, unlockedJobs } from './jobs'
 
 const DAY = 86400000
 const JST = 9 * 3600000
@@ -32,7 +33,7 @@ export async function streaks(db: D1Database) {
 }
 
 export async function achievementStats(db: D1Database, userId: string): Promise<AchievementStats> {
-  const [agg, helps, player, ssr, maxDay, misc] = await db.batch([
+  const [agg, helps, player, ssr, maxDay, misc, jobRows] = await db.batch([
     db
       .prepare(
         `SELECT COUNT(*) AS done,
@@ -47,16 +48,25 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
       )
       .bind(userId),
     db.prepare('SELECT COUNT(*) AS n FROM helps WHERE user_id = ?').bind(userId),
-    db.prepare('SELECT xp, stage FROM players WHERE user_id = ?').bind(userId),
-    db.prepare("SELECT COUNT(*) AS n, SUM(rarity = 'UR') AS ur FROM items WHERE user_id = ? AND rarity IN ('SSR', 'UR')").bind(userId),
+    db.prepare('SELECT xp, stage, gold FROM players WHERE user_id = ?').bind(userId),
+    db.prepare("SELECT SUM(rarity IN ('SSR', 'UR')) AS n, SUM(rarity = 'UR') AS ur, MAX(plus) AS plus FROM items WHERE user_id = ?").bind(userId),
     db
       .prepare(`SELECT MAX(n) AS n FROM (SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND status = 'done' AND xp_awarded > 0 GROUP BY CAST((done_at + ${JST}) / ${DAY} AS INTEGER))`)
       .bind(userId),
-    db.prepare('SELECT (SELECT COUNT(*) FROM comments WHERE user_id = ?1) AS comments, (SELECT COUNT(*) FROM reactions WHERE user_id = ?1) AS reactions, (SELECT COUNT(*) FROM owned_skins WHERE user_id = ?1) AS skins').bind(userId),
+    db.prepare(
+      `SELECT (SELECT COUNT(*) FROM comments WHERE user_id = ?1) AS comments, (SELECT COUNT(*) FROM reactions WHERE user_id = ?1) AS reactions,
+              (SELECT COUNT(*) FROM owned_skins WHERE user_id = ?1) AS skins,
+              (SELECT COUNT(*) FROM player_skills WHERE user_id = ?1 AND substr(skill_id, 1, 2) = 'x_') AS secrets,
+              (SELECT COUNT(*) FROM daily WHERE user_id = ?1 AND (',' || claimed || ',') LIKE '%,all,%') AS bonusDays`,
+    ).bind(userId),
+    db.prepare('SELECT job_id, xp FROM player_jobs WHERE user_id = ?').bind(userId),
   ])
   const a = agg.results[0] as any
   const p = (player.results[0] as any) ?? { xp: 0, stage: 1 }
   const days = await doneDays(db, userId)
+  const m = (misc.results[0] as any) ?? {}
+  const levels = Object.fromEntries((jobRows.results as any[]).map((j) => [j.job_id, jobLevelInfo(j.xp).level]))
+  const opened = new Set(unlockedJobs(levels).map((j) => j.id))
   return {
     done: a.done ?? 0,
     streak: streakOf(days, jstDayNo(Date.now())),
@@ -77,7 +87,13 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
     ur: (ssr.results[0] as any).ur ?? 0,
     comments: (misc.results[0] as any)?.comments ?? 0,
     reactions: (misc.results[0] as any)?.reactions ?? 0,
-    paidSkins: (misc.results[0] as any)?.skins ?? 0,
+    paidSkins: m.skins ?? 0,
+    secretJobs: SECRET_JOBS.filter((j) => opened.has(j.id)).length,
+    hero: opened.has('hero') ? 1 : 0,
+    secretSkills: m.secrets ?? 0,
+    maxPlus: (ssr.results[0] as any)?.plus ?? 0,
+    gold: p.gold ?? 0,
+    bonusDays: m.bonusDays ?? 0,
   }
 }
 

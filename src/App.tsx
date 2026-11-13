@@ -303,7 +303,8 @@ export function App() {
     if (xp.unlocked) {
       navigator.vibrate?.([20, 60, 20, 60, 20])
       const u = xp.unlocked
-      setTimeout(() => setLevelUp({ label: 'NEW JOB', title: `${u.icon} ${u.name}`, sub: '上位職が解放されました' }), 500)
+      const sub = u.tier === 3 ? '隠し職業「複合職」を見つけました！' : '上位職が解放されました'
+      setTimeout(() => setLevelUp({ label: u.tier === 3 ? 'SECRET JOB' : 'NEW JOB', title: `${u.icon} ${u.name}`, sub }), 500)
     } else if (xp.leveledUp) {
       navigator.vibrate?.([12, 40, 12])
       setTimeout(() => setLevelUp({ label: 'LEVEL UP', title: `Lv ${xp.level}`, sub: 'SP +3' }), 500)

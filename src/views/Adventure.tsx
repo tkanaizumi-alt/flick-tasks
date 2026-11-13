@@ -94,6 +94,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   }
   const items = useMemo(() => [...player.items].sort(INV_CMP[invSort]), [player.items, invSort])
   const sp = spInfo(player)
+  const achievedIds = useMemo(() => (player.achievements ?? []).map((a) => a.id), [player.achievements])
   const eff = effectiveStats(player)
   const enemy = enemyForStage(player.stage)
   const rate = useMemo(() => winRate(player, enemy), [player, enemy.stage])
@@ -373,7 +374,24 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
         <section className="panel glass" data-testid="missions">
           <div className="panel-head">
             <h2>今日のミッション</h2>
-            <span className="muted">毎日 0 時に更新</span>
+            {claimable > 0 ? (
+              <button
+                className="pill-btn primary small"
+                disabled={busy}
+                data-testid="claim-all"
+                onClick={async () => {
+                  const r = await run(() => api.claimAll())
+                  if (!r) return
+                  setMissions(r.missions)
+                  if (r.item) setReveal(r.item)
+                  toast(`${r.count}個まとめて受け取りました（💰${r.gold}${r.item ? '・🎁宝箱' : ''}）`)
+                }}
+              >
+                まとめて受け取る（{claimable}）
+              </button>
+            ) : (
+              <span className="muted">毎日 0 時に更新</span>
+            )}
           </div>
           <ul className="mission-list">
             {missions.map((m) => (
@@ -422,8 +440,17 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                 <span className="skin-name">写真</span>
               </button>
               {SKINS.map((s) => {
-                const open = skinUnlocked(s, levelInfo(player.xp).level, player.stage, player.ownedSkins)
+                const open = skinUnlocked(s, levelInfo(player.xp).level, player.stage, player.ownedSkins, achievedIds)
                 const on = player.skin === s.id
+                // 隠しスキン: 取るまで姿も名前も見せない
+                if (s.secret && !open) {
+                  return (
+                    <button key={s.id} className="skin locked secret" disabled data-testid={`skin-${s.id}`} title="隠し実績で解放">
+                      <span className="skin-lock">❔</span>
+                      <span className="skin-name">？？？</span>
+                    </button>
+                  )
+                }
                 // ゴールドで買うスキン: 買う前は値段を出し、押すと買ってそのまま着替える
                 if (s.price && !open) {
                   return (
@@ -480,7 +507,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                 return (
                   <button
                     key={j.id}
-                    className={`job ${on ? 'on' : ''} ${j.tier === 2 ? 'adv' : ''}`}
+                    className={`job ${on ? 'on' : ''} ${j.tier > 1 ? `t${j.tier}` : ''}`}
                     disabled={busy || on}
                     onClick={() => run(() => api.setJob(j.id))}
                     data-testid={`job-${j.id}`}
@@ -490,6 +517,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                       <span className="job-name">
                         {j.name}
                         {j.tier === 2 && <em>上位職</em>}
+                        {j.tier === 3 && <em>複合職</em>}
                       </span>
                       <span className="job-desc">{j.desc}</span>
                       <span className="job-lv">
@@ -503,6 +531,16 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                   </button>
                 )
               })}
+              {(player.lockedJobs ?? 0) > 0 && (
+                <div className="job locked" data-testid="jobs-locked">
+                  <span className="job-icon">❔</span>
+                  <span className="job-body">
+                    <span className="job-name">？？？</span>
+                    <span className="job-desc">まだ見つかっていない職業があと {player.lockedJobs} つ</span>
+                    <span className="job-hint" data-testid="jobs-hint">💡 ヒント: 他の役職も育ててみよう</span>
+                  </span>
+                </div>
+              )}
             </div>
             <p className="muted job-note">今の職業の職業Lvが1上がるごとに攻撃・体力+1%（最大+30%）</p>
           </section>
@@ -595,7 +633,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                 </div>
               </div>
             ))}
-            {player.secretSkills.length > 0 && (
+            {(player.secretSkills.length > 0 || (player.lockedSecrets ?? 0) > 0) && (
               <div className="branch secret" data-testid="secret-skills">
                 <div className="branch-head">✦ 隠しスキル</div>
                 <div className="skill-row">
@@ -616,6 +654,12 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                       </button>
                     )
                   })}
+                  {(player.lockedSecrets ?? 0) > 0 && (
+                    <div className="skill secret-skill locked" data-testid="secret-locked">
+                      <span className="skill-name">？？？</span>
+                      <span className="skill-desc">あと {player.lockedSecrets} つ。決まったスキルの組み合わせで現れます</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

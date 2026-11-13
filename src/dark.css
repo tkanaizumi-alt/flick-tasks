@@ -37,7 +37,8 @@
 /* ---- src/jobs.css ---- */
 :root[data-theme='dark'] .job { background: hsla(0, 0%, 12%, 0.72); }
 :root[data-theme='dark'] .job.on { background: hsla(0, 0%, 12%, 1); }
-:root[data-theme='dark'] .job.adv { background: linear-gradient(160deg, hsla(46, 35%, 14%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .job.t2 { background: linear-gradient(160deg, hsla(46, 35%, 14%, 1), hsla(0, 0%, 12%, 1)); }
+:root[data-theme='dark'] .job.t3 { background: linear-gradient(160deg, hsla(269, 35%, 14%, 1), hsla(205, 35%, 14%, 1) 60%, hsla(0, 0%, 12%, 1)); }
 :root[data-theme='dark'] .secret-skill { background: linear-gradient(160deg, hsla(40, 35%, 13%, 1), hsla(0, 0%, 12%, 1)); }
 :root[data-theme='dark'] .feed-pill { background: hsla(0, 0%, 12%, 1); }
 :root[data-theme='dark'] .due-field { background: hsla(0, 0%, 12%, 0.698); }

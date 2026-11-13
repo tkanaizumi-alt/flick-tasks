@@ -1,5 +1,5 @@
 /** 冒険 (ミニゲーム) */
-import { addStat, equipSet, claimMission, equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
+import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
 import { eventBossState, fightEventBoss, rematch, rematchState, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
@@ -122,6 +122,12 @@ game.post('/items/:id/equip', async (c) => {
 game.post('/items/:id/sell', async (c) => gameResponse(c, await sellItem(c.env.DB, c.get('user').id, c.req.param('id'))))
 
 game.get('/missions', async (c) => c.json(await getMissions(c.env.DB, c.get('user').id)))
+
+// まとめて受け取る (:id のルートより先に置く)
+game.post('/missions/claim-all', async (c) => {
+  const r = await claimAllMissions(c.env.DB, c.get('user').id)
+  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+})
 
 game.post('/missions/:id/claim', async (c) => {
   const r = await claimMission(c.env.DB, c.get('user').id, c.req.param('id'))

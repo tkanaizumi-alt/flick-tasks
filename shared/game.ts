@@ -28,7 +28,7 @@ export interface JobDef {
   name: string
   icon: string
   desc: string
-  tier: 1 | 2
+  tier: 1 | 2 | 3 // 1 基本職 / 2 上位職 / 3 複合職 (上位職 2 つを育てると現れる隠し職業)
   atk: number // 攻撃の倍率
   hp: number // 体力の倍率
   crit: number // 会心率 (加算 %)
@@ -36,6 +36,8 @@ export interface JobDef {
   healAdd: number // 毎ターン回復 (加算)
   guard: number // 受けるダメージの倍率
   critDmg: number // 会心ダメージ倍率 (加算)
+  /** 職業そのものが持つ戦闘効果 (装備の効果・スキルと同じ ID)。複合職だけが持つ */
+  effects?: string[]
 }
 
 export interface JobProgress {
@@ -43,7 +45,7 @@ export interface JobProgress {
   name: string
   icon: string
   desc: string
-  tier: 1 | 2
+  tier: 1 | 2 | 3 // 1 基本職 / 2 上位職 / 3 複合職 (上位職 2 つを育てると現れる隠し職業)
   xp: number
   level: number
   current: number
@@ -62,7 +64,9 @@ export interface PlayerState {
   job: JobDef
   jobLevel: number
   jobs: JobProgress[] // 選べる職業 (未解放の上位職は含まない)
+  lockedJobs?: number // まだ見つかっていない職業の数 (中身は見せない)
   secretSkills: SecretSkillView[] // 解放済みの隠しスキル (条件を満たしたものだけ)
+  lockedSecrets?: number // まだ見つかっていない隠しスキルの数 (中身は見せない)
   bonus: Bonus // 習得済みの隠しスキルの効果の合計
   skin?: string | null // 見た目 (null = Google の写真)
   title?: string | null // 名前の横に出す称号 (実績の ID)
@@ -172,7 +176,7 @@ export function equippedItems(p: Partial<Pick<PlayerState, 'items' | 'equipped'>
 
 /** スキルと装備の効果をまとめて判定 */
 export function hasEffect(p: BattleStats, id: string) {
-  return p.skills.includes(id) || equippedItems(p).some((i) => i.effect === id) || !!p.bonus?.effects.includes(id)
+  return p.skills.includes(id) || equippedItems(p).some((i) => i.effect === id) || !!p.bonus?.effects.includes(id) || !!p.job?.effects?.includes(id)
 }
 
 export const CRIT_CAP = 75
@@ -839,6 +843,8 @@ export interface SkinDef {
   img?: string
   /** つけている間の効果 (ゴールドで買うスキン。値段が高いほど強い) */
   effect?: SkinEffect
+  /** 隠しスキン: この実績 (隠し実績) を取ると解放される。取るまで中身は見せない */
+  secret?: string
 }
 export interface SkinEffect {
   xp?: number // タスク XP (加算倍率)
@@ -896,9 +902,15 @@ export const SKINS: SkinDef[] = [
   { id: 'rocket', name: 'ロケット', emoji: '🚀', bg: 'linear-gradient(135deg,#0f2027,#2c5364)', price: 600, effect: { gold: 0.1 } },
   { id: 'dino', name: 'きょうりゅう', emoji: '🦖', bg: 'linear-gradient(135deg,#b4ec51,#429321)', price: 800, effect: { hp: 0.13 } },
   { id: 'crown', name: 'ゴールドクラウン', emoji: '👑', bg: 'linear-gradient(135deg,#fceabb,#f8b500)', price: 1200, effect: { xp: 0.1, gold: 0.1, atk: 0.1, hp: 0.1 } },
+  // 隠しスキン (隠し実績で解放)
+  { id: 'vampire', name: 'きゅうけつき', emoji: '🧛', bg: 'linear-gradient(135deg,#2b1055,#d53369)', secret: 'h_night' },
+  { id: 'fairy', name: 'ようせい', emoji: '🧚', bg: 'linear-gradient(135deg,#e0c3fc,#8ec5fc)', secret: 'h_twoways' },
+  { id: 'mermaid', name: 'にんぎょ', emoji: '🧜', bg: 'linear-gradient(135deg,#43cea2,#185a9d)', secret: 'h_secret3' },
+  { id: 'genie', name: 'まじん', emoji: '🧞', bg: 'linear-gradient(135deg,#667eea,#f6d365)', secret: 'h_rich' },
+  { id: 'superhero', name: 'ヒーロー', emoji: '🦸', bg: 'linear-gradient(135deg,#ff512f,#f09819)', secret: 'h_hero' },
 ]
 export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((s) => [s.id, s]))
-/** 選べるスキンか (買うスキンは買ったものだけ) */
-export const skinUnlocked = (s: SkinDef, level: number, stage: number, owned: string[] = []) =>
-  (s.level ?? 0) <= level && (s.stage ?? 0) <= stage && (!s.price || owned.includes(s.id))
+/** 選べるスキンか (買うスキンは買ったものだけ、隠しスキンはその実績を取ったものだけ) */
+export const skinUnlocked = (s: SkinDef, level: number, stage: number, owned: string[] = [], achieved: string[] = []) =>
+  (s.level ?? 0) <= level && (s.stage ?? 0) <= stage && (!s.price || owned.includes(s.id)) && (!s.secret || achieved.includes(s.secret))
 export const skinCondition = (s: SkinDef) => [s.level && `Lv${s.level}`, s.stage && `ステージ${s.stage}到達`].filter(Boolean).join('・')

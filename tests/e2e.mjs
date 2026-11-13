@@ -344,6 +344,22 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   if (p1.ownedSkins?.length) check('有料スキンを買うと実績「おしゃれさん」', p1.achievements.some((a) => a.id === 'skin1'), p1.achievements)
 }
 
+// ミッションのまとめて受け取り・隠し要素の「？？？」の数
+{
+  const ms = (await A.call('/api/missions')).missions
+  const ready = ms.filter((m) => m.done && !m.claimed && m.id !== 'all')
+  const g0 = (await A.call('/api/player')).player.gold
+  const r = await A.call('/api/missions/claim-all', 'POST', {})
+  if (ready.length) {
+    const sum = ready.reduce((a, m) => a + m.gold, 0)
+    check('ミッションをまとめて受け取る', r.count >= ready.length && r.gold === sum && r.player.gold === g0 + sum, { r: { count: r.count, gold: r.gold }, sum })
+    check('まとめて受け取ると残りはなくなる', !r.missions.some((m) => m.done && !m.claimed), r.missions)
+  }
+  check('受け取るものがないときは断る', (await A.call('/api/missions/claim-all', 'POST', {})).status === 400)
+  const p = (await A.call('/api/player')).player
+  check('見つかっていない職業・隠しスキルは数だけ返す', typeof p.lockedJobs === 'number' && p.lockedJobs > 0 && typeof p.lockedSecrets === 'number', { lockedJobs: p.lockedJobs, lockedSecrets: p.lockedSecrets })
+}
+
 // 後片付け
 for (const c of [A, B]) {
   const { tasks } = await c.call('/api/tasks')

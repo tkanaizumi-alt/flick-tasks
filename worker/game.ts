@@ -1,8 +1,8 @@
 import type { Env } from './env'
 import { san } from '../shared/types'
 import { track } from './usage'
-import { JOB_MAP, JOB_UNLOCK_LEVEL, advancedOf, unlockedJobs } from './jobs'
-import { SECRET_MAP, bonusOf, visibleSecrets } from './secrets'
+import { JOB_MAP, lockedJobCount, newlyUnlocked, unlockedJobs } from './jobs'
+import { SECRET_MAP, bonusOf, lockedSecretCount, visibleSecrets } from './secrets'
 import { achievementStats, doneDays, jstDayNo } from './achievements'
 import { ACHIEVEMENT_MAP, streakOf } from '../shared/achievements'
 import {
@@ -47,6 +47,7 @@ import {
   bossGold,
   canLearn,
   computeXp,
+  DAILY_ALL,
   dailyMissions,
   enemyForStage,
   equippedItems,
@@ -124,7 +125,9 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
       xp: jobXp[j.id] ?? 0,
       ...jobLevelInfo(jobXp[j.id] ?? 0),
     })),
+    lockedJobs: lockedJobCount(levels),
     secretSkills: visibleSecrets(ownedSkills),
+    lockedSecrets: lockedSecretCount(ownedSkills),
     bonus: withSkinBonus(bonusOf(ownedSkills), r.skin),
     skin: r.skin && (SKIN_MAP[r.skin] || EVENT_SKIN_MAP[r.skin]) ? r.skin : null,
     pet: r.pet && PET_MAP[r.pet] ? r.pet : null,
@@ -160,8 +163,19 @@ export interface XpChange {
   bonuses: string[]
   level: number
   leveledUp: boolean
-  /** この完了で上位職が解放された */
-  unlocked?: { name: string; icon: string } | null
+  /** この完了で上位職・複合職が解放された */
+  unlocked?: { name: string; icon: string; tier: number } | null
+}
+
+/** 職業 XP が amount 増えたときに新しく解放される職業 (上の段のものから) */
+function jobUnlocks(p: PlayerState, jobId: string, amount: number) {
+  const levels = Object.fromEntries(p.jobs.map((j) => [j.id, j.level]))
+  const xp = p.jobs.find((j) => j.id === jobId)?.xp ?? 0
+  const level = jobLevelInfo(xp + amount).level
+  if (level === (levels[jobId] ?? 1)) return []
+  return newlyUnlocked(levels, jobId, level)
+    .sort((a, b) => b.tier - a.tier)
+    .map((j) => ({ name: j.name, icon: j.icon, tier: j.tier }))
 }
 
 const effectsOf = (p: PlayerState) => equippedItems(p).map((i) => i.effect).filter((e): e is string => !!e)
@@ -195,14 +209,10 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       extras: taskExtras(player),
     })
     const level = levelInfo(player.xp + amount).level
-    // 今の職業にも同じだけ職業 XP が入る。基本職が規定レベルに届いたら上位職が解放される
+    // 今の職業にも同じだけ職業 XP が入る。条件の職業が規定レベルに届いたら上位職・複合職が解放される
     const jobId = player.job.id
-    const jobXp = player.jobs.find((j) => j.id === jobId)?.xp ?? 0
-    const adv = player.job.tier === 1 ? advancedOf(jobId) : undefined
-    const unlocked =
-      adv && jobLevelInfo(jobXp).level < JOB_UNLOCK_LEVEL && jobLevelInfo(jobXp + amount).level >= JOB_UNLOCK_LEVEL
-        ? { name: adv.name, icon: adv.icon }
-        : null
+    const opened = jobUnlocks(player, jobId, amount)
+    const unlocked = opened[0] ?? null
     const stmts = [
       // XP 2 倍チケットを使ったら 1 回分減らす
       db
@@ -217,7 +227,7 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       logActivity(db, userId, 'done', before.title),
     ]
     if (level > prevLevel) stmts.push(logActivity(db, userId, 'levelup', `Lv${level}`))
-    if (unlocked) stmts.push(logActivity(db, userId, 'job', `${unlocked.icon} ${unlocked.name}`))
+    for (const j of opened) stmts.push(logActivity(db, userId, 'job', `${j.icon} ${j.name}`))
     await db.batch(stmts)
     return { amount, gold, bonuses, level, leveledUp: level > prevLevel, unlocked }
   }
@@ -423,7 +433,7 @@ export async function setSkin(db: D1Database, userId: string, skin: string | nul
     } else {
       const def = SKIN_MAP[skin]
       if (!def) return { error: '存在しないスキン' }
-      if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage, p.ownedSkins)) return { error: def.price ? 'まだ買っていないスキンです' : 'まだ解放されていません' }
+      if (!skinUnlocked(def, levelInfo(p.xp).level, p.stage, p.ownedSkins, (p.achievements ?? []).map((a) => a.id))) return { error: def.price ? 'まだ買っていないスキンです' : 'まだ解放されていません' }
     }
   }
   await db.prepare('UPDATE players SET skin = ?, updated_at = ? WHERE user_id = ?').bind(skin, Date.now(), userId).run()
@@ -679,6 +689,41 @@ export async function claimMission(db: D1Database, userId: string, missionId: st
   }
   await db.batch(stmts)
   return { item, gold: m.gold, player: await getPlayer(db, userId), missions: (await dailyState(db, userId)).missions }
+}
+
+/**
+ * 達成済みのミッションをまとめて受け取る。受け取った数でボーナス (宝箱) も達成するなら、それも一緒に。
+ * 集計 1 回・書き込み 1 回 (batch) で済ませ、ミッションの状態は手元で組み直す
+ */
+export async function claimAllMissions(db: D1Database, userId: string) {
+  const [{ day, claimed, missions }, p] = await Promise.all([dailyState(db, userId), getPlayer(db, userId)])
+  const take = missions.filter((m) => m.id !== DAILY_ALL.id && m.done && !m.claimed)
+  const next = [...claimed, ...take.map((m) => m.id)]
+  // ボーナスは「受け取ったミッションの数」で達成するので、今回の分を足して判定する
+  const bonus = missions.find((m) => m.id === DAILY_ALL.id)
+  if (bonus && !bonus.claimed && next.filter((id) => id !== DAILY_ALL.id).length >= bonus.goal) {
+    take.push(bonus)
+    next.push(bonus.id)
+  }
+  if (!take.length) return { error: '受け取れるミッションがありません' }
+  const gold = take.reduce((a, m) => a + m.gold, 0)
+  const stmts: D1PreparedStatement[] = [
+    db.prepare('UPDATE daily SET claimed = ? WHERE user_id = ? AND day = ?').bind(next.join(','), userId, day),
+    db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), userId),
+  ]
+  let item: Item | null = null
+  if (take.some((m) => m.chest) && p.items.length < invMax(p)) {
+    const ins = insertItem(db, userId, rollItem(seed(), p.stage))
+    item = ins.item
+    stmts.push(ins.stmt, ...itemActivity(db, userId, item))
+  }
+  await db.batch(stmts)
+  const taken = next.filter((id) => id !== DAILY_ALL.id).length
+  const after = missions.map((m) => {
+    const x = { ...m, claimed: next.includes(m.id) }
+    return m.id === DAILY_ALL.id ? { ...x, value: Math.min(taken, m.goal), done: taken >= m.goal } : x
+  })
+  return { item, gold, count: take.length, player: await getPlayer(db, userId), missions: after }
 }
 
 // ---------- 古いデータの整理 ----------

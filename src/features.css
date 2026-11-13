@@ -407,3 +407,8 @@ body[data-layout='pc'] .cal-day { position: sticky; top: calc(var(--safe-t) + va
 .seed-get { color: #2f9e44; }
 .sp-head { display: inline-flex; align-items: center; gap: 6px; }
 .seed-count { font-size: 12px; font-weight: 700; }
+
+/* ---------- 隠しスキン・実績の報酬 ---------- */
+.skin.secret .skin-lock { background: linear-gradient(135deg, rgba(155, 93, 229, 0.18), rgba(77, 171, 247, 0.18)); }
+.skin.secret .skin-name { letter-spacing: 2px; }
+.ach-reward { display: block; font-size: 10.5px; font-weight: 700; color: #9b5de5; }

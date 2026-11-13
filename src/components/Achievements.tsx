@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP, TIERS, type AchievementStats } from '../../shared/achievements'
-import type { PlayerState } from '../../shared/game'
+import { SKINS, type PlayerState } from '../../shared/game'
 import { api } from '../api'
+
+/** 隠し実績 → それで解放される隠しスキン */
+const SKIN_BY_SECRET = Object.fromEntries(SKINS.filter((s) => s.secret).map((s) => [s.secret!, s]))
 
 /** 実績の一覧。取ったものは称号として名前の横に出せる */
 export function Achievements({ player, busy, onTitle }: { player: PlayerState; busy: boolean; onTitle: (id: string | null) => void }) {
@@ -57,7 +60,10 @@ export function Achievements({ player, busy, onTitle }: { player: PlayerState; b
                     )}
                     {a.hidden && <span className="hidden-chip">隠し</span>}
                   </span>
-                  <span className="ach-desc">{secret ? '条件はひみつ。いつもと違う使い方をすると見つかるかも' : a.desc}</span>
+                  <span className="ach-desc">
+                    {secret ? '条件はひみつ。いつもと違う使い方をすると見つかるかも' : a.desc}
+                    {at && SKIN_BY_SECRET[a.id] && <span className="ach-reward">（スキン「{SKIN_BY_SECRET[a.id].emoji}{SKIN_BY_SECRET[a.id].name}」解放）</span>}
+                  </span>
                   {!at && !secret && stats && (
                     <span className="ach-bar">
                       <span style={{ transform: `scaleX(${value / a.goal})` }} />

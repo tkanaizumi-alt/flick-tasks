@@ -1,4 +1,4 @@
-// 隠しスキル (裏データ)。「知恵」のスキル × 攻撃/守護のスキルの両方を習得すると現れ、SP で覚えられる。
+// 隠しスキル (裏データ)。決まった 2 つのスキルを両方習得すると現れ、SP で覚えられる。
 // フロントには解放済みのものの名前・説明と、効果の数値 (Bonus) だけを送る
 import { NO_BONUS, SKILL_MAP, type Bonus, type SecretSkillView } from '../shared/game'
 
@@ -7,7 +7,7 @@ interface SecretSkill {
   name: string
   desc: string
   cost: number
-  requires: [string, string] // [知恵のスキル, 攻撃/守護のスキル]
+  requires: [string, string] // この 2 つを習得すると現れる
   bonus: Partial<Bonus>
 }
 
@@ -20,7 +20,16 @@ export const SECRET_SKILLS: SecretSkill[] = [
   { id: 'x_analysis', name: '解析', desc: '会心ダメージ+50%・会心率+5%', cost: 4, requires: ['ai', 'critup'], bonus: { critDmg: 0.5, crit: 5 } },
   { id: 'x_sanctuary', name: '聖域', desc: '毎ターン回復+8・与ダメージの10%を吸収', cost: 4, requires: ['focus', 'regen'], bonus: { heal: 8, effects: ['lifesteal'] } },
   { id: 'x_enlighten', name: '悟り', desc: '攻撃+25%・会心率+10%', cost: 6, requires: ['scholar', 'finisher'], bonus: { atk: 1.25, crit: 10 } },
+  // 攻撃 × 守護 や、知恵の奥のスキルとの組み合わせ
+  { id: 'x_ironfist', name: '鉄拳', desc: '攻撃+10%・受けるダメージ-10%', cost: 3, requires: ['double', 'wall'], bonus: { atk: 1.1, guard: 0.9 } },
+  { id: 'x_bloodpact', name: '血の契約', desc: '与ダメージの10%を吸収・攻撃+10%', cost: 4, requires: ['berserk', 'regen'], bonus: { atk: 1.1, effects: ['lifesteal'] } },
+  { id: 'x_fortune', name: '強運', desc: '会心率+10%・タスクのゴールド+15%', cost: 4, requires: ['goldsmith', 'guts'], bonus: { crit: 10, gold: 0.15 } },
+  { id: 'x_mirror', name: '鏡写し', desc: '受けたダメージの30%を返す・会心ダメージ+30%', cost: 5, requires: ['counter', 'combo'], bonus: { critDmg: 0.3, effects: ['thorns'] } },
+  { id: 'x_rebirth', name: '輪廻', desc: '体力+25%・タスクのXP+10%', cost: 6, requires: ['phoenix', 'scholar'], bonus: { hp: 1.25, xp: 0.1 } },
 ]
+
+/** まだ見つかっていない隠しスキルの数 (中身は見せない) */
+export const lockedSecretCount = (owned: string[]) => SECRET_SKILLS.filter((s) => !s.requires.every((r) => owned.includes(r))).length
 export const SECRET_MAP: Record<string, SecretSkill> = Object.fromEntries(SECRET_SKILLS.map((s) => [s.id, s]))
 
 /** 習得済みの通常スキルから見えるようになった隠しスキル */

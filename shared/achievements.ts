@@ -21,6 +21,12 @@ export interface AchievementStats {
   ur: number // 持っている UR の装備
   comments: number // 書いたコメント
   reactions: number // 他の人のタスクに付けたリアクション
+  secretJobs: number // 解放した複合職 (隠し職業) の数
+  hero: number // 勇者を解放したか (0/1)
+  secretSkills: number // 習得した隠しスキルの数
+  maxPlus: number // 持っている装備の強化値の最大
+  gold: number // 今持っているゴールド
+  bonusDays: number // ミッションの宝箱 (ボーナス) を受け取った日数
 }
 
 export interface AchievementDef {
@@ -79,6 +85,12 @@ export const HIDDEN_ACHIEVEMENTS: AchievementDef[] = [
   { id: 'h_xl5', name: '伝説の請負人', icon: '🏰', desc: '「特大」のタスクを5件完了', stat: 'xl', goal: 5, tier: 3, hidden: true },
   { id: 'h_ur', name: '虹をつかむ者', icon: '🌈', desc: 'URの装備を手に入れる', stat: 'ur', goal: 1, tier: 3, hidden: true },
   { id: 'h_days100', name: '百日の功', icon: '💯', desc: 'タスクを完了した日が合計100日', stat: 'days', goal: 100, tier: 4, hidden: true },
+  { id: 'h_twoways', name: '二つの道', icon: '🔀', desc: '隠し職業「複合職」を見つける', stat: 'secretJobs', goal: 1, tier: 3, hidden: true },
+  { id: 'h_hero', name: '真の勇者', icon: '🌠', desc: '職業「勇者」にたどり着く', stat: 'hero', goal: 1, tier: 4, hidden: true },
+  { id: 'h_secret3', name: '秘伝の継承者', icon: '📜', desc: '隠しスキルを3つ覚える', stat: 'secretSkills', goal: 3, tier: 3, hidden: true },
+  { id: 'h_plus10', name: '鍛冶の極み', icon: '🔨', desc: '装備を+10まで強化する', stat: 'maxPlus', goal: 10, tier: 3, hidden: true },
+  { id: 'h_rich', name: '大富豪', icon: '💎', desc: 'ゴールドを5000貯める', stat: 'gold', goal: 5000, tier: 3, hidden: true },
+  { id: 'h_perfect', name: '皆勤賞', icon: '🗓️', desc: 'ミッションの宝箱を20日受け取る', stat: 'bonusDays', goal: 20, tier: 2, hidden: true },
 ]
 ACHIEVEMENTS.push(...HIDDEN_ACHIEVEMENTS)
 

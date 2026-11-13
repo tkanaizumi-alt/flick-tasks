@@ -36,7 +36,7 @@ const ROUTES: [string, RegExp, string][] = [
   ['POST', /^\/player\/title$/, 'title'],
   ['POST', /^\/player\/job$/, 'job'],
   ['POST', /^\/player\/(stat|skill|reset)$/, 'stat'],
-  ['POST', /^\/missions\/[^/]+\/claim$/, 'mission'],
+  ['POST', /^\/missions\/([^/]+\/claim|claim-all)$/, 'mission'],
   ['POST', /^\/raid\/claim$/, 'raid'],
   ['POST', /^\/spar\/[^/]+$/, 'spar'],
   ['POST', /^\/event\/boss$/, 'event_boss'],

@@ -48,3 +48,7 @@
 :root[data-theme='dark'] .guide.glass { box-shadow: var(--glass-edge), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
 
 :root[data-theme='dark'] .seed-get { color: #69db7c; }
+:root[data-theme='dark'] .ach-reward { color: #c4a0ff; }
+:root[data-theme='dark'] .job.t3 { background: linear-gradient(160deg, hsla(270, 35%, 16%, 1), hsla(210, 30%, 14%, 1)); }
+:root[data-theme='dark'] .job.locked { outline-color: rgba(255, 255, 255, 0.2); }
+:root[data-theme='dark'] .job-hint { color: #c4a0ff; }
