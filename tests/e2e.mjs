@@ -344,6 +344,22 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   if (p1.ownedSkins?.length) check('有料スキンを買うと実績「おしゃれさん」', p1.achievements.some((a) => a.id === 'skin1'), p1.achievements)
 }
 
+// XP 2 倍チケット: 完了で 1 回分使い、完了を戻すと返ってくる
+{
+  const p0 = (await A.call('/api/player')).player
+  if (p0.boostLeft > 0 || p0.gold >= 200) {
+    if (!p0.boostLeft) await A.call('/api/shop/boost', 'POST', {})
+    const left = (await A.call('/api/player')).player.boostLeft
+    const [t] = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} チケット` }] })).tasks
+    const done = await A.call(`/api/tasks/${t.id}`, 'PATCH', { status: 'done' })
+    const afterDone = (await A.call('/api/player')).player.boostLeft
+    await A.call(`/api/tasks/${t.id}`, 'PATCH', { status: 'todo' })
+    const afterUndo = (await A.call('/api/player')).player.boostLeft
+    check('XP2倍チケットは完了で1回分使う', done.xp?.bonuses?.includes('🎫XP2倍') && afterDone === left - 1, { left, afterDone })
+    check('完了を戻すとXP2倍チケットが返る', afterUndo === left, { left, afterUndo })
+  }
+}
+
 // 宝箱の 10 連ガチャ (SR 以上 1 個確定)
 {
   check('宝箱は1回か10連だけ', (await A.call('/api/chest', 'POST', { count: 5 })).status === 400)

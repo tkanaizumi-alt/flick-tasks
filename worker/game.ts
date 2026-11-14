@@ -215,18 +215,20 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
     // 今の職業にも同じだけ職業 XP が入る。条件の職業が規定レベルに届いたら上位職・複合職が解放される
     const jobId = player.job.id
     const opened = jobUnlocks(player, jobId, amount)
+    // XP 2 倍チケットを使ったか (完了を戻したら返す)
+    const boosted = (player.boostLeft ?? 0) > 0 && amount > 0 ? 1 : 0
     const unlocked = opened[0] ?? null
     const stmts = [
       // XP 2 倍チケットを使ったら 1 回分減らす
       db
         .prepare('UPDATE players SET xp = xp + ?, gold = gold + ?, boost_left = MAX(0, boost_left - ?), updated_at = ? WHERE user_id = ?')
-        .bind(amount, gold, (player.boostLeft ?? 0) > 0 && amount > 0 ? 1 : 0, now, userId),
+        .bind(amount, gold, boosted, now, userId),
       db
         .prepare('INSERT INTO player_jobs (user_id, job_id, xp) VALUES (?, ?, ?) ON CONFLICT(user_id, job_id) DO UPDATE SET xp = xp + excluded.xp')
         .bind(userId, jobId, amount),
       db
-        .prepare('UPDATE tasks SET xp_awarded = ?, gold_awarded = ?, xp_job = ?, done_at = ? WHERE id = ?')
-        .bind(amount, gold, jobId, now, before.id),
+        .prepare('UPDATE tasks SET xp_awarded = ?, gold_awarded = ?, xp_job = ?, done_at = ?, boosted = ? WHERE id = ?')
+        .bind(amount, gold, jobId, now, boosted, before.id),
       logActivity(db, userId, 'done', before.title),
     ]
     if (level > prevLevel) stmts.push(logActivity(db, userId, 'levelup', `Lv${level}`))
@@ -235,13 +237,16 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
     return { amount, gold, bonuses, level, leveledUp: level > prevLevel, unlocked }
   }
 
-  // 完了から戻した: 付与済み XP・ゴールド・職業 XP を取り消す
+  // 完了から戻した: 付与済み XP・ゴールド・職業 XP を取り消し、使った XP 2 倍チケットは返す
   const amount = before.xp_awarded ?? 0
   const gold = before.gold_awarded ?? Math.ceil(amount / 2)
+  const refund = before.boosted ? 1 : 0
   await db.batch([
-    db.prepare('UPDATE players SET xp = MAX(0, xp - ?), gold = MAX(0, gold - ?), updated_at = ? WHERE user_id = ?').bind(amount, gold, now, userId),
+    db
+      .prepare('UPDATE players SET xp = MAX(0, xp - ?), gold = MAX(0, gold - ?), boost_left = boost_left + ?, updated_at = ? WHERE user_id = ?')
+      .bind(amount, gold, refund, now, userId),
     db.prepare('UPDATE player_jobs SET xp = MAX(0, xp - ?) WHERE user_id = ? AND job_id = ?').bind(amount, userId, before.xp_job ?? player.job.id),
-    db.prepare('UPDATE tasks SET xp_awarded = 0, gold_awarded = 0, xp_job = NULL, done_at = NULL WHERE id = ?').bind(before.id),
+    db.prepare('UPDATE tasks SET xp_awarded = 0, gold_awarded = 0, xp_job = NULL, done_at = NULL, boosted = 0 WHERE id = ?').bind(before.id),
   ])
   return { amount: -amount, gold: -gold, bonuses: [], level: levelInfo(Math.max(0, player.xp - amount)).level, leveledUp: false }
 }
