@@ -62,9 +62,15 @@ game.post('/items/:id/enhance', async (c) => {
 
 game.post('/shop/skin/:id', async (c) => gameResponse(c, await buySkin(c.env.DB, c.get('user').id, c.req.param('id'))))
 
+/** 宝箱などのまとめ買いの回数 (省略時は 1) */
+const countOf = async (c: { req: { json: <T>() => Promise<T> } }) => {
+  const body = await c.req.json<{ count?: unknown }>().catch(() => ({}) as { count?: unknown })
+  return body.count === undefined ? 1 : Number(body.count)
+}
+
 game.post('/shop/:id', async (c) => {
   const id = c.req.param('id') as ShopId
-  const r = await buyShop(c.env.DB, c.get('user').id, id, id === 'treat' ? await allowedUsers(c.env) : [])
+  const r = await buyShop(c.env.DB, c.get('user').id, id, id === 'treat' ? await allowedUsers(c.env) : [], await countOf(c))
   return r.error ? c.json({ error: r.error }, 400) : c.json(r)
 })
 
@@ -103,8 +109,8 @@ game.get('/mvp', async (c) => c.json(await lastWeekMvp(c.env)))
 game.get('/event', async (c) => c.json({ event: await eventProgress(c.env.DB, c.get('user').id) }))
 
 game.post('/chest', async (c) => {
-  const r = await openChest(c.env.DB, c.get('user').id)
-  return r.error ? c.json({ error: r.error }, 400) : c.json(r)
+  const r = await openChest(c.env.DB, c.get('user').id, await countOf(c))
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
 })
 
 /** まとめて装備 (おまかせ装備) */

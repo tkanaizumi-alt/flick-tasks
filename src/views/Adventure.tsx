@@ -3,6 +3,9 @@ import { AnimatePresence, motion } from 'motion/react'
 import {
   BRANCHES,
   CHEST_COST,
+  CHEST_COUNTS,
+  TEN_PULL,
+  TEN_PULL_SR,
   invMax,
   RARITY_ORDER,
   SKILLS,
@@ -27,7 +30,7 @@ import { store } from '../store'
 import { bestGear } from '../../shared/optimize'
 import { BattleModal } from '../components/BattleModal'
 import { CharacterHeader } from '../components/CharacterHeader'
-import { ChestReveal, ItemCard, ItemSheet } from '../components/Loot'
+import { ChestReveal, ChestRevealMany, ItemCard, ItemSheet } from '../components/Loot'
 import { StageMap } from '../components/StageMap'
 import { GearIcon } from '../components/GearIcon'
 import { Avatar } from '../components/Dock'
@@ -80,6 +83,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   const pickedEnemy = picked ? enemyForStage(picked) : null
   const pickedRate = useMemo(() => (pickedEnemy ? winRate(player, pickedEnemy) : 0), [player, pickedEnemy?.stage])
   const [reveal, setReveal] = useState<Item | null>(null)
+  const [revealMany, setRevealMany] = useState<Item[] | null>(null)
   const [openItem, setOpenItem] = useState<Item | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
   const [confirmReset, setConfirmReset] = useState(false)
@@ -291,27 +295,36 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             <div className="chest-body">
               <div className="chest-title">宝箱</div>
               <div className="muted">N 69.5% ・ R 18% ・ SR 9% ・ SSR 3% ・ UR 0.5%</div>
+              <div className="chest-ten">🎰 {TEN_PULL}連ガチャは SR以上{TEN_PULL_SR}個確定</div>
             </div>
-            <button
-              className="pill-btn primary"
-              disabled={busy || player.gold < CHEST_COST || player.items.length >= invMax(player)}
-              data-testid="open-chest"
-              onClick={async () => {
-                const r = await run(api.chest)
-                if (r) setReveal(r.item)
-              }}
-            >
-              💰{CHEST_COST}
-            </button>
+            <div className="chest-btns">
+              {CHEST_COUNTS.map((n) => (
+                <button
+                  key={n}
+                  className={`pill-btn ${n === 1 ? 'primary' : 'ten'}`}
+                  disabled={busy || player.gold < CHEST_COST * n || invMax(player) - player.items.length < n}
+                  data-testid={n === 1 ? 'open-chest' : 'open-chest-10'}
+                  onClick={async () => {
+                    const r = await run(() => api.chest(n))
+                    if (!r) return
+                    if (r.items.length > 1) setRevealMany(r.items)
+                    else setReveal(r.item)
+                  }}
+                >
+                  {n > 1 && <small>{n}連</small>}💰{CHEST_COST * n}
+                </button>
+              ))}
+            </div>
           </section>
 
           <ShopPanel
             player={player}
             busy={busy}
-            onBuy={async (id) => {
-              const r = await run(() => api.buy(id))
+            onBuy={async (id, count = 1) => {
+              const r = await run(() => api.buy(id, count))
               if (!r) return
-              if (r.item) setReveal(r.item)
+              if (r.items && r.items.length > 1) setRevealMany(r.items)
+              else if (r.item) setReveal(r.item)
               else toast(id === 'boost' ? 'XP2倍チケットを手に入れました' : id === 'bag' ? '持ち物の枠が増えました' : id === 'seed' ? '🌱 SPのタネでSPが1増えました' : 'みんなに差し入れしました 🍩')
             }}
           />
@@ -680,6 +693,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
         )}
       </AnimatePresence>
       <AnimatePresence>{reveal && <ChestReveal item={reveal} onClose={() => setReveal(null)} />}</AnimatePresence>
+      <AnimatePresence>{revealMany && <ChestRevealMany items={revealMany} onClose={() => setRevealMany(null)} />}</AnimatePresence>
       <AnimatePresence>
         {openItem && (
           <ItemSheet

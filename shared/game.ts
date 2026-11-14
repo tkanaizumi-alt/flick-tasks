@@ -636,6 +636,11 @@ export function computeXp(x: XpInput) {
 
 // ---------- 装備 ----------
 export const CHEST_COST = 100
+/** 10連ガチャ: 10 回まとめて開け、うち TEN_PULL_SR 個は SR 以上が確定 */
+export const TEN_PULL = 10
+export const TEN_PULL_SR = 1
+/** 宝箱を開けられる回数 (1 回か 10 連) */
+export const CHEST_COUNTS = [1, TEN_PULL] as const
 export const INVENTORY_MAX = 40
 export const SLOTS: { key: Slot; label: string }[] = [
   { key: 'head', label: '頭' },

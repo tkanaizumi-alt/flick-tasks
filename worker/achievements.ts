@@ -48,7 +48,7 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
       )
       .bind(userId),
     db.prepare('SELECT COUNT(*) AS n FROM helps WHERE user_id = ?').bind(userId),
-    db.prepare('SELECT xp, stage, gold FROM players WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT xp, stage, gold, ten_pulls FROM players WHERE user_id = ?').bind(userId),
     db.prepare("SELECT SUM(rarity IN ('SSR', 'UR')) AS n, SUM(rarity = 'UR') AS ur, MAX(plus) AS plus FROM items WHERE user_id = ?").bind(userId),
     db
       .prepare(`SELECT MAX(n) AS n FROM (SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND status = 'done' AND xp_awarded > 0 GROUP BY CAST((done_at + ${JST}) / ${DAY} AS INTEGER))`)
@@ -57,7 +57,8 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
       `SELECT (SELECT COUNT(*) FROM comments WHERE user_id = ?1) AS comments, (SELECT COUNT(*) FROM reactions WHERE user_id = ?1) AS reactions,
               (SELECT COUNT(*) FROM owned_skins WHERE user_id = ?1) AS skins,
               (SELECT COUNT(*) FROM player_skills WHERE user_id = ?1 AND substr(skill_id, 1, 2) = 'x_') AS secrets,
-              (SELECT COUNT(*) FROM daily WHERE user_id = ?1 AND (',' || claimed || ',') LIKE '%,all,%') AS bonusDays`,
+              (SELECT COUNT(*) FROM daily WHERE user_id = ?1 AND (',' || claimed || ',') LIKE '%,all,%') AS bonusDays,
+              (SELECT COALESCE(SUM(chests), 0) FROM daily WHERE user_id = ?1) AS chests`,
     ).bind(userId),
     db.prepare('SELECT job_id, xp FROM player_jobs WHERE user_id = ?').bind(userId),
   ])
@@ -94,6 +95,8 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
     maxPlus: (ssr.results[0] as any)?.plus ?? 0,
     gold: p.gold ?? 0,
     bonusDays: m.bonusDays ?? 0,
+    chests: m.chests ?? 0,
+    tenPulls: p.ten_pulls ?? 0,
   }
 }
 

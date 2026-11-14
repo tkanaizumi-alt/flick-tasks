@@ -201,3 +201,25 @@
 @media (prefers-reduced-motion: reduce) {
   .stage-node.current, .chest-shake, .rays, .confetti i, .dmg { animation: none !important; }
 }
+
+/* ---------- 宝箱のまとめ開け ---------- */
+.chest-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.chest-btns .pill-btn { min-width: 0; padding: 0 12px; height: 34px; font-size: 13px; white-space: nowrap; }
+.chest-btns .pill-btn small { font-size: 10.5px; font-weight: 800; opacity: 0.85; margin-right: 4px; }
+.chest-shake .chest-count { font-size: 28px; font-weight: 900; vertical-align: bottom; margin-left: 2px; color: var(--ink); }
+.reveal-card.multi { width: min(340px, calc(100vw / var(--zoom, 1) - 32px)); padding: 20px 14px 16px; }
+.reveal-card.multi .reveal-rarity { font-size: 17px; color: var(--ink); letter-spacing: 0; }
+.multi-counts { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0 10px; }
+.multi-count { font-size: 11px; font-weight: 900; color: #fff; background: var(--rc); padding: 1px 8px; border-radius: 8px; }
+.multi-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 46vh; overflow-y: auto; }
+.multi-item {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px 5px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7); box-shadow: inset 0 0 0 1.5px var(--rc);
+}
+.multi-item.r-SSR, .multi-item.r-UR { box-shadow: inset 0 0 0 2px var(--rc), 0 0 12px -2px var(--rc); }
+.multi-rarity { font-size: 9px; font-weight: 900; color: var(--rc); line-height: 1; }
+.multi-name { font-size: 9px; font-weight: 700; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-align: center; }
+.multi-item .item-fx { position: absolute; top: 2px; right: 4px; font-size: 9px; color: var(--rc); }
+.chest-ten { font-size: 11.5px; font-weight: 800; color: #a65bff; margin-top: 2px; }
+.pill-btn.ten { background: linear-gradient(135deg, #a65bff, #ff5fa2); color: #fff; box-shadow: 0 6px 16px -8px rgba(166, 91, 255, 0.8); }
+.pill-btn.ten:disabled { opacity: 0.45; }

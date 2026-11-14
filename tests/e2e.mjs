@@ -344,6 +344,23 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   if (p1.ownedSkins?.length) check('有料スキンを買うと実績「おしゃれさん」', p1.achievements.some((a) => a.id === 'skin1'), p1.achievements)
 }
 
+// 宝箱の 10 連ガチャ (SR 以上 1 個確定)
+{
+  check('宝箱は1回か10連だけ', (await A.call('/api/chest', 'POST', { count: 5 })).status === 400)
+  const p0 = (await A.call('/api/player')).player
+  const room = 40 + (p0.invExtra ?? 0) - p0.items.length
+  const r = await A.call('/api/chest', 'POST', { count: 10 })
+  if (p0.gold >= 1000 && room >= 10) {
+    check('10連で10個', r.items?.length === 10 && r.player.gold === p0.gold - 1000, { n: r.items?.length })
+    check('10連はSR以上が1個確定', r.items.some((i) => ['SR', 'SSR', 'UR'].includes(i.rarity)), r.items.map((i) => i.rarity))
+    const me = await A.call('/api/player')
+    check('10連を回すと実績「一攫千金」', me.player.achievements.some((a) => a.id === 'ten1') && me.stats.tenPulls >= 1, me.stats)
+    check('宝箱を開けた回数は10連を10回と数える', me.stats.chests >= 10, me.stats.chests)
+  } else {
+    check('10連が買えないときは断る', r.status === 400, r)
+  }
+}
+
 // ミッションのまとめて受け取り・隠し要素の「？？？」の数
 {
   const ms = (await A.call('/api/missions')).missions

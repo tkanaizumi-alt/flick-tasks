@@ -35,6 +35,9 @@ import {
   EARLY_HOUR,
   jobLevelInfo,
   CHEST_COST,
+  CHEST_COUNTS,
+  TEN_PULL,
+  TEN_PULL_SR,
   ACTIVITY_KEEP_DAYS,
   DONE_KEEP_DAYS,
   HISTORY_KEEP_DAYS,
@@ -320,13 +323,26 @@ export async function enhanceItem(db: D1Database, userId: string, itemId: string
  * ショップ: XP 2 倍チケット / SR 以上確定の宝箱 / 持ち物の枠 / みんなへの差し入れ。
  * 差し入れはほかのメンバー (members) に配る
  */
-export async function buyShop(db: D1Database, userId: string, id: ShopId, members: { id: string; name: string }[] = []) {
+export async function buyShop(db: D1Database, userId: string, id: ShopId, members: { id: string; name: string }[] = [], count = 1) {
   const def = SHOP.find((s) => s.id === id)
   if (!def) return { error: '売っていません' }
   const p = await getPlayer(db, userId)
   const price = shopPrice(id, p.invExtra)
   if (p.gold < price) return { error: 'ゴールドが足りません' }
   const now = Date.now()
+  if (id === 'srchest') {
+    const bad = chestCheck(p, count, price)
+    if (bad) return bad
+    const cost = price * count
+    const ins = Array.from({ length: count }, () => insertItem(db, userId, rollItem(seed(), p.stage, srChestRarity(rand()))))
+    await db.batch([
+      db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(cost, now, userId, cost),
+      ...ins.map((i) => i.stmt),
+      ...ins.flatMap((i) => itemActivity(db, userId, i.item)),
+    ])
+    const items = ins.map((i) => i.item)
+    return { player: await getPlayer(db, userId), item: items[0], items }
+  }
   const pay = db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(price, now, userId, price)
   if (id === 'boost') {
     await db.batch([pay, db.prepare('UPDATE players SET boost_left = boost_left + ? WHERE user_id = ?').bind(BOOST_COUNT, userId)])
@@ -368,11 +384,7 @@ export async function buyShop(db: D1Database, userId: string, id: ShopId, member
     ])
     return { player: await getPlayer(db, userId), item: null }
   }
-  if (p.items.length >= invMax(p)) return { error: '持ち物がいっぱいです' }
-  const r = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32
-  const ins = insertItem(db, userId, rollItem(seed(), p.stage, srChestRarity(r)))
-  await db.batch([pay, ins.stmt, ...itemActivity(db, userId, ins.item)])
-  return { player: await getPlayer(db, userId), item: ins.item }
+  return { error: '売っていません' }
 }
 
 /** 分解まわりの基本 XP。分解済みの元タスクは 0、子タスクは元タスクの XP を兄弟の数で割った値 */
@@ -570,20 +582,37 @@ export async function fight(db: D1Database, userId: string) {
   return { result, reward, player: await getPlayer(db, userId) }
 }
 
-export async function openChest(db: D1Database, userId: string) {
+/** まとめ買いの回数の確認と、足りないときの理由 */
+function chestCheck(p: PlayerState, count: number, unit: number) {
+  if (!(CHEST_COUNTS as readonly number[]).includes(count)) return { error: `1回か${TEN_PULL}連で開けられます` }
+  if (p.gold < unit * count) return { error: 'ゴールドが足りません' }
+  const room = invMax(p) - p.items.length
+  if (room <= 0) return { error: '持ち物がいっぱいです' }
+  if (room < count) return { error: `持ち物の空きが足りません（あと${room}個）` }
+  return null
+}
+
+/** 宝箱を開ける。10 連は最後の TEN_PULL_SR 個が SR 以上確定 (書き込みは 1 回の batch) */
+export async function openChest(db: D1Database, userId: string, count = 1) {
   const p = await getPlayer(db, userId)
-  if (p.gold < CHEST_COST) return { error: 'ゴールドが足りません' }
-  if (p.items.length >= invMax(p)) return { error: '持ち物がいっぱいです' }
-  const ins = insertItem(db, userId, rollItem(seed(), p.stage))
+  const bad = chestCheck(p, count, CHEST_COST)
+  if (bad) return bad
+  const cost = CHEST_COST * count
+  const sure = count === TEN_PULL ? TEN_PULL_SR : 0
+  const ins = Array.from({ length: count }, (_, k) =>
+    insertItem(db, userId, k >= count - sure ? rollItem(seed(), p.stage, srChestRarity(rand())) : rollItem(seed(), p.stage)),
+  )
   const day = jstDayStart(Date.now())
   await ensureDaily(db, userId, day)
   await db.batch([
-    db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(CHEST_COST, Date.now(), userId, CHEST_COST),
-    ins.stmt,
-    db.prepare('UPDATE daily SET chests = chests + 1 WHERE user_id = ? AND day = ?').bind(userId, day),
-    ...itemActivity(db, userId, ins.item),
+    db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ?').bind(cost, Date.now(), userId, cost),
+    ...ins.map((i) => i.stmt),
+    db.prepare('UPDATE daily SET chests = chests + ? WHERE user_id = ? AND day = ?').bind(count, userId, day),
+    ...(count === TEN_PULL ? [db.prepare('UPDATE players SET ten_pulls = ten_pulls + 1 WHERE user_id = ?').bind(userId)] : []),
+    ...ins.flatMap((i) => itemActivity(db, userId, i.item)),
   ])
-  return { item: ins.item, player: await getPlayer(db, userId) }
+  const items = ins.map((i) => i.item)
+  return { item: items[0], items, player: await getPlayer(db, userId) }
 }
 
 export async function equipItem(db: D1Database, userId: string, itemId: string, on: boolean) {

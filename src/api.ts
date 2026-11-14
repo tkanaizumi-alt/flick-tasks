@@ -47,7 +47,7 @@ export const api = {
   enhance: (id: string, by: 'item' | 'gold' = 'item', material?: string) =>
     req<{ player: PlayerState; plus?: number; gained?: number }>(`/api/items/${id}/enhance`, { method: 'POST', json: { by, material } }),
   buySkin: (id: string) => req<{ player: PlayerState }>(`/api/shop/skin/${id}`, { method: 'POST', json: {} }),
-  buy: (id: string) => req<{ player: PlayerState; item: Item | null }>(`/api/shop/${id}`, { method: 'POST', json: {} }),
+  buy: (id: string, count = 1) => req<{ player: PlayerState; item: Item | null; items?: Item[] }>(`/api/shop/${id}`, { method: 'POST', json: { count } }),
   raid: () => req<RaidState>('/api/raid'),
   claimRaid: () => req<{ gold: number; item: Item | null; seed?: boolean; player: PlayerState }>('/api/raid/claim', { method: 'POST', json: {} }),
   mvp: () => req<Mvp>('/api/mvp'),
@@ -73,7 +73,7 @@ export const api = {
     }),
   bulk: (ids: string[], action: { status: Status } | { delete: true }) =>
     req<{ tasks?: Task[]; xp?: XpChange | null }>('/api/tasks/bulk', { method: 'POST', json: { ids, ...action } }),
-  chest: () => req<{ item: Item; player: PlayerState }>('/api/chest', { method: 'POST', json: {} }),
+  chest: (count = 1) => req<{ item: Item; items: Item[]; player: PlayerState }>('/api/chest', { method: 'POST', json: { count } }),
   equipSet: (equipped: Partial<Record<Slot, string | null>>) => req<{ player: PlayerState }>('/api/equip-set', { method: 'POST', json: { equipped } }),
   equip: (id: string, on: boolean) => req<{ player: PlayerState }>(`/api/items/${id}/equip`, { method: 'POST', json: { on } }),
   sell: (id: string) => req<{ player: PlayerState }>(`/api/items/${id}/sell`, { method: 'POST', json: {} }),

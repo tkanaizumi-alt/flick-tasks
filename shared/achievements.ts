@@ -27,6 +27,8 @@ export interface AchievementStats {
   maxPlus: number // 持っている装備の強化値の最大
   gold: number // 今持っているゴールド
   bonusDays: number // ミッションの宝箱 (ボーナス) を受け取った日数
+  chests: number // 宝箱を開けた回数 (10 連は 10 回)
+  tenPulls: number // 10 連ガチャを回した回数
 }
 
 export interface AchievementDef {
@@ -73,6 +75,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'lv20', name: 'ベテラン', icon: '🎖️', desc: 'レベル20になる', stat: 'level', goal: 20, tier: 3 },
   { id: 'ssr', name: '幸運の持ち主', icon: '🍀', desc: 'SSR以上の装備を手に入れる', stat: 'ssr', goal: 1, tier: 3 },
   { id: 'skin1', name: 'おしゃれさん', icon: '👗', desc: 'ゴールドでスキンを買う', stat: 'paidSkins', goal: 1, tier: 1 },
+  { id: 'ten1', name: '一攫千金', icon: '🎰', desc: '宝箱の10連ガチャを回す', stat: 'tenPulls', goal: 1, tier: 1 },
+  { id: 'chest30', name: 'トレジャーハンター', icon: '🧭', desc: '宝箱を30回開ける（10連は10回）', stat: 'chests', goal: 30, tier: 2 },
   { id: 'skin_all', name: 'コレクター', icon: '🎨', desc: 'ゴールドで買えるスキンを全部そろえる', stat: 'paidSkins', goal: 6, tier: 3 },
 ]
 /** 隠し実績 (取るまで「？？？」) */

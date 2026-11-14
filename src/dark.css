@@ -33,6 +33,7 @@
 :root[data-theme='dark'] .is-icon { background: hsla(0, 0%, 12%, 0.81); }
 :root[data-theme='dark'] .is-stats li { background: hsla(0, 0%, 12%, 0.72); }
 :root[data-theme='dark'] .mission { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .multi-item { background: hsla(0, 0%, 12%, 0.765); }
 
 /* ---- src/jobs.css ---- */
 :root[data-theme='dark'] .job { background: hsla(0, 0%, 12%, 0.72); }

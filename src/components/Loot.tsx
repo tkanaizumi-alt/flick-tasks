@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { EFFECTS, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
+import { EFFECTS, RARITY_ORDER, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
 import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
@@ -68,6 +68,71 @@ export function ChestReveal({ item, onClose }: { item: Item; onClose: () => void
             <div className="reveal-slot">{slotLabel(item)}</div>
             <div className="reveal-stats">{statText(item)}</div>
             {item.effect && <div className="reveal-fx">✦ {EFFECTS[item.effect]}</div>}
+            <button className="pill-btn primary" onClick={onClose} data-testid="reveal-close">
+              OK
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </>
+  )
+}
+
+/** まとめて開けた宝箱: 一番いいものの光で揺れる → 開くと中身を一覧 (いい順) */
+export function ChestRevealMany({ items, onClose }: { items: Item[]; onClose: () => void }) {
+  const sorted = [...items].sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity))
+  const best = sorted[0]
+  const rare = best.rarity === 'UR' || best.rarity === 'SSR' || best.rarity === 'SR'
+  const top = best.rarity === 'UR' || best.rarity === 'SSR'
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setOpen(true), best.rarity === 'UR' ? 2000 : best.rarity === 'SSR' ? 1400 : best.rarity === 'SR' ? 1000 : 700)
+    return () => clearTimeout(t)
+  }, [best.rarity])
+  useEffect(() => {
+    if (open && rare) navigator.vibrate?.(best.rarity === 'UR' ? [40, 40, 40, 40, 40, 40, 200] : best.rarity === 'SSR' ? [30, 40, 30, 40, 120] : [20, 40, 20])
+  }, [open, rare, best.rarity])
+  // レア度ごとの数 (UR 1・SSR 2 … のように)
+  const counts = RARITY_ORDER.map((r) => [r, items.filter((i) => i.rarity === r).length] as const).filter(([, n]) => n > 0)
+  return (
+    <>
+      <motion.div className="scrim" onClick={open ? onClose : undefined} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+      <motion.div className="reveal" data-testid="chest-reveal" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
+        {!open ? (
+          <div className={`chest-shake ${rare ? 'rare' : ''} ${top ? 'ssr' : ''} ${best.rarity === 'UR' ? 'ur' : ''}`} onClick={() => setOpen(true)}>
+            🎁<span className="chest-count">×{items.length}</span>
+          </div>
+        ) : (
+          <div className={`reveal-card multi glass r-${best.rarity} ${rare ? 'rare' : ''}`} data-testid="reveal-card">
+            {rare && (
+              <>
+                <div className={`rare-flash f-${best.rarity}`} aria-hidden="true" />
+                <div className="confetti burst" aria-hidden="true">
+                  {Array.from({ length: best.rarity === 'UR' ? 40 : best.rarity === 'SSR' ? 28 : 14 }, (_, i) => (
+                    <i key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 7) * 0.05}s` }} />
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="rays" aria-hidden="true" />
+            <div className="reveal-rarity">{items.length}個 手に入れました</div>
+            <div className="multi-counts">
+              {counts.map(([r, n]) => (
+                <span key={r} className={`multi-count r-${r}`}>
+                  {r} ×{n}
+                </span>
+              ))}
+            </div>
+            <ul className="multi-grid" data-testid="reveal-items">
+              {sorted.map((i, k) => (
+                <motion.li key={i.id} className={`multi-item r-${i.rarity}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: k * 0.05 }} title={`${i.name}（${slotLabel(i)}）${statText(i)}`}>
+                  <span className="multi-rarity">{i.rarity}</span>
+                  <GearIcon slot={i.slot} rarity={i.rarity} size={30} />
+                  <span className="multi-name">{i.name}</span>
+                  {i.effect && <span className="item-fx">✦</span>}
+                </motion.li>
+              ))}
+            </ul>
             <button className="pill-btn primary" onClick={onClose} data-testid="reveal-close">
               OK
             </button>
