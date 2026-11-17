@@ -2,7 +2,7 @@
  * おまかせ装備: 持っている装備の組み合わせを試合のシミュレーションで比べて、一番勝てるものを選ぶ。
  * 部位ごとに有望な候補 (ステータスの伸びが大きいもの・特殊効果つき) を数個に絞ってから、全部の組み合わせを試す
  */
-import { SLOTS, effectiveStats, enemyForStage, winRate, type Item, type PlayerState, type Slot } from './game'
+import { SLOTS, effectiveStats, enemyForStage, setCounts, setOf, winRate, type Item, type PlayerState, type Slot } from './game'
 
 type Gear = Pick<PlayerState, 'items' | 'equipped' | 'stats' | 'skills' | 'job' | 'jobLevel' | 'bonus' | 'stage'>
 
@@ -23,6 +23,9 @@ export function bestGear(p: Gear, trials = 24) {
     const rates = targets.map((e) => winRate(q, e, trials))
     return { rate: rates[0], value: rates[0] + rates[1] * 0.5 + power(q) * 1e-9 }
   }
+
+  // 持ち物だけでセット効果を発動できるシリーズ (その装備も候補に入れる)
+  const sets = new Set(setCounts(p.items).filter((x) => x.on).map((x) => x.set.id))
 
   // 部位ごとの候補: 今の他の部位はそのままで、その装備に替えたときの強さが大きい順
   const candidates = SLOTS.map(({ key }) => {
@@ -45,6 +48,18 @@ export function bestGear(p: Gear, trials = 24) {
     for (const c of candidates[i]) walk(i + 1, c ? { ...acc, [SLOTS[i].key]: c.id } : acc)
   }
   walk(0, {})
+  // セット効果: 一番良かった組み合わせに、シリーズの装備 (部位ごとに一番強いもの) を当てはめたものも試す
+  for (const id of sets) {
+    const acc: Partial<Record<Slot, string>> = { ...best.equipped }
+    for (const { key } of SLOTS) {
+      const piece = p.items
+        .filter((i) => i.slot === key && setOf(i.name)?.id === id)
+        .sort((a, b) => power({ ...p, equipped: { ...acc, [key]: b.id } }) - power({ ...p, equipped: { ...acc, [key]: a.id } }))[0]
+      if (piece) acc[key] = piece.id
+    }
+    const sc = score(acc)
+    if (sc.value > best.value) best = { equipped: acc, ...sc }
+  }
   const changed = SLOTS.some(({ key }) => (best.equipped[key] ?? null) !== (p.equipped[key] ?? null))
   return { equipped: best.equipped, rate: best.rate, before, changed }
 }

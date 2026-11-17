@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   BRANCHES,
+  EFFECTS,
   CHEST_COST,
   CHEST_COUNTS,
   TEN_PULL,
@@ -37,6 +38,8 @@ import { Avatar } from '../components/Dock'
 import type { Celebration } from '../components/Rewards'
 import { Achievements } from '../components/Achievements'
 import { EventBanner, EventBossPanel, PetPanel, RaidPanel, ShopPanel, SparPanel } from '../components/GameExtras'
+import { CodexPanel, CoopPanel, SetSummary } from '../components/Collection'
+
 import type { BattleMode } from '../components/BattleModal'
 import { EVENT_SKINS, REMATCH_DAILY, bulkMergePlan, hasEventSkin, materialsFor, rematchGold } from '../../shared/extras'
 
@@ -193,6 +196,15 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
               onPlayer(r.player)
               if (r.item) setReveal(r.item)
               toast(`💰${r.gold}${r.seed ? ' と 🌱 SPのタネ（SP+1）' : ''} を受け取りました`)
+            }}
+          />
+          <CoopPanel
+            refresh={player.xp}
+            toast={toast}
+            onReward={(r) => {
+              onPlayer(r.player)
+              if (r.item) setReveal(r.item)
+              toast(`協力クエストの報酬 💰${r.gold} を受け取りました`)
             }}
           />
           <EventBossPanel
@@ -353,6 +365,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                 )
               })}
             </div>
+            <SetSummary player={player} />
           </section>
 
           <section className="panel glass">
@@ -391,7 +404,12 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
         </>
       )}
 
-      {tab === 'achieve' && <Achievements player={player} busy={busy} onTitle={(id) => run(() => api.setTitle(id))} />}
+      {tab === 'achieve' && (
+        <>
+          <CodexPanel player={player} onPlayer={onPlayer} toast={toast} />
+          <Achievements player={player} busy={busy} onTitle={(id) => run(() => api.setTitle(id))} />
+        </>
+      )}
 
       {tab === 'mission' && (
         <section className="panel glass" data-testid="missions">
@@ -450,7 +468,15 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
 
       {tab === 'train' && (
         <>
-          <PetPanel player={player} busy={busy} onPet={(id) => run(() => api.setPet(id))} />
+          <PetPanel
+            player={player}
+            busy={busy}
+            onPet={(id) => run(() => api.setPet(id))}
+            onEvolve={async (id) => {
+              const r = await run(() => api.evolvePet(id))
+              if (r) onCelebrate?.({ label: 'EVOLUTION', title: `★${r.level} に進化！`, sub: 'ペットの効果が大きくなりました' })
+            }}
+          />
 
           <section className="panel glass" data-testid="skins">
             <div className="panel-head">
@@ -735,6 +761,13 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             }}
             materials={materialsFor(openItem, player.items, Object.values(player.equipped) as string[])}
             gold={player.gold}
+            onReroll={async () => {
+              const r = await run(() => api.reroll(openItem.id))
+              if (!r) return
+              const next = r.player.items.find((i) => i.id === openItem.id)
+              if (next) setOpenItem(next)
+              toast(`✦ ${EFFECTS[r.effect] ?? r.effect} に付け直しました`)
+            }}
             onEnhance={async (by, material) => {
               const r = await run(() => api.enhance(openItem.id, by, material))
               if (r) {

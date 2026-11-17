@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { mondayOf, EVENT_BOSS_TRIES, BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, SHOP, petEffect, petProgress, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
+import { mondayOf, EVENT_BOSS_TRIES, BAG_MAX_BUYS, BAG_STEP, BOOST_COUNT, EVENT_GOAL, EVENT_XP, PETS, PET_EVOLVE_GOLD, PET_MAX_LEVEL, PET_MAP, SHOP, petEffect, petProgress, petStars, petUnlocked, shopPrice, type ShopId } from '../../shared/extras'
 import { ACHIEVEMENT_MAP, type AchievementStats } from '../../shared/achievements'
 import { jstToday, winRate, type Item, type PlayerState } from '../../shared/game'
 import { api, HttpError, type EventBossState, type EventState, type Mvp, type RaidState, type SparPerson } from '../api'
@@ -129,7 +129,7 @@ export function ShopPanel({ player, busy, onBuy }: { player: PlayerState; busy: 
 }
 
 /** ペット (実績の数や働き方で仲間になる) */
-export function PetPanel({ player, busy, onPet }: { player: PlayerState; busy: boolean; onPet: (id: string | null) => void }) {
+export function PetPanel({ player, busy, onPet, onEvolve }: { player: PlayerState; busy: boolean; onPet: (id: string | null) => void; onEvolve: (id: string) => void }) {
   const count = (player.achievements ?? []).filter((a) => ACHIEVEMENT_MAP[a.id]).length
   // 働き方で仲間になるペットの条件 (大以上の完了数など) は集計から
   const [stats, setStats] = useState<AchievementStats | null>(null)
@@ -146,18 +146,48 @@ export function PetPanel({ player, busy, onPet }: { player: PlayerState; busy: b
         {PETS.map((p) => {
           const open = petUnlocked(p, count, stats)
           const on = player.pet === p.id
+          const lv = player.petLevels?.[p.id] ?? 1
           return (
             <button key={p.id} className={`pet ${on ? 'on' : ''} ${open ? '' : 'locked'}`} disabled={busy || !open} onClick={() => onPet(on ? null : p.id)} data-testid={`pet-${p.id}`}>
               <span className="pet-emoji">{open ? p.emoji : '🔒'}</span>
-              <span className="pet-name">{p.name}</span>
+              <span className="pet-name">
+                {p.name}
+                {open && <span className={`pet-stars s${lv}`}>{petStars(lv)}</span>}
+              </span>
               <span className="pet-need">{open ? '' : `${p.need.label}（${petProgress(p, count, stats)}/${p.need.goal}）`}</span>
-              <span className="pet-fx">{petEffect(p)}</span>
+              <span className="pet-fx">{petEffect(p, lv)}</span>
               {on && <span className="pet-on">連れている</span>}
             </button>
           )
         })}
       </div>
+      <PetEvolve player={player} busy={busy} onEvolve={onEvolve} />
     </section>
+  )
+}
+
+/** 連れているペットの進化 (★+1。★が上がるほど効果が大きくなる) */
+function PetEvolve({ player, busy, onEvolve }: { player: PlayerState; busy: boolean; onEvolve: (id: string) => void }) {
+  const pet = player.pet ? PET_MAP[player.pet] : null
+  if (!pet) return <p className="muted pet-evo-note">連れているペットは💰で進化できます（★3まで。★2で効果1.5倍、★3で2倍）</p>
+  const lv = player.petLevels?.[pet.id] ?? 1
+  const max = lv >= PET_MAX_LEVEL
+  const price = PET_EVOLVE_GOLD[lv]
+  return (
+    <div className="pet-evo" data-testid="pet-evolve">
+      <span className="pet-evo-emoji">{pet.emoji}</span>
+      <span className="pet-evo-body">
+        <b>
+          {pet.name} {petStars(lv)}
+        </b>
+        <span className="muted">{max ? `最大まで進化しました（${petEffect(pet, lv)}）` : `進化すると ${petEffect(pet, lv)} → ${petEffect(pet, lv + 1)}`}</span>
+      </span>
+      {!max && (
+        <button className="pill-btn primary small" disabled={busy || player.gold < price} onClick={() => onEvolve(pet.id)} data-testid="pet-evolve-btn">
+          💰{price}で進化
+        </button>
+      )}
+    </div>
   )
 }
 

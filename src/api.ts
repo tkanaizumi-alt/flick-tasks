@@ -45,6 +45,12 @@ export const api = {
   player: () => req<{ player: PlayerState; stats?: AchievementStats; unlocked?: AchievementDef[] }>('/api/player'),
   setPet: (pet: string | null) => req<{ player: PlayerState }>('/api/player/pet', { method: 'POST', json: { pet } }),
   mergeAll: () => req<{ player: PlayerState; merged: number; used: number }>('/api/items/merge-all', { method: 'POST', json: {} }),
+  reroll: (id: string) => req<{ player: PlayerState; effect: string }>(`/api/items/${id}/reroll`, { method: 'POST', json: {} }),
+  evolvePet: (id: string) => req<{ player: PlayerState; level: number }>(`/api/pets/${id}/evolve`, { method: 'POST', json: {} }),
+  codex: () => req<{ names: string[]; claimed: number }>('/api/codex'),
+  claimCodex: () => req<{ player: PlayerState; gold: number; count: number; names: string[] }>('/api/codex/claim', { method: 'POST', json: {} }),
+  coop: () => req<CoopState>('/api/coop'),
+  claimCoop: () => req<{ gold: number; item: Item | null; player: PlayerState }>('/api/coop/claim', { method: 'POST', json: {} }),
   enhance: (id: string, by: 'item' | 'gold' = 'item', material?: string) =>
     req<{ player: PlayerState; plus?: number; gained?: number }>(`/api/items/${id}/enhance`, { method: 'POST', json: { by, material } }),
   buySkin: (id: string) => req<{ player: PlayerState }>(`/api/shop/skin/${id}`, { method: 'POST', json: {} }),
@@ -103,7 +109,7 @@ export const api = {
   setRecurring: (id: string, rule: string) => req<{ task: Task }>(`/api/tasks/${id}/recurring`, { method: 'POST', json: { rule } }),
   stopRecurring: (rid: string) => req<{ ok: true }>(`/api/recurring/${rid}`, { method: 'DELETE' }),
   comments: (taskId: string) => req<{ comments: Comment[] }>(`/api/tasks/${taskId}/comments`),
-  addComment: (taskId: string, text: string) => req<{ ok: true }>(`/api/tasks/${taskId}/comments`, { method: 'POST', json: { text } }),
+  addComment: (taskId: string, text: string) => req<{ ok: true; xp?: XpChange | null }>(`/api/tasks/${taskId}/comments`, { method: 'POST', json: { text } }),
   deleteComment: (id: number) => req<{ ok: true }>(`/api/comments/${id}`, { method: 'DELETE' }),
   /** 手動の並べ替え (上から順の ID) */
   reorder: (ids: string[]) => req<{ ok: true }>('/api/tasks/reorder', { method: 'POST', json: { ids } }),
@@ -204,6 +210,17 @@ export interface RaidState {
   ranking: (Who & { damage: number })[]
   mine: number
   claimed: boolean
+}
+export interface CoopState {
+  week: string
+  until: string
+  quest: { id: string; icon: string; goal: number; label: string }
+  value: number
+  done: boolean
+  ranking: (Who & { value: number })[]
+  mine: number
+  claimed: boolean
+  gold: number
 }
 export interface Mvp {
   week: string

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { EFFECTS, RARITY_ORDER, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
+import { EFFECTS, RARITY_ORDER, RARITY_SELL, REROLL_GOLD, SET_NEED, SLOTS, setEffectLabel, setOf, type Item } from '../../shared/game'
 import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity, type MergeStep } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
@@ -206,10 +206,14 @@ interface SheetProps {
   /** 持っているゴールド (ゴールドで強化できるか) */
   gold: number
   onEnhance: (by: 'item' | 'gold', material?: string) => void
+  /** ✦ 特殊効果の付け直し */
+  onReroll: () => void
 }
 
 /** アイテムの詳細と 装備 / 外す / 売る */
-export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, gold, onEnhance }: SheetProps) {
+export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, gold, onEnhance, onReroll }: SheetProps) {
+  const series = setOf(item.name)
+  const rerollCost = REROLL_GOLD[item.rarity]
   const maxed = (item.plus ?? 0) >= PLUS_MAX
   const lower = lowerRarity(item.rarity)
   const higher = higherRarity(item.rarity)
@@ -256,7 +260,19 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
               )
             })}
         </ul>
-        {item.effect && <p className="is-fx">✦ {EFFECTS[item.effect]}</p>}
+        {item.effect && (
+          <div className="is-fx-row">
+            <p className="is-fx">✦ {EFFECTS[item.effect]}</p>
+            <button className="pill-btn ghost small" disabled={busy || gold < rerollCost} onClick={onReroll} data-testid="reroll" title="今と違う効果にランダムで付け直します">
+              🔄 💰{rerollCost}で付け直す
+            </button>
+          </div>
+        )}
+        {series && (
+          <p className="is-set" data-testid="item-set">
+            🧩 {series.name}（{SET_NEED}部位そろえると {setEffectLabel(series)}）
+          </p>
+        )}
         <div className="enhance-head">
           <b>⚒️ 強化</b>
           <span className="muted">

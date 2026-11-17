@@ -1,5 +1,6 @@
 /** 冒険 (ミニゲーム) */
-import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, mergeAll, buyShop, buySkin } from '../game'
+import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, mergeAll, buyShop, buySkin, evolvePet, rerollItem } from '../game'
+import { claimCodex, claimCoop, codexState, coopState } from '../coop'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
 import { eventBossState, fightEventBoss, rematch, rematchState, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
@@ -58,6 +59,31 @@ game.post('/player/pet', async (c) => {
 /** 持ち物の一括合成 (:id のルートより先に置く) */
 game.post('/items/merge-all', async (c) => {
   const r = await mergeAll(c.env.DB, c.get('user').id)
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+game.post('/items/:id/reroll', async (c) => {
+  const r = await rerollItem(c.env.DB, c.get('user').id, c.req.param('id'))
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** ペットの進化 (★+1) */
+game.post('/pets/:id/evolve', async (c) => {
+  const r = await evolvePet(c.env.DB, c.get('user').id, c.req.param('id'))
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 図鑑 (手に入れた装備の名前と、受け取ったご褒美の数) */
+game.get('/codex', async (c) => c.json(await codexState(c.env.DB, c.get('user').id)))
+game.post('/codex/claim', async (c) => {
+  const r = await claimCodex(c.env.DB, c.get('user').id)
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+/** 週替わりの協力クエスト */
+game.get('/coop', async (c) => c.json(await coopState(c.env, c.get('user').id)))
+game.post('/coop/claim', async (c) => {
+  const r = await claimCoop(c.env, c.get('user').id)
   return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
 })
 

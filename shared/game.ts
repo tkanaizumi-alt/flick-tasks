@@ -79,6 +79,8 @@ export interface PlayerState {
   treated?: boolean // 今日もう差し入れをした
   bonusSp?: number // SP のタネで増えた SP
   seedWeek?: string | null // ショップで最後に SP のタネを買った週 (月曜の日付)
+  petLevels?: Record<string, number> // ペットの ★ (無いものは ★1)
+  codexClaimed?: number // 図鑑のご褒美を受け取った数
 }
 
 /** 持てる装備の数 (ショップで増やした分を含む) */
@@ -190,10 +192,11 @@ export function effectiveStats(p: BattleStats) {
     return s.base + s.per * (p.stats[k] ?? 0) + gear.reduce((a, i) => a + i[k], 0)
   }
   const b = p.bonus ?? NO_BONUS
+  const sb = setBonus(gear)
   return {
-    atk: Math.round(raw('atk') * job.atk * m * b.atk),
-    hp: Math.round(raw('hp') * job.hp * m * b.hp),
-    crit: Math.min(CRIT_CAP, raw('crit') + job.crit + b.crit),
+    atk: Math.round(raw('atk') * job.atk * m * b.atk * sb.atk),
+    hp: Math.round(raw('hp') * job.hp * m * b.hp * sb.hp),
+    crit: Math.min(CRIT_CAP, raw('crit') + job.crit + b.crit + sb.crit),
     heal: Math.round(raw('heal') * job.heal + job.healAdd + b.heal),
   }
 }
@@ -324,7 +327,8 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
   const job = p.job ?? DEFAULT_JOB
   const has = (id: string) => hasEffect(p, id)
   const bonus = p.bonus ?? NO_BONUS
-  const critMult = 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg
+  const sb = setBonus(equippedItems(p))
+  const critMult = 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg + sb.critDmg
   let hp = s.hp
   let enemyHp = enemy.hp
   let gutsUsed = false
@@ -368,7 +372,7 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
       if (has('dodge') && r() < 0.15) {
         log.dodged = true
       } else {
-        let taken = enemy.atk * (0.9 + r() * 0.2) * job.guard * bonus.guard
+        let taken = enemy.atk * (0.9 + r() * 0.2) * job.guard * bonus.guard * sb.guard
         if (has('wall')) taken *= 0.8
         if (has('barrier') && turn <= 3) taken *= 0.5
         log.taken = Math.max(1, Math.round(taken))
@@ -411,7 +415,8 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
     const job = p.job ?? DEFAULT_JOB
     const bonus = p.bonus ?? NO_BONUS
     const has = (id: string) => hasEffect(p, id)
-    return { s, job, bonus, has, hp: s.hp, gutsUsed: false, phoenixUsed: false, critMult: 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg }
+    const sb = setBonus(equippedItems(p))
+    return { s, job, bonus, sb, has, hp: s.hp, gutsUsed: false, phoenixUsed: false, critMult: 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg + sb.critDmg }
   }
   type F = ReturnType<typeof fighter>
   const A = fighter(me)
@@ -427,7 +432,7 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
     if (turn === 1 && first && att.has('first')) dmg *= 2
     if (att.has('berserk') && att.hp <= att.s.hp / 2) dmg *= 1.5
     if (att.has('finisher') && def.hp <= def.s.hp * 0.25) dmg *= 2
-    dmg *= def.job.guard * def.bonus.guard
+    dmg *= def.job.guard * def.bonus.guard * def.sb.guard
     if (def.has('wall')) dmg *= 0.8
     if (def.has('barrier') && turn <= 3) dmg *= 0.5
     dmg = Math.max(1, Math.round(dmg))
@@ -580,7 +585,17 @@ export interface XpInput {
   bonus?: Pick<Bonus, 'xp' | 'gold'> // 隠しスキルの効果
   /** ペット・季節イベント・XP 2 倍チケットなどの上乗せ (加算倍率) */
   extras?: { label: string; xp?: number; gold?: number; double?: boolean }[]
+  /** 前日までに決めた期限を守って完了した */
+  ontime?: boolean
+  /** 他の人から依頼されたタスク */
+  requested?: boolean
 }
+
+/** 仕事ぶりのボーナス (上乗せの上限とは別): 期限内 +10%・依頼 +10% */
+export const ONTIME_BONUS = 0.1
+export const REQUEST_BONUS = 0.1
+/** 困っている人のタスクにコメントしたときの助け合い XP (タスクごとに 1 回) */
+export const RESCUE_XP = 5
 
 /** XP の上乗せ (スキル・装備・ペット・イベントなど) の合計の上限 */
 export const BONUS_CAP = 1
@@ -618,6 +633,13 @@ export function computeXp(x: XpInput) {
     bonuses.push(`上乗せは最大+${Math.round(BONUS_CAP * 100)}%`)
   }
   amount = Math.round(amount * mult)
+  // 期限を守った・依頼に応えた分は上限とは別に足す (仕事ぶりのボーナス)
+  const work = (x.ontime ? ONTIME_BONUS : 0) + (x.requested ? REQUEST_BONUS : 0)
+  if (work > 0) {
+    amount = Math.round(amount * (1 + work))
+    if (x.ontime) bonuses.push(`期限内 +${Math.round(ONTIME_BONUS * 100)}%`)
+    if (x.requested) bonuses.push(`依頼 +${Math.round(REQUEST_BONUS * 100)}%`)
+  }
   // XP 2 倍チケットは上限とは別に、最後に 2 倍
   const double = (x.extras ?? []).find((e) => e.double)
   if (double) {
@@ -673,7 +695,7 @@ export const EFFECTS: Record<string, string> = {
   regen: '再生: 毎ターン最大HPの5%回復',
   dodge: '回避: 15%で攻撃をかわす',
 }
-const EFFECT_POOL: Record<Slot, string[]> = {
+export const EFFECT_POOL: Record<Slot, string[]> = {
   weapon: ['first', 'lifesteal', 'double'],
   head: ['critdmg', 'xpup', 'goldup'],
   body: ['thorns', 'wall', 'regen'],
@@ -681,7 +703,7 @@ const EFFECT_POOL: Record<Slot, string[]> = {
 }
 
 /** 部位・レア度ごとの名前 (レア度が上がるほど良い名前になる) */
-const NAMES: Record<Slot, Record<Rarity, string[]>> = {
+export const GEAR_NAMES: Record<Slot, Record<Rarity, string[]>> = {
   head: {
     N: ['革の帽子', '鉄の兜', '布の頭巾', '木の兜'],
     R: ['鉄の兜', '騎士の兜', '羽根付き帽子', '銀の髪飾り'],
@@ -722,7 +744,7 @@ export function rollItem(seed: number, stage: number, forceRarity?: Rarity, forc
   const rarity = forceRarity ?? RARITY_RATE.find(([, p]) => roll < p)![0]
   const pick = (['head', 'body', 'feet', 'weapon'] as Slot[])[Math.floor(r() * 4)]
   const slot = forceSlot ?? pick
-  const names = NAMES[slot][rarity]
+  const names = GEAR_NAMES[slot][rarity]
   const name = names[Math.floor(r() * names.length)]
   const power = gearPower(rarity, stage)
   const j = () => 0.85 + r() * 0.3
@@ -744,6 +766,88 @@ export function rollItem(seed: number, stage: number, forceRarity?: Rarity, forc
   const effect = rarity === 'UR' || rarity === 'SSR' || (rarity === 'SR' && r() < 0.6) ? EFFECT_POOL[slot][Math.floor(r() * 3)] : null
   return { slot, name, icon: slot, rarity, ...st, effect }
 }
+
+// ---------- 特殊効果の付け直し ----------
+/** ✦ 効果の付け直しの値段 (レア度ごと) */
+export const REROLL_GOLD: Record<Rarity, number> = { N: 100, R: 100, SR: 150, SSR: 300, UR: 600 }
+/** 今と違う効果を、その部位の効果からランダムに選ぶ */
+export function rerollEffect(slot: Slot, current: string | null, r: number) {
+  const pool = EFFECT_POOL[slot].filter((e) => e !== current)
+  return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))]
+}
+
+// ---------- セット効果 (同じシリーズの装備を SET_NEED 部位そろえると発動) ----------
+export interface GearSet {
+  id: string
+  name: string
+  /** シリーズの装備の名前 (部位ごとに 1 つ) */
+  pieces: string[]
+  atk?: number // 攻撃 (倍率に加算)
+  hp?: number // 体力 (倍率に加算)
+  crit?: number // 会心率 (%)
+  critDmg?: number // 会心ダメージ (加算)
+  guard?: number // 受けるダメージの倍率
+  /** 季節イベントの限定装備のセット */
+  event?: boolean
+}
+export const SET_NEED = 3
+/** 季節イベントの限定装備のセットは shared/extras.ts で足す */
+export const GEAR_SETS: GearSet[] = [
+  { id: 'leather', name: '革の装備', pieces: ['革の帽子', '革の鎧', '革のブーツ'], hp: 0.06 },
+  { id: 'iron', name: '鉄の装備', pieces: ['鉄の兜', '鉄の具足', '鉄の剣'], atk: 0.06 },
+  { id: 'silver', name: '銀の装備', pieces: ['銀の髪飾り', '銀の胸当て', '銀の靴', '銀の斧'], crit: 5 },
+  { id: 'gods', name: '神々の装備', pieces: ['神々の冠', '神鉄の鎧', '神速のサンダル', '神槍グングニル'], atk: 0.08, hp: 0.08 },
+  { id: 'star', name: '星の装備', pieces: ['星詠みの宝冠', '星屑のローブ', '星砕きの大剣'], atk: 0.1, crit: 5 },
+  { id: 'genesis', name: '創世の装備', pieces: ['創世の冠', '創世の鎧', '創世の靴', '創世の剣'], atk: 0.12, hp: 0.06 },
+  { id: 'overlord', name: '覇王の装備', pieces: ['覇王の兜', '覇王の鎧', '覇王の具足', '覇王の槍'], hp: 0.12, guard: 0.92 },
+  { id: 'rainbow', name: '虹の装備', pieces: ['虹のティアラ', '虹の羽衣', '虹の翼靴', '虹の聖剣'], crit: 8, critDmg: 0.3 },
+]
+/** 装備の名前 → シリーズ (戦闘のたびに引くので表にしておく。季節のセットが後から足されたら作り直す) */
+let setIndex: { size: number; map: Map<string, GearSet> } | null = null
+const setMap = () => {
+  if (!setIndex || setIndex.size !== GEAR_SETS.length) setIndex = { size: GEAR_SETS.length, map: new Map(GEAR_SETS.flatMap((s) => s.pieces.map((n) => [n, s] as const))) }
+  return setIndex.map
+}
+/** 装備の名前 → そのシリーズ */
+export const setOf = (name: string) => setMap().get(name) ?? null
+/** 身につけている装備のシリーズごとの数 (1 つ以上あるもの)。同じ名前は 1 部位として数える */
+export function setCounts(items: Pick<Item, 'name'>[]) {
+  const seen = new Set<string>()
+  const counts = new Map<GearSet, number>()
+  for (const i of items) {
+    const set = setOf(i.name)
+    if (!set || seen.has(i.name)) continue
+    seen.add(i.name)
+    counts.set(set, (counts.get(set) ?? 0) + 1)
+  }
+  return [...counts].map(([set, count]) => ({ set, count, on: count >= SET_NEED }))
+}
+const NO_SET = { atk: 1, hp: 1, crit: 0, critDmg: 0, guard: 1, count: 0 }
+/** 発動しているセット効果の合計 */
+export function setBonus(items: Pick<Item, 'name'>[]) {
+  if (items.length < SET_NEED) return NO_SET
+  const on = setCounts(items).filter((x) => x.on).map((x) => x.set)
+  if (!on.length) return NO_SET
+  return {
+    atk: 1 + on.reduce((a, s) => a + (s.atk ?? 0), 0),
+    hp: 1 + on.reduce((a, s) => a + (s.hp ?? 0), 0),
+    crit: on.reduce((a, s) => a + (s.crit ?? 0), 0),
+    critDmg: on.reduce((a, s) => a + (s.critDmg ?? 0), 0),
+    guard: on.reduce((a, s) => a * (s.guard ?? 1), 1),
+    count: on.length,
+  }
+}
+/** セット効果の説明 (攻撃+12%・会心率+5% など) */
+export const setEffectLabel = (s: GearSet) =>
+  [
+    s.atk && `攻撃+${Math.round(s.atk * 100)}%`,
+    s.hp && `体力+${Math.round(s.hp * 100)}%`,
+    s.crit && `会心率+${s.crit}%`,
+    s.critDmg && `会心ダメージ+${Math.round(s.critDmg * 100)}%`,
+    s.guard && `受けるダメージ-${Math.round((1 - s.guard) * 100)}%`,
+  ]
+    .filter(Boolean)
+    .join('・')
 
 // ---------- デイリーミッション ----------
 export interface MissionDef {

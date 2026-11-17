@@ -4,7 +4,7 @@ import { aiTasks } from '../ai'
 import { applyTaskXp, awardHelp, classifyWeights, doneCutoff, countDaily, logActivity, notify, sweepUnjudged } from '../game'
 import { FLAGS, REACTION_MAP, isReaction, mentionsIn, type Flag, type Status, type Task, type User, san } from '../../shared/types'
 import { isRule, ruleMatches } from '../../shared/recurring'
-import { BREAKDOWN_MAX, helpXp, jstToday, weightChoices, type Weight } from '../../shared/game'
+import { BREAKDOWN_MAX, RESCUE_XP, helpXp, jstToday, weightChoices, type Weight } from '../../shared/game'
 import { router, toTask, nameOf, TASK_SELECT, isDate, cleanTitle, cleanNote, isStatus, STATUS_LABEL_JA, isFlag, isId, getTask, allowedUsers, allowedUser, VISIBLE } from '../lib'
 
 export const tasks = router()
@@ -31,8 +31,10 @@ tasks.put('/tasks/:id/due', async (c) => {
   const owner = await c.env.DB.prepare('SELECT u.email FROM tasks t JOIN users u ON u.id = t.user_id WHERE t.id = ?').bind(id).first<{ email: string }>()
   if (!owner || !isAllowed(c.env, owner.email)) return c.json({ error: 'not found' }, 404)
   const value = due ? (due as string) : null
-  await c.env.DB.prepare('UPDATE tasks SET due_date = ?, due_by = ?, updated_at = ? WHERE id = ?')
-    .bind(value, value ? c.get('user').id : null, Date.now(), id)
+  // 期限を変えた時刻も残す (前日までに決めた期限を守ると XP ボーナス。同じ日付のままなら変えない)
+  const now = Date.now()
+  await c.env.DB.prepare('UPDATE tasks SET due_set_at = CASE WHEN due_date IS ?1 THEN due_set_at ELSE ?3 END, due_date = ?1, due_by = ?2, updated_at = ?3 WHERE id = ?4')
+    .bind(value, value ? c.get('user').id : null, now, id)
     .run()
   return c.json({ task: await getTask(c.env.DB, id) })
 })
@@ -359,7 +361,7 @@ tasks.delete('/recurring/:id', async (c) => {
 // ---------- コメント ----------
 /** タスクを見られる人 (ログインできる人) なら誰でも読める・書ける */
 async function taskOwner(env: Env, id: string) {
-  const t = await env.DB.prepare('SELECT t.id, t.title, t.user_id, t.requested_by, u.email FROM tasks t JOIN users u ON u.id = t.user_id WHERE t.id = ?').bind(id).first<any>()
+  const t = await env.DB.prepare('SELECT t.id, t.title, t.user_id, t.requested_by, t.flag, t.status, u.email FROM tasks t JOIN users u ON u.id = t.user_id WHERE t.id = ?').bind(id).first<any>()
   return t && isAllowed(env, t.email) ? t : null
 }
 
@@ -410,7 +412,9 @@ tasks.post('/tasks/:id/comments', async (c) => {
       notify(db, u, me.id, 'comment', t.id, mentioned.includes(u) ? `${san(me.name)}があなた宛てにコメント (「${t.title}」): ${short}` : `${san(me.name)}が「${t.title}」にコメント: ${short}`),
     ),
   ])
-  return c.json({ ok: true }, 201)
+  // 困っている人のタスクにコメントしたら助け合いボーナス (タスクごとに 1 回)
+  const xp = t.flag === 'help' && t.status !== 'done' && t.user_id !== me.id ? await awardHelp(db, me.id, t.id, 'rescue', RESCUE_XP) : null
+  return c.json({ ok: true, xp }, 201)
 })
 
 /** リアクション: 他の人のタスクに付ける (もう一度で取り消し)。付けたときは持ち主に知らせる */

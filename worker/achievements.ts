@@ -1,5 +1,6 @@
 import { ACHIEVEMENTS, achieved, bestStreakOf, streakOf, type AchievementDef, type AchievementStats } from '../shared/achievements'
-import { jobLevelInfo, jstDayStart, jstToday, levelInfo } from '../shared/game'
+import { jobLevelInfo, jstDayStart, jstToday, levelInfo, setBonus } from '../shared/game'
+import { codexOf } from '../shared/collection'
 import { EVENT_GOAL, activeEvent } from '../shared/extras'
 import { SECRET_JOBS, unlockedJobs } from './jobs'
 
@@ -33,7 +34,7 @@ export async function streaks(db: D1Database) {
 }
 
 export async function achievementStats(db: D1Database, userId: string): Promise<AchievementStats> {
-  const [agg, helps, player, ssr, maxDay, misc, jobRows] = await db.batch([
+  const [agg, helps, player, ssr, maxDay, misc, jobRows, codexRows, gearRows, skinRows, achRows] = await db.batch([
     db
       .prepare(
         `SELECT COUNT(*) AS done,
@@ -43,11 +44,13 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
                 SUM(parent_id IS NOT NULL) AS split,
                 SUM(((done_at + ${JST}) % ${DAY}) < ${10 * 3600000}) AS early,
                 SUM(((done_at + ${JST}) % ${DAY}) >= ${22 * 3600000} OR ((done_at + ${JST}) % ${DAY}) < ${4 * 3600000}) AS night,
-                SUM(((CAST((done_at + ${JST}) / ${DAY} AS INTEGER) + 4) % 7) IN (0, 6)) AS weekend
+                SUM(((CAST((done_at + ${JST}) / ${DAY} AS INTEGER) + 4) % 7) IN (0, 6)) AS weekend,
+                SUM(due_date IS NOT NULL AND due_date >= date((done_at + ${JST}) / 1000, 'unixepoch')) AS ontime
            FROM tasks WHERE user_id = ? AND status = 'done' AND xp_awarded > 0`,
       )
       .bind(userId),
-    db.prepare('SELECT COUNT(*) AS n FROM helps WHERE user_id = ?').bind(userId),
+    // 手伝い (進める) と、困っている人へのコメント (rescue) は分けて数える
+    db.prepare("SELECT SUM(kind <> 'rescue') AS n, SUM(kind = 'rescue') AS rescues FROM helps WHERE user_id = ?").bind(userId),
     db.prepare('SELECT xp, stage, gold, ten_pulls FROM players WHERE user_id = ?').bind(userId),
     db.prepare("SELECT SUM(rarity IN ('SSR', 'UR')) AS n, SUM(rarity = 'UR') AS ur, MAX(plus) AS plus FROM items WHERE user_id = ?").bind(userId),
     db
@@ -58,9 +61,20 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
               (SELECT COUNT(*) FROM owned_skins WHERE user_id = ?1) AS skins,
               (SELECT COUNT(*) FROM player_skills WHERE user_id = ?1 AND substr(skill_id, 1, 2) = 'x_') AS secrets,
               (SELECT COUNT(*) FROM daily WHERE user_id = ?1 AND (',' || claimed || ',') LIKE '%,all,%') AS bonusDays,
-              (SELECT COALESCE(SUM(chests), 0) FROM daily WHERE user_id = ?1) AS chests`,
+              (SELECT COALESCE(SUM(chests), 0) FROM daily WHERE user_id = ?1) AS chests,
+              (SELECT COALESCE(MAX(level), 1) FROM pet_levels WHERE user_id = ?1) AS petMax,
+              (SELECT COUNT(*) FROM coop_claims WHERE user_id = ?1) AS coops`,
     ).bind(userId),
     db.prepare('SELECT job_id, xp FROM player_jobs WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT name FROM codex WHERE user_id = ?').bind(userId),
+    // 身につけている装備 (セット効果)
+    db
+      .prepare(
+        'SELECT i.name FROM items i JOIN players p ON p.user_id = i.user_id WHERE i.user_id = ? AND i.id IN (p.eq_head, p.eq_body, p.eq_feet, p.eq_weapon)',
+      )
+      .bind(userId),
+    db.prepare('SELECT skin_id FROM owned_skins WHERE user_id = ?').bind(userId),
+    db.prepare('SELECT achievement_id FROM player_achievements WHERE user_id = ?').bind(userId),
   ])
   const a = agg.results[0] as any
   const p = (player.results[0] as any) ?? { xp: 0, stage: 1 }
@@ -68,13 +82,20 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
   const m = (misc.results[0] as any) ?? {}
   const levels = Object.fromEntries((jobRows.results as any[]).map((j) => [j.job_id, jobLevelInfo(j.xp).level]))
   const opened = new Set(unlockedJobs(levels).map((j) => j.id))
+  const codex = codexOf({
+    names: (codexRows.results as any[]).map((r) => r.name),
+    stage: p.stage ?? 1,
+    level: levelInfo(p.xp ?? 0).level,
+    ownedSkins: (skinRows.results as any[]).map((r) => r.skin_id),
+    achieved: (achRows.results as any[]).map((r) => r.achievement_id),
+  })
   return {
     done: a.done ?? 0,
     streak: streakOf(days, jstDayNo(Date.now())),
     bestStreak: bestStreakOf(days),
     big: a.big ?? 0,
     xl: a.xl ?? 0,
-    helps: (helps.results[0] as any).n ?? 0,
+    helps: (helps.results[0] as any)?.n ?? 0,
     requests: a.requests ?? 0,
     split: a.split ?? 0,
     early: a.early ?? 0,
@@ -97,6 +118,12 @@ export async function achievementStats(db: D1Database, userId: string): Promise<
     bonusDays: m.bonusDays ?? 0,
     chests: m.chests ?? 0,
     tenPulls: p.ten_pulls ?? 0,
+    ontime: a.ontime ?? 0,
+    rescues: (helps.results[0] as any)?.rescues ?? 0,
+    codex: codex.pct,
+    sets: setBonus(gearRows.results as any[]).count,
+    petMax: m.petMax ?? 1,
+    coops: m.coops ?? 0,
   }
 }
 

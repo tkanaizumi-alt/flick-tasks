@@ -1,5 +1,5 @@
 /** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
-import { MAX_TURNS, bossGold, enemyForStage, type BattleResult, type Enemy, type Item, type Rarity, type Slot } from './game'
+import { GEAR_SETS, MAX_TURNS, bossGold, enemyForStage, type BattleResult, type Enemy, type Item, type Rarity, type Slot } from './game'
 import type { AchievementStats } from './achievements'
 
 const DAY = 86400000
@@ -62,7 +62,19 @@ export const petUnlocked = (p: PetDef, achievements: number, stats: AchievementS
 /** 条件の進み具合 (表示用) */
 export const petProgress = (p: PetDef, achievements: number, stats: AchievementStats | null) =>
   Math.min(p.need.goal, p.need.stat === 'achievements' ? achievements : (stats?.[p.need.stat] ?? 0))
-export const petEffect = (p: PetDef) => [p.xp && `XP+${Math.round(p.xp * 100)}%`, p.gold && `ゴールド+${Math.round(p.gold * 100)}%`].filter(Boolean).join('・')
+/** ペットの進化: ★1 → ★2 → ★3。★ が上がるほど効果が大きくなる (★2 で 1.5 倍、★3 で 2 倍) */
+export const PET_MAX_LEVEL = 3
+/** ★n から ★n+1 に進化する値段 (添字は今の ★) */
+export const PET_EVOLVE_GOLD: Record<number, number> = { 1: 500, 2: 1500 }
+export const petMult = (level = 1) => 1 + 0.5 * (Math.min(PET_MAX_LEVEL, Math.max(1, level)) - 1)
+/** ★ をかけた効果 (XP・ゴールドの加算倍率) */
+export const petBonus = (p: PetDef, level = 1) => ({ xp: p.xp * petMult(level), gold: p.gold * petMult(level) })
+const pct = (v: number) => Math.round(v * 1000) / 10
+export const petEffect = (p: PetDef, level = 1) => {
+  const b = petBonus(p, level)
+  return [b.xp && `XP+${pct(b.xp)}%`, b.gold && `ゴールド+${pct(b.gold)}%`].filter(Boolean).join('・')
+}
+export const petStars = (level = 1) => '★'.repeat(Math.max(1, Math.min(PET_MAX_LEVEL, level)))
 
 // ---------- ショップ ----------
 export const SHOP = [
@@ -237,6 +249,11 @@ export const EVENTS: EventDef[] = [
     gear: { head: '三角巾', body: '大掃除のエプロン', feet: 'ぞうきんの靴', weapon: '伝説のはたき' },
   },
 ]
+// 季節イベントの限定装備も 3 部位そろえるとセット効果 (攻撃・体力 +6%)
+GEAR_SETS.push(
+  ...EVENTS.map((e) => ({ id: `ev_${e.id}`, name: `${e.name}の装備`, pieces: [e.gear.head, e.gear.body, e.gear.feet, e.gear.weapon], atk: 0.06, hp: 0.06, event: true })),
+)
+
 /** その日に開催中のイベント (期間と、取ったかどうかの記録に使うキー) */
 export function activeEvent(day: string) {
   const md = day.slice(5)
@@ -285,3 +302,30 @@ export const rematchGold = (stage: number) => Math.round(bossGold(stage) * 0.3)
 /** ステージのボスを初めて倒したとき / 季節イベントの限定ボスに勝ったときに出る確率。週のレイド報酬は必ず 1 個 */
 export const SEED_DROP_STAGE = 0.1
 export const SEED_DROP_EVENT = 0.25
+
+// ---------- 週替わりの協力クエスト (みんなで 1 つの目標。達成したら全員が報酬を受け取れる) ----------
+export type CoopKind = 'done' | 'big' | 'ontime' | 'request' | 'help' | 'early'
+export interface CoopDef {
+  id: CoopKind
+  icon: string
+  /** 1 人あたりの目標 (人数をかけて丸める) */
+  per: number
+  label: (goal: number) => string
+}
+export const COOP_QUESTS: CoopDef[] = [
+  { id: 'done', icon: '✅', per: 25, label: (n) => `みんなでタスクを${n}件完了` },
+  { id: 'big', icon: '🐋', per: 5, label: (n) => `みんなで「大」以上のタスクを${n}件完了` },
+  { id: 'ontime', icon: '⏰', per: 1.5, label: (n) => `みんなで期限つきのタスクを期限内に${n}件完了` },
+  { id: 'request', icon: '📨', per: 1.2, label: (n) => `みんなで依頼されたタスクを${n}件完了` },
+  { id: 'help', icon: '🤝', per: 1, label: (n) => `みんなで${n}回助け合う（他の人のタスクを進める・困っている人にコメント）` },
+  { id: 'early', icon: '🌅', per: 3, label: (n) => `みんなで朝10時までに${n}件完了` },
+]
+export const COOP_GOLD = 200
+/** その週の協力クエスト (月曜の日付で決まるので全員共通。レイドボスと同じ週の区切り) */
+export function coopForWeek(monday: string, players: number) {
+  const n = Math.floor(Date.parse(`${monday}T00:00:00Z`) / (7 * DAY))
+  // レイドボスと周期がずれるよう 5 をかける
+  const q = COOP_QUESTS[(((n * 5) % COOP_QUESTS.length) + COOP_QUESTS.length) % COOP_QUESTS.length]
+  const goal = Math.max(3, Math.round(q.per * Math.max(1, players)))
+  return { id: q.id, icon: q.icon, goal, label: q.label(goal) }
+}

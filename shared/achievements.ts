@@ -29,6 +29,12 @@ export interface AchievementStats {
   bonusDays: number // ミッションの宝箱 (ボーナス) を受け取った日数
   chests: number // 宝箱を開けた回数 (10 連は 10 回)
   tenPulls: number // 10 連ガチャを回した回数
+  ontime: number // 期限つきのタスクを期限内に完了した数
+  rescues: number // 困っている人のタスクにコメントして助けた回数
+  codex: number // 図鑑をうめた割合 (%)
+  sets: number // 今発動しているセット効果の数
+  petMax: number // いちばん進化させたペットの ★
+  coops: number // 協力クエストの報酬を受け取った回数
 }
 
 export interface AchievementDef {
@@ -77,6 +83,16 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'skin1', name: 'おしゃれさん', icon: '👗', desc: 'ゴールドでスキンを買う', stat: 'paidSkins', goal: 1, tier: 1 },
   { id: 'ten1', name: '一攫千金', icon: '🎰', desc: '宝箱の10連ガチャを回す', stat: 'tenPulls', goal: 1, tier: 1 },
   { id: 'chest30', name: 'トレジャーハンター', icon: '🧭', desc: '宝箱を30回開ける（10連は10回）', stat: 'chests', goal: 30, tier: 2 },
+  { id: 'ontime10', name: '時間厳守', icon: '⏰', desc: '期限つきのタスクを期限内に10件完了', stat: 'ontime', goal: 10, tier: 1 },
+  { id: 'ontime50', name: '段取り名人', icon: '📐', desc: '期限つきのタスクを期限内に50件完了', stat: 'ontime', goal: 50, tier: 3 },
+  { id: 'rescue3', name: '駆けつけ隊', icon: '🚑', desc: '困っている人のタスクに3回コメントで助ける', stat: 'rescues', goal: 3, tier: 1 },
+  { id: 'rescue20', name: '頼れる仲間', icon: '🫶', desc: '困っている人のタスクに20回コメントで助ける', stat: 'rescues', goal: 20, tier: 3 },
+  { id: 'coop1', name: 'チームワーク', icon: '🤜', desc: '協力クエストの報酬を受け取る', stat: 'coops', goal: 1, tier: 1 },
+  { id: 'coop10', name: '最強のチーム', icon: '🏆', desc: '協力クエストの報酬を10回受け取る', stat: 'coops', goal: 10, tier: 3 },
+  { id: 'set1', name: 'そろえる喜び', icon: '🧩', desc: '装備のセット効果を発動する', stat: 'sets', goal: 1, tier: 2 },
+  { id: 'pet3', name: '名トレーナー', icon: '🐾', desc: 'ペットを★3まで進化させる', stat: 'petMax', goal: 3, tier: 3 },
+  { id: 'codex50', name: '図鑑の旅人', icon: '📖', desc: '図鑑を50%うめる', stat: 'codex', goal: 50, tier: 2 },
+  { id: 'codex100', name: '図鑑マスター', icon: '📚', desc: '図鑑を100%うめる', stat: 'codex', goal: 100, tier: 4 },
   { id: 'skin_all', name: 'コレクター', icon: '🎨', desc: 'ゴールドで買えるスキンを全部そろえる', stat: 'paidSkins', goal: 6, tier: 3 },
 ]
 /** 隠し実績 (取るまで「？？？」) */

@@ -392,6 +392,82 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   check('合成するものがないときは断る', (await A.call('/api/items/merge-all', 'POST', {})).status === 400)
 }
 
+// 仕事ぶりのボーナス: 依頼 +10%・完了する日に付けた期限は期限内ボーナスなし
+{
+  const rq = await A.call('/api/requests', 'POST', { to: meB.id, title: `${PREFIX} 依頼ボーナス` })
+  const d = await B.call(`/api/tasks/${rq.task.id}`, 'PATCH', { status: 'done' })
+  check('依頼されたタスクの完了は XP+10%', d.xp?.bonuses?.includes('依頼 +10%'), d.xp)
+  const [own] = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} 期限 今日` }] })).tasks
+  const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+  await A.call(`/api/tasks/${own.id}/due`, 'PUT', { due: today })
+  const od = await A.call(`/api/tasks/${own.id}`, 'PATCH', { status: 'done' })
+  check('完了する日に付けた期限は期限内ボーナスなし', od.xp && !od.xp.bonuses.some((b) => b.startsWith('期限内')), od.xp)
+  check('自分のタスクには依頼ボーナスなし', od.xp && !od.xp.bonuses.some((b) => b.startsWith('依頼')), od.xp)
+}
+
+// 助け合いボーナス: 「困っている」タスクにコメント (タスクごとに 1 回)。
+// 困っているにすると全員に通知が行くので、本番 (E2E_HELP_TASK で用意したタスク) 以外では API で付ける
+{
+  let helpTask = process.env.E2E_HELP_TASK
+  if (!helpTask) {
+    helpTask = (await A.call('/api/tasks', 'POST', { tasks: [{ title: `${PREFIX} 困っている` }] })).tasks[0].id
+    await A.call(`/api/tasks/${helpTask}/flag`, 'PUT', { flag: 'help', note: 'E2E' })
+  }
+  const c1 = await B.call(`/api/tasks/${helpTask}/comments`, 'POST', { text: 'E2E 手伝います' })
+  check('困っているタスクにコメントで助け合いボーナス', c1.xp?.amount === 5 && c1.xp.bonuses.includes('助け合いボーナス'), c1)
+  const c2 = await B.call(`/api/tasks/${helpTask}/comments`, 'POST', { text: 'E2E もう一度' })
+  check('助け合いボーナスはタスクごとに1回', c2.status === 201 && !c2.xp, c2)
+  const c3 = await A.call(`/api/tasks/${helpTask}/comments`, 'POST', { text: 'E2E 自分' })
+  check('自分のタスクへのコメントはボーナスなし', c3.status === 201 && !c3.xp, c3)
+  const st = (await B.call('/api/player')).stats
+  check('助けた回数は実績の集計に入る (手伝いとは別)', st.rescues >= 1, { rescues: st.rescues, helps: st.helps })
+}
+
+// ✦ 効果の付け直し・ペットの進化
+{
+  const p0 = (await A.call('/api/player')).player
+  const fx = p0.items.find((i) => i.effect)
+  const plain = p0.items.find((i) => !i.effect)
+  if (plain) check('✦ のない装備は付け直せない', (await A.call(`/api/items/${plain.id}/reroll`, 'POST', {})).status === 400)
+  if (fx) {
+    const price = { N: 100, R: 100, SR: 150, SSR: 300, UR: 600 }[fx.rarity]
+    const r = await A.call(`/api/items/${fx.id}/reroll`, 'POST', {})
+    if (p0.gold >= price) {
+      const after = r.player?.items.find((i) => i.id === fx.id)
+      check('✦ 効果を付け直すと別の効果になる', r.status === 200 && after?.effect && after.effect !== fx.effect && r.player.gold === p0.gold - price, { before: fx.effect, after: after?.effect })
+    } else check('ゴールドが足りないと付け直せない', r.status === 400, r)
+  }
+  const p1 = (await A.call('/api/player')).player
+  const lv0 = p1.petLevels?.chick ?? 1
+  const cost = { 1: 500, 2: 1500 }[lv0]
+  const ev = await A.call('/api/pets/chick/evolve', 'POST', {})
+  if (p1.achievements.length >= 1 && cost && p1.gold >= cost) {
+    check('ペットを進化させると★が1つ上がる', ev.level === lv0 + 1 && ev.player.petLevels?.chick === lv0 + 1 && ev.player.gold === p1.gold - cost, { lv0, level: ev.level, gold: [p1.gold, ev.player?.gold] })
+  } else check('進化できないときは断る', ev.status === 400, ev)
+  check('ありえないペットは断る', (await A.call('/api/pets/nope/evolve', 'POST', {})).status === 400)
+}
+
+// 図鑑・協力クエスト
+{
+  const p = (await A.call('/api/player')).player
+  const cx = await A.call('/api/codex')
+  check('図鑑に持っている装備が載る', p.items.every((i) => cx.names.includes(i.name)) && typeof cx.claimed === 'number', { items: p.items.length, names: cx.names?.length })
+  const cc = await A.call('/api/codex/claim', 'POST', {})
+  if (cc.status === 200) {
+    check('図鑑のご褒美を受け取る', cc.gold > 0 && cc.player.codexClaimed >= cc.count && cc.player.gold >= p.gold + cc.gold - 1, { gold: cc.gold, count: cc.count })
+    check('図鑑のご褒美は同じ割合で2回受け取れない', (await A.call('/api/codex/claim', 'POST', {})).status === 400)
+  } else check('図鑑の割合が届かないとご褒美は受け取れない', cc.status === 400, cc)
+  const co = await A.call('/api/coop')
+  check('協力クエスト', co.quest?.goal > 0 && typeof co.value === 'number' && co.ranking?.some((x) => x.id === meA.id), co.quest)
+  const cl = await A.call('/api/coop/claim', 'POST', {})
+  if (co.done) {
+    check('協力クエストの報酬', cl.gold > 0, cl)
+    check('協力クエストの報酬は1週1回', (await A.call('/api/coop/claim', 'POST', {})).status === 400)
+  } else check('達成前の協力クエストは受け取れない', cl.status === 400, cl)
+  const st = (await A.call('/api/player')).stats
+  check('新しい集計 (期限内・図鑑・セット・ペット・協力)', ['ontime', 'codex', 'sets', 'petMax', 'coops'].every((k) => typeof st[k] === 'number'), st)
+}
+
 // ミッションのまとめて受け取り・隠し要素の「？？？」の数
 {
   const ms = (await A.call('/api/missions')).missions

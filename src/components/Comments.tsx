@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Comment, Person } from '../../shared/types'
-import { api } from '../api'
+import { api, type XpChange } from '../api'
 import { Avatar } from './Dock'
 
 const JST = 9 * 3600000
@@ -10,7 +10,7 @@ const when = (t: number) => {
 }
 
 /** タスクへのコメント (自分のタスクにも他の人のタスクにも書ける) */
-export function Comments({ taskId, onCount, toast }: { taskId: string; onCount?: (n: number) => void; toast?: (text: string) => void }) {
+export function Comments({ taskId, onCount, toast, onXp }: { taskId: string; onCount?: (n: number) => void; toast?: (text: string) => void; onXp?: (xp: XpChange | null) => void }) {
   const [list, setList] = useState<Comment[] | null>(null)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -44,8 +44,13 @@ export function Comments({ taskId, onCount, toast }: { taskId: string; onCount?:
     if (!body) return
     setSending(true)
     try {
-      await api.addComment(taskId, body)
+      const r = await api.addComment(taskId, body)
       setText('')
+      // 困っている人のタスクにコメントしたら助け合いボーナス
+      if (r.xp) {
+        toast?.(`🤝 助け合いボーナス +${r.xp.amount} XP・💰${r.xp.gold}`)
+        onXp?.(r.xp)
+      }
       await load()
     } catch {
       toast?.('送信できませんでした')

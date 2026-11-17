@@ -17,6 +17,9 @@ import {
   EVENT_SKIN_MAP,
   EVENT_XP,
   PET_MAP,
+  PET_EVOLVE_GOLD,
+  PET_MAX_LEVEL,
+  petBonus,
   PLUS_MAX,
   lowerRarity,
   materialsFor,
@@ -47,6 +50,8 @@ import {
   skinUnlocked,
   invMax,
   RARITY_SELL,
+  REROLL_GOLD,
+  rerollEffect,
   SLOTS,
   bossGold,
   canLearn,
@@ -91,7 +96,7 @@ const toItem = (r: any): Item => ({
 
 export async function getPlayer(db: D1Database, userId: string): Promise<PlayerState> {
   await db.prepare('INSERT OR IGNORE INTO players (user_id, updated_at) VALUES (?, ?)').bind(userId, Date.now()).run()
-  const [row, skills, items, jobRows, achRows, skinRows, treatRow] = await db.batch([
+  const [row, skills, items, jobRows, achRows, skinRows, treatRow, petRows] = await db.batch([
     db.prepare('SELECT * FROM players WHERE user_id = ?').bind(userId),
     db.prepare('SELECT skill_id FROM player_skills WHERE user_id = ?').bind(userId),
     db.prepare('SELECT * FROM items WHERE user_id = ? ORDER BY created_at DESC').bind(userId),
@@ -99,6 +104,7 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
     db.prepare('SELECT achievement_id, unlocked_at FROM player_achievements WHERE user_id = ? ORDER BY unlocked_at').bind(userId),
     db.prepare('SELECT skin_id FROM owned_skins WHERE user_id = ?').bind(userId),
     db.prepare('SELECT 1 FROM treats WHERE user_id = ? AND day = ?').bind(userId, jstToday()),
+    db.prepare('SELECT pet_id, level FROM pet_levels WHERE user_id = ?').bind(userId),
   ])
   const achievements = (achRows.results as any[]).map((a) => ({ id: a.achievement_id as string, at: a.unlocked_at as number }))
   const r = row.results[0] as any
@@ -135,6 +141,8 @@ export async function getPlayer(db: D1Database, userId: string): Promise<PlayerS
     bonus: withSkinBonus(bonusOf(ownedSkills), r.skin),
     skin: r.skin && (SKIN_MAP[r.skin] || EVENT_SKIN_MAP[r.skin]) ? r.skin : null,
     pet: r.pet && PET_MAP[r.pet] ? r.pet : null,
+    petLevels: Object.fromEntries((petRows.results as any[]).map((x) => [x.pet_id as string, x.level as number])),
+    codexClaimed: r.codex_claimed ?? 0,
     boostLeft: r.boost_left ?? 0,
     bonusSp: r.bonus_sp ?? 0,
     seedWeek: r.seed_week ?? null,
@@ -211,6 +219,8 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
       effects: effectsOf(player),
       bonus: player.bonus,
       extras: taskExtras(player),
+      ontime: isOntime(before, now),
+      requested: !!before.requested_by && before.requested_by !== userId,
     })
     const level = levelInfo(player.xp + amount).level
     // 今の職業にも同じだけ職業 XP が入る。条件の職業が規定レベルに届いたら上位職・複合職が解放される
@@ -252,6 +262,13 @@ export async function applyTaskXp(db: D1Database, userId: string, before: any, n
   return { amount: -amount, gold: -gold, bonuses: [], level: levelInfo(Math.max(0, player.xp - amount)).level, leveledUp: false }
 }
 
+/**
+ * 期限内の完了か。期限は前日までに決めたもの (完了する日に期限を付けたり延ばしたりしたものは数えない)。
+ * due_set_at が無いのは期限の時刻を残す前に決めたもの
+ */
+export const isOntime = (t: { due_date?: string | null; due_set_at?: number | null }, now: number) =>
+  !!t.due_date && jstToday(now) <= t.due_date && (t.due_set_at ?? 0) < jstDayStart(now)
+
 /** ペット・開催中の季節イベント・XP 2 倍チケットの上乗せ */
 function taskExtras(p: PlayerState) {
   const list: { label: string; xp?: number; gold?: number; double?: boolean }[] = []
@@ -259,7 +276,11 @@ function taskExtras(p: PlayerState) {
   const sk = p.skin ? SKIN_MAP[p.skin] : undefined
   if (sk?.effect && (sk.effect.xp || sk.effect.gold)) list.push({ label: '', xp: sk.effect.xp, gold: sk.effect.gold })
   const pet = p.pet ? PET_MAP[p.pet] : undefined
-  if (pet && (pet.xp || pet.gold)) list.push({ label: `${pet.emoji}${pet.name}`, xp: pet.xp, gold: pet.gold })
+  if (pet && (pet.xp || pet.gold)) {
+    const lv = p.petLevels?.[pet.id] ?? 1
+    const b = petBonus(pet, lv)
+    list.push({ label: `${pet.emoji}${pet.name}${lv > 1 ? `★${lv}` : ''}`, xp: b.xp, gold: b.gold })
+  }
   const ev = activeEvent(jstToday())
   if (ev) list.push({ label: `${ev.icon}${ev.name} +${Math.round(EVENT_XP * 100)}%`, xp: EVENT_XP })
   if ((p.boostLeft ?? 0) > 0) list.push({ label: '🎫XP2倍', double: true })
@@ -280,6 +301,51 @@ export async function setPet(db: D1Database, userId: string, pet: string | null)
   }
   await db.prepare('UPDATE players SET pet = ?, updated_at = ? WHERE user_id = ?').bind(pet, Date.now(), userId).run()
   return { player: await getPlayer(db, userId) }
+}
+
+/** ペットの進化 (★+1)。仲間になっているペットだけ。払えて、★ が変わっていないときだけ上げる */
+export async function evolvePet(db: D1Database, userId: string, petId: string) {
+  const def = PET_MAP[petId]
+  if (!def) return { error: '存在しないペット' }
+  const p = await getPlayer(db, userId)
+  const stats = def.need.stat === 'achievements' ? null : await achievementStats(db, userId)
+  if (!petUnlocked(def, achievementCount(p), stats)) return { error: `${def.need.label}で仲間になります` }
+  const lv = p.petLevels?.[petId] ?? 1
+  if (lv >= PET_MAX_LEVEL) return { error: `★${PET_MAX_LEVEL}が最大です` }
+  const price = PET_EVOLVE_GOLD[lv]
+  if (p.gold < price) return { error: 'ゴールドが足りません' }
+  const r = await db.batch([
+    db
+      .prepare(
+        'UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND gold >= ? AND COALESCE((SELECT level FROM pet_levels WHERE user_id = ? AND pet_id = ?), 1) = ?',
+      )
+      .bind(price, Date.now(), userId, price, userId, petId, lv),
+    db
+      .prepare('INSERT INTO pet_levels (user_id, pet_id, level) SELECT ?, ?, ? WHERE changes() > 0 ON CONFLICT(user_id, pet_id) DO UPDATE SET level = excluded.level')
+      .bind(userId, petId, lv + 1),
+  ])
+  if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
+  await logActivity(db, userId, 'pet', `${def.emoji}${def.name}が★${lv + 1}に進化`).run()
+  return { player: await getPlayer(db, userId), level: lv + 1 }
+}
+
+/** ✦ 特殊効果の付け直し (今と違う効果をランダムに)。払えて、効果が変わっていないときだけ */
+export async function rerollItem(db: D1Database, userId: string, itemId: string) {
+  const p = await getPlayer(db, userId)
+  const item = p.items.find((i) => i.id === itemId)
+  if (!item) return { error: 'アイテムがありません' }
+  if (!item.effect) return { error: '✦ 特殊効果のある装備だけ付け直せます' }
+  const price = REROLL_GOLD[item.rarity]
+  if (p.gold < price) return { error: 'ゴールドが足りません' }
+  const next = rerollEffect(item.slot, item.effect, rand())
+  const r = await db.batch([
+    db
+      .prepare('UPDATE items SET effect = ? WHERE id = ? AND user_id = ? AND effect = ? AND (SELECT gold FROM players WHERE user_id = ?) >= ?')
+      .bind(next, item.id, userId, item.effect, userId, price),
+    db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND changes() > 0').bind(price, Date.now(), userId),
+  ])
+  if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
+  return { player: await getPlayer(db, userId), effect: next }
 }
 
 /**
@@ -440,7 +506,7 @@ async function splitBase(db: D1Database, task: any): Promise<number | undefined>
  * 他の人のタスクを進めた人への手伝い XP。同じタスク・同じ段階では 1 回だけ (持ち主が戻して進め直しても増えない)。
  * 付与しなかったときは null
  */
-export async function awardHelp(db: D1Database, userId: string, taskId: string, kind: 'doing' | 'done', amount: number): Promise<XpChange | null> {
+export async function awardHelp(db: D1Database, userId: string, taskId: string, kind: 'doing' | 'done' | 'rescue', amount: number): Promise<XpChange | null> {
   const now = Date.now()
   const ins = await db
     .prepare('INSERT OR IGNORE INTO helps (task_id, user_id, kind, xp, created_at) VALUES (?, ?, ?, ?, ?)')
@@ -457,7 +523,7 @@ export async function awardHelp(db: D1Database, userId: string, taskId: string, 
       .bind(userId, player.job.id, amount),
   ])
   const level = levelInfo(player.xp + amount).level
-  return { amount, gold, bonuses: ['手伝いボーナス'], level, leveledUp: level > prevLevel }
+  return { amount, gold, bonuses: [kind === 'rescue' ? '助け合いボーナス' : '手伝いボーナス'], level, leveledUp: level > prevLevel }
 }
 
 /** 称号の変更 (null で外す)。取った実績のものだけ */

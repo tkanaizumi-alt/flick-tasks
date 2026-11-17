@@ -242,7 +242,7 @@ export function PersonSheet({ id, meId, onClose, canRename, onRenamed, onRequest
                                 <ReactionBar task={t} meId={meId} toast={toast} onChange={(x) => setData((d) => (d ? { ...d, tasks: d.tasks.map((y) => (y.id === x.id ? x : y)) } : d))} />
                               )}
                               <div className="ps-comments">
-                                <Comments taskId={t.id} toast={toast} />
+                                <Comments taskId={t.id} toast={toast} onXp={onXp} />
                               </div>
                               {!data.person.isMe && t.status !== 'done' && (
                                 <div className="move-row">

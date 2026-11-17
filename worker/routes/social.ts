@@ -25,10 +25,10 @@ social.post('/requests', async (c) => {
   await db.batch([
     db
       .prepare(
-        `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source, requested_by, follow_id, due_date, due_by)
-         VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, 'user', ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, user_id, title, note, status, position, created_at, updated_at, source, requested_by, follow_id, due_date, due_by, due_set_at)
+         VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, 'user', ?, ?, ?, ?, ?)`,
       )
-      .bind(id, to.id, title, cleanNote(body.note), now, now, now, user.id, follow?.id ?? null, due, due ? user.id : null),
+      .bind(id, to.id, title, cleanNote(body.note), now, now, now, user.id, follow?.id ?? null, due, due ? user.id : null, due ? now : null),
     logActivity(db, user.id, 'request', `${title} → ${to.name}`),
     notify(db, to.id, user.id, 'request', id, `${san(user.name)}から依頼: 「${title}」${due ? `（${due.slice(5).replace('-', '/')}まで）` : ''}`),
   ])

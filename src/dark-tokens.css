@@ -55,3 +55,12 @@
 :root[data-theme='dark'] .multi-item { background: rgba(255, 255, 255, 0.06); }
 :root[data-theme='dark'] .chest-ten { color: #c4a0ff; }
 :root[data-theme='dark'] .merge-row { background: rgba(255, 255, 255, 0.05); }
+:root[data-theme='dark'] .coop-icon,
+:root[data-theme='dark'] .pet-evo,
+:root[data-theme='dark'] .codex-cell.got { background: rgba(255, 255, 255, 0.07); }
+:root[data-theme='dark'] .codex-cell,
+:root[data-theme='dark'] .codex-reward { background: rgba(255, 255, 255, 0.04); }
+:root[data-theme='dark'] .codex-reward.ready { background: var(--c-done); color: #fff; }
+:root[data-theme='dark'] .codex-sec { border-top-color: rgba(255, 255, 255, 0.08); }
+:root[data-theme='dark'] .set-row.on .set-fx,
+:root[data-theme='dark'] .is-set { color: #c4a0ff; }

@@ -2,11 +2,14 @@
  * 「新しくなったこと」のお知らせ。VERSION を上げると、まだ見ていない人に一度だけ出る。
  * action があれば「試す」ボタンでその画面を開く
  */
-export const WHATS_NEW_VERSION = '2026-11-13b'
+export const WHATS_NEW_VERSION = '2026-11-17'
 
 export type WhatsNewAction = 'history' | 'templates' | 'people' | 'calendar' | 'game'
 
 export const WHATS_NEW: { icon: string; title: string; desc: string; action?: WhatsNewAction; button?: string; game?: boolean }[] = [
+  { icon: '⏰', title: '仕事ぶりのボーナス', desc: '期限内の完了・依頼されたタスクの完了でXP+10%。「困っている」タスクにコメントすると助け合いボーナス', game: true },
+  { icon: '🤝', title: '協力クエスト', desc: '週替わりのみんなの目標。達成すると全員が💰とSR以上の装備を受け取れます', action: 'game', button: '冒険を開く', game: true },
+  { icon: '📖', title: '図鑑・セット効果・ペットの進化', desc: '図鑑をうめてご褒美、同じシリーズの装備3部位でセット効果、ペットは★3まで進化、✦効果は💰で付け直し', action: 'game', button: '冒険を開く', game: true },
   { icon: '🔍', title: '終わったタスクを探せる', desc: 'メニューの「履歴」の上の検索欄から、前に完了したタスクを件名・詳細で探せます。CSV保存やコピーも', action: 'history', button: '履歴を開く' },
   { icon: '📋', title: 'テンプレート', desc: '「タスクを記入」の横の 📋 から、よく使うタスクのセットを保存して1回で追加できます', action: 'templates', button: '開く' },
   { icon: '🎉', title: 'リアクション', desc: '「みんな」で人を選んでタスクを押すと、👍🎉💪🙏👀 を送れます。相手に通知が届きます', action: 'people', button: 'みんなを開く' },
