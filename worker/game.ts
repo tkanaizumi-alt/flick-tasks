@@ -20,6 +20,7 @@ import {
   PLUS_MAX,
   lowerRarity,
   materialsFor,
+  bulkMergePlan,
   SHOP,
   activeEvent,
   hasEventSkin,
@@ -322,6 +323,35 @@ export async function enhanceItem(db: D1Database, userId: string, itemId: string
   ])
   if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
   return { player: await getPlayer(db, userId), plus: after, gained: steps }
+}
+
+/**
+ * 持ち物の一括合成。計画はサーバーで今の持ち物から作り直す (画面の確認と同じ bulkMergePlan)。
+ * 強化先は強化前の段階が変わっていないときだけ更新し、素材はその強化先が更新できたときだけ消す。書き込みは 1 回の batch
+ */
+export async function mergeAll(db: D1Database, userId: string) {
+  const p = await getPlayer(db, userId)
+  const plan = bulkMergePlan(p.items, Object.values(p.equipped) as string[])
+  if (!plan.length) return { error: '合成できる装備がありません' }
+  const stmts: D1PreparedStatement[] = []
+  for (const s of plan) {
+    const t = s.target
+    const n = s.to - s.from
+    stmts.push(
+      db
+        .prepare('UPDATE items SET plus = ?, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
+        .bind(s.to, plusUpN(t.atk, n), plusUpN(t.hp, n), plusUpN(t.crit, n), plusUpN(t.heal, n), t.id, userId, s.from),
+    )
+    for (const m of s.materials) {
+      stmts.push(db.prepare('DELETE FROM items WHERE id = ? AND user_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND plus = ?)').bind(m.id, userId, t.id, s.to))
+    }
+  }
+  await db.batch(stmts)
+  return {
+    player: await getPlayer(db, userId),
+    merged: plan.length,
+    used: plan.reduce((a, s) => a + s.materials.length, 0),
+  }
 }
 
 /**

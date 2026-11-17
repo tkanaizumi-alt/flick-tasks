@@ -119,6 +119,54 @@ export function materialsFor<T extends Pick<Item, 'id' | 'slot' | 'rarity' | 'pl
     .sort((a, b) => Number(a.rarity !== item.rarity) - Number(b.rarity !== item.rarity) || (a.plus ?? 0) - (b.plus ?? 0))
 }
 
+export interface MergeStep<T> {
+  target: T
+  materials: T[]
+  from: number
+  to: number
+}
+
+/**
+ * 持ち物の一括合成の計画。同じ部位・同じレア度の装備どうしで合成する。
+ * 強化先は「装備中 → ✦付き → 強化の高いもの」の順に選び、素材は強化の低いものから使う。
+ * 装備中のものと ✦ (特殊効果) 付きは素材にしない。+10 になったら次の強化先へ
+ */
+export function bulkMergePlan<T extends Pick<Item, 'id' | 'slot' | 'rarity' | 'plus' | 'effect'>>(items: T[], equippedIds: string[]): MergeStep<T>[] {
+  const keep = (i: T) => equippedIds.includes(i.id) || !!i.effect
+  const groups = new Map<string, T[]>()
+  for (const i of items) groups.set(`${i.slot}:${i.rarity}`, [...(groups.get(`${i.slot}:${i.rarity}`) ?? []), i])
+  const plan: MergeStep<T>[] = []
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    // 強化先にしたい順
+    const order = [...group].sort(
+      (a, b) =>
+        Number(equippedIds.includes(b.id)) - Number(equippedIds.includes(a.id)) ||
+        Number(!!b.effect) - Number(!!a.effect) ||
+        (b.plus ?? 0) - (a.plus ?? 0),
+    )
+    // 素材にできるもの (強化の低いものから使う)
+    const mats = order.filter((i) => !keep(i)).reverse()
+    const used = new Set<string>()
+    for (const target of order) {
+      if (used.has(target.id)) continue
+      let plus = target.plus ?? 0
+      const take: T[] = []
+      while (plus < PLUS_MAX) {
+        const m = mats.find((x) => !used.has(x.id) && x.id !== target.id)
+        if (!m) break
+        used.add(m.id)
+        take.push(m)
+        plus = enhanceTo({ rarity: target.rarity, plus }, m)
+      }
+      used.add(target.id)
+      if (take.length) plan.push({ target, materials: take, from: target.plus ?? 0, to: plus })
+      if (!mats.some((x) => !used.has(x.id))) break
+    }
+  }
+  return plan
+}
+
 // ---------- 季節イベント (期間中は XP+10%、10 件完了で限定スキン) ----------
 export interface EventDef {
   id: string

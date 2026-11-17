@@ -1,5 +1,5 @@
 /** 冒険 (ミニゲーム) */
-import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, buyShop, buySkin } from '../game'
+import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, mergeAll, buyShop, buySkin } from '../game'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
 import { eventBossState, fightEventBoss, rematch, rematchState, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
@@ -53,6 +53,12 @@ game.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)
 game.post('/player/pet', async (c) => {
   const { pet } = await c.req.json<{ pet?: string | null }>().catch(() => ({ pet: null }))
   return gameResponse(c, await setPet(c.env.DB, c.get('user').id, typeof pet === 'string' ? pet : null))
+})
+
+/** 持ち物の一括合成 (:id のルートより先に置く) */
+game.post('/items/merge-all', async (c) => {
+  const r = await mergeAll(c.env.DB, c.get('user').id)
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
 })
 
 game.post('/items/:id/enhance', async (c) => {

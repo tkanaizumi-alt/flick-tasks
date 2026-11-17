@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, plusUpN, SEED_DROP_STAGE, SEED_DROP_EVENT, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, bulkMergePlan, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, plusUpN, SEED_DROP_STAGE, SEED_DROP_EVENT, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
 import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinEffectLabel, skinUnlocked, spInfo, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
@@ -154,5 +154,39 @@ describe('SP のタネと有料スキンの効果', () => {
     const sorted = [...paid].sort((a, b) => a.price! - b.price!)
     for (let i = 1; i < sorted.length; i++) if (sorted[i].price! > sorted[i - 1].price!) expect(size(sorted[i])).toBeGreaterThan(size(sorted[i - 1]))
     expect(skinEffectLabel(SKINS.find((s) => s.id === 'crown')!.effect)).toBe('XP+10%・ゴールド+10%・攻撃+10%・体力+10%')
+  })
+})
+
+describe('装備の一括合成', () => {
+  const it_ = (id: string, rarity: 'N' | 'R' | 'SR', plus = 0, slot: 'head' | 'weapon' = 'head', effect: string | null = null) => ({ id, slot, rarity, plus, effect })
+  it('同じ部位・同じレア度どうしだけを合成し、強化の高いものに吸わせる', () => {
+    const plan = bulkMergePlan([it_('a', 'N', 2), it_('b', 'N'), it_('c', 'N'), it_('d', 'R'), it_('e', 'N', 0, 'weapon')], [])
+    expect(plan).toHaveLength(1)
+    expect(plan[0].target.id).toBe('a')
+    expect(plan[0].materials.map((m) => m.id).sort()).toEqual(['b', 'c'])
+    expect(plan[0].to).toBe(4)
+  })
+  it('装備中のものを優先して強化し、装備中と ✦ 付きは素材にしない', () => {
+    const plan = bulkMergePlan([it_('a', 'N', 5), it_('eq', 'N'), it_('fx', 'N', 0, 'head', 'first'), it_('b', 'N')], ['eq'])
+    expect(plan[0].target.id).toBe('eq')
+    const used = plan.flatMap((s) => s.materials.map((m) => m.id))
+    expect(used).not.toContain('eq')
+    expect(used).not.toContain('fx')
+  })
+  it('+10 になったら次の強化先へ。+10 のものは素材にしない', () => {
+    const items = [it_('max', 'N', 10), it_('a', 'N', 8), ...Array.from({ length: 6 }, (_, k) => it_(`m${k}`, 'N'))]
+    const plan = bulkMergePlan(items, [])
+    expect(plan.flatMap((s) => s.materials.map((m) => m.id))).not.toContain('max')
+    expect(plan[0]).toMatchObject({ from: 8, to: 10 })
+    expect(plan[0].materials).toHaveLength(2)
+    expect(plan[1].to).toBe(3) // 残り 4 個のうち 1 個が強化先、3 個が素材
+  })
+  it('✦ 付きは素材にはしないが、強化先にはなる', () => {
+    const plan = bulkMergePlan([it_('a', 'N'), it_('fx', 'N', 0, 'head', 'first')], [])
+    expect(plan[0].target.id).toBe('fx')
+    expect(plan[0].materials.map((m) => m.id)).toEqual(['a'])
+  })
+  it('合成できるものがなければ空', () => {
+    expect(bulkMergePlan([it_('a', 'N'), it_('b', 'R'), it_('fx1', 'SR', 0, 'head', 'first'), it_('fx2', 'SR', 0, 'head', 'wall')], [])).toEqual([])
   })
 })

@@ -54,3 +54,4 @@
 :root[data-theme='dark'] .job-hint { color: #c4a0ff; }
 :root[data-theme='dark'] .multi-item { background: rgba(255, 255, 255, 0.06); }
 :root[data-theme='dark'] .chest-ten { color: #c4a0ff; }
+:root[data-theme='dark'] .merge-row { background: rgba(255, 255, 255, 0.05); }

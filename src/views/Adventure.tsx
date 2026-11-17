@@ -30,7 +30,7 @@ import { store } from '../store'
 import { bestGear } from '../../shared/optimize'
 import { BattleModal } from '../components/BattleModal'
 import { CharacterHeader } from '../components/CharacterHeader'
-import { ChestReveal, ChestRevealMany, ItemCard, ItemSheet } from '../components/Loot'
+import { ChestReveal, ChestRevealMany, ItemCard, ItemSheet, MergeSheet } from '../components/Loot'
 import { StageMap } from '../components/StageMap'
 import { GearIcon } from '../components/GearIcon'
 import { Avatar } from '../components/Dock'
@@ -38,7 +38,7 @@ import type { Celebration } from '../components/Rewards'
 import { Achievements } from '../components/Achievements'
 import { EventBanner, EventBossPanel, PetPanel, RaidPanel, ShopPanel, SparPanel } from '../components/GameExtras'
 import type { BattleMode } from '../components/BattleModal'
-import { EVENT_SKINS, REMATCH_DAILY, hasEventSkin, materialsFor, rematchGold } from '../../shared/extras'
+import { EVENT_SKINS, REMATCH_DAILY, bulkMergePlan, hasEventSkin, materialsFor, rematchGold } from '../../shared/extras'
 
 type Tab = 'battle' | 'loot' | 'mission' | 'train' | 'achieve'
 
@@ -84,6 +84,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   const pickedRate = useMemo(() => (pickedEnemy ? winRate(player, pickedEnemy) : 0), [player, pickedEnemy?.stage])
   const [reveal, setReveal] = useState<Item | null>(null)
   const [revealMany, setRevealMany] = useState<Item[] | null>(null)
+  const [merging, setMerging] = useState(false)
   const [openItem, setOpenItem] = useState<Item | null>(null)
   const [missions, setMissions] = useState<Mission[]>([])
   const [confirmReset, setConfirmReset] = useState(false)
@@ -97,6 +98,8 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
     store.set(INV_SORT_KEY, v)
   }
   const items = useMemo(() => [...player.items].sort(INV_CMP[invSort]), [player.items, invSort])
+  // 一括合成でできること (同じ部位・同じレア度の装備どうし)
+  const mergePlan = useMemo(() => bulkMergePlan(player.items, Object.values(player.equipped) as string[]), [player.items, player.equipped])
   const sp = spInfo(player)
   const achievedIds = useMemo(() => (player.achievements ?? []).map((a) => a.id), [player.achievements])
   const eff = effectiveStats(player)
@@ -355,8 +358,15 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
           <section className="panel glass">
             <div className="panel-head">
               <h2>持ち物</h2>
-              <span className="muted">
-                {player.items.length}/{invMax(player)}
+              <span className="inv-head">
+                {mergePlan.length > 0 && (
+                  <button className="pill-btn ghost small" disabled={busy} onClick={() => setMerging(true)} data-testid="merge-all" title="同じ部位・同じレア度の装備をまとめて合成します">
+                    ⚒️ 一括合成
+                  </button>
+                )}
+                <span className="muted">
+                  {player.items.length}/{invMax(player)}
+                </span>
               </span>
             </div>
             {player.items.length > 1 && (
@@ -694,6 +704,21 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
       </AnimatePresence>
       <AnimatePresence>{reveal && <ChestReveal item={reveal} onClose={() => setReveal(null)} />}</AnimatePresence>
       <AnimatePresence>{revealMany && <ChestRevealMany items={revealMany} onClose={() => setRevealMany(null)} />}</AnimatePresence>
+      <AnimatePresence>
+        {merging && mergePlan.length > 0 && (
+          <MergeSheet
+            plan={mergePlan}
+            busy={busy}
+            onClose={() => setMerging(false)}
+            onMerge={async () => {
+              const r = await run(() => api.mergeAll())
+              if (!r) return
+              setMerging(false)
+              toast(`${r.merged}個の装備を強化しました（素材 ${r.used}個）`)
+            }}
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {openItem && (
           <ItemSheet

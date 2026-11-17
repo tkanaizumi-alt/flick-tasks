@@ -46,6 +46,7 @@ export const FEATURES: Record<string, string> = {
   job: '冒険職',
   stat: 'ステータス・スキル',
   mission: 'ミッション',
+  merge_all: '装備の一括合成',
   raid: 'レイド報酬',
   spar: 'メンバーと腕試し',
   event_boss: 'イベントの限定ボス',

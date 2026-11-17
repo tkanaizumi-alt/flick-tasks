@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { EFFECTS, RARITY_ORDER, RARITY_SELL, SLOTS, type Item } from '../../shared/game'
-import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity } from '../../shared/extras'
+import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity, type MergeStep } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
 const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
@@ -138,6 +138,56 @@ export function ChestRevealMany({ items, onClose }: { items: Item[]; onClose: ()
             </button>
           </div>
         )}
+      </motion.div>
+    </>
+  )
+}
+
+/** 一括合成の確認: どの装備が何段階上がり、どれが素材として消えるか */
+export function MergeSheet({ plan, busy, onClose, onMerge }: { plan: MergeStep<Item>[]; busy: boolean; onClose: () => void; onMerge: () => void }) {
+  const used = plan.reduce((a, s) => a + s.materials.length, 0)
+  return (
+    <>
+      <motion.div className="scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+      <motion.div
+        className="sheet glass merge-sheet"
+        data-testid="merge-sheet"
+        initial={{ y: '105%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '105%' }}
+        transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+      >
+        <div className="grab-zone">
+          <div className="grabber" />
+        </div>
+        <h3 className="merge-title">⚒️ 一括合成</h3>
+        <p className="muted merge-note">
+          同じ部位・同じレア度の装備をまとめて合成します。{plan.length}個が強くなり、素材の{used}個はなくなります。装備中と ✦ 付きの装備は素材にしません。
+        </p>
+        <ul className="merge-list" data-testid="merge-plan">
+          {plan.map((s) => (
+            <li key={s.target.id} className={`merge-row r-${s.target.rarity}`}>
+              <GearIcon slot={s.target.slot} rarity={s.target.rarity} size={26} />
+              <span className="merge-body">
+                <span className="merge-name">
+                  <span className="item-rarity inline">{s.target.rarity}</span> {s.target.name}
+                </span>
+                <span className="muted merge-mats">素材 {s.materials.length}個（{s.materials.map((m) => `${m.name}${m.plus ? `+${m.plus}` : ''}`).join('・')}）</span>
+              </span>
+              <span className="merge-to">
+                +{s.from} → <b>+{s.to}</b>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="sheet-actions">
+          <button className="pill-btn primary grow" disabled={busy} onClick={onMerge} data-testid="merge-run">
+            {used}個を素材にして合成する
+          </button>
+          <button className="pill-btn ghost" disabled={busy} onClick={onClose}>
+            やめる
+          </button>
+        </div>
       </motion.div>
     </>
   )

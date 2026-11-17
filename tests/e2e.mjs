@@ -334,11 +334,12 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
 {
   const p0 = (await A.call('/api/player')).player
   const r = await A.call('/api/shop/seed', 'POST', {})
-  if (p0.gold >= 800 && p0.seedWeek == null) {
+  // 今週まだ買っていなくてお金があれば買える (週が変わると買い直せる)
+  if (r.status === 200) {
     check('SPのタネを買う (SP+1)', r.player?.bonusSp === (p0.bonusSp ?? 0) + 1 && r.player.gold === p0.gold - 800, r.player)
     check('SPのタネは1週間に1個まで', (await A.call('/api/shop/seed', 'POST', {})).status === 400)
   } else {
-    check('SPのタネが買えないときは断る', r.status === 400, r)
+    check('SPのタネが買えないときは断る', r.status === 400 && (p0.gold < 800 || p0.seedWeek != null), { status: r.status, gold: p0.gold, seedWeek: p0.seedWeek })
   }
   const p1 = (await A.call('/api/player')).player
   if (p1.ownedSkins?.length) check('有料スキンを買うと実績「おしゃれさん」', p1.achievements.some((a) => a.id === 'skin1'), p1.achievements)
@@ -375,6 +376,20 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   } else {
     check('10連が買えないときは断る', r.status === 400, r)
   }
+}
+
+// 装備の一括合成 (同じ部位・同じレア度どうし。装備中と ✦ 付きは素材にしない)
+{
+  const p0 = (await A.call('/api/player')).player
+  const r = await A.call('/api/items/merge-all', 'POST', {})
+  if (r.status === 200) {
+    const eq = Object.values(p0.equipped)
+    const gone = p0.items.filter((i) => !r.player.items.some((x) => x.id === i.id))
+    check('一括合成で素材の数だけ持ち物が減る', gone.length === r.used && r.merged > 0, { used: r.used, gone: gone.length })
+    check('装備中と ✦ 付きは素材にしない', !gone.some((i) => eq.includes(i.id) || i.effect), gone)
+    check('一括合成で強化される', r.player.items.some((x) => (x.plus ?? 0) > (p0.items.find((i) => i.id === x.id)?.plus ?? 0)))
+  }
+  check('合成するものがないときは断る', (await A.call('/api/items/merge-all', 'POST', {})).status === 400)
 }
 
 // ミッションのまとめて受け取り・隠し要素の「？？？」の数

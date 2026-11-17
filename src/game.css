@@ -223,3 +223,15 @@
 .chest-ten { font-size: 11.5px; font-weight: 800; color: #a65bff; margin-top: 2px; }
 .pill-btn.ten { background: linear-gradient(135deg, #a65bff, #ff5fa2); color: #fff; box-shadow: 0 6px 16px -8px rgba(166, 91, 255, 0.8); }
 .pill-btn.ten:disabled { opacity: 0.45; }
+
+/* ---------- 装備の一括合成 ---------- */
+.inv-head { display: inline-flex; align-items: center; gap: 8px; }
+.merge-title { margin: 2px 0 4px; font-size: 17px; }
+.merge-note { font-size: 12px; margin: 0 0 10px; }
+.merge-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.merge-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.6); box-shadow: inset 0 0 0 1px var(--rc); }
+.merge-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.merge-name { font-size: 13px; font-weight: 750; }
+.merge-mats { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.merge-to { flex: none; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.merge-to b { color: var(--rc); font-size: 15px; }

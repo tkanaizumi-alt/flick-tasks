@@ -29,6 +29,7 @@ const ROUTES: [string, RegExp, string][] = [
   ['POST', /^\/items\/[^/]+\/equip$/, 'equip'],
   ['POST', /^\/equip-set$/, 'equip_best'],
   ['POST', /^\/items\/[^/]+\/enhance$/, 'enhance'],
+  ['POST', /^\/items\/merge-all$/, 'merge_all'],
   ['POST', /^\/shop\/skin\//, 'skin_buy'],
   ['POST', /^\/shop\/(boost|srchest|bag|treat|seed)$/, 'shop'],
   ['POST', /^\/player\/skin$/, 'skin'],
