@@ -62,7 +62,9 @@
 .sc-fighter { position: absolute; bottom: 18%; width: 96px; height: 96px; margin-left: -48px; display: grid; place-items: center; z-index: 2; }
 .sc-bob { position: relative; display: grid; place-items: center; animation: sc-bob 1.6s ease-in-out infinite; }
 .sc-fighter.foe .sc-bob { animation-delay: -0.8s; }
-.sc-fighter .av-img, .sc-fighter .av-text, .sc-fighter .av-skin { box-shadow: 0 0 0 3px #fff, 0 6px 14px rgba(0, 0, 0, 0.25); }
+.sc-sprite { font-size: 80px; line-height: 1; display: block; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.25)); }
+.sc-sprite-img { display: block; width: 92px; height: 92px; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.25)); }
+.sc-photo { display: block; width: 80px; height: 80px; object-fit: cover; border-radius: 40%; -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 72%); mask-image: radial-gradient(circle, #000 55%, transparent 72%); }
 .sc-foe-icon { font-size: 78px; line-height: 1; display: block; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.25)); }
 .sc-shadow { position: absolute; bottom: -6px; left: 50%; width: 64px; height: 10px; margin-left: -32px; border-radius: 50%; background: rgba(0, 0, 0, 0.22); z-index: -1; }
 @keyframes sc-bob { 50% { transform: translateY(-4px); } }

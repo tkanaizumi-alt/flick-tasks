@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FLAGS, type Activity, type ActivityKind, type AttentionItem, type Notice, type Person, type RequestItem, san } from '../../shared/types'
-import { enemyForStage, levelInfo } from '../../shared/game'
+import { enemyForStage, levelInfo, veiled } from '../../shared/game'
 import { ACHIEVEMENT_MAP, tierClass } from '../../shared/achievements'
 import { api, STATUS_LABEL, type FeedKind, type XpChange } from '../api'
 import { Avatar } from '../components/Dock'
@@ -399,7 +399,7 @@ export function People({ isAdmin = false, toast, onMeRenamed, onNoticesRead, onO
     <ul className="person-list">
       {people.map((p) => {
         const lv = levelInfo(p.xp).level
-        const boss = enemyForStage(p.stage)
+        const boss = veiled(enemyForStage(p.stage), false)
         const total = p.todo + p.doing + p.done || 1
         return (
           <li key={p.id}>

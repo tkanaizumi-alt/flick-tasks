@@ -1,4 +1,4 @@
-import { enemyForStage, levelInfo, type PlayerState } from '../../shared/game'
+import { enemyForStage, levelInfo, veiled, type PlayerState } from '../../shared/game'
 import { ACHIEVEMENT_MAP, tierClass } from '../../shared/achievements'
 import { PET_MAP } from '../../shared/extras'
 import { Avatar } from './Dock'
@@ -6,7 +6,7 @@ import { Avatar } from './Dock'
 /** レベル・職業・XP バー・現在のステージ。冒険画面とみんなの詳細で共通 */
 export function CharacterHeader({ name, picture, player, gold }: { name: string; picture?: string; player: PlayerState; gold?: boolean }) {
   const lv = levelInfo(player.xp)
-  const current = enemyForStage(player.stage)
+  const current = veiled(enemyForStage(player.stage), false)
   return (
     <section className="panel glass char">
       <span className="char-av">

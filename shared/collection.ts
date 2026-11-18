@@ -1,5 +1,5 @@
 /** 図鑑: 手に入れた装備・倒したボス・解放したスキン。うめた割合でご褒美 */
-import { GEAR_NAMES, MAIN_STAGES, RARITY_ORDER, SKINS, enemyForStage, skinUnlocked, type Rarity, type Slot } from './game'
+import { GEAR_NAMES, MAIN_STAGES, OPEN_STAGES, RARITY_ORDER, SKINS, enemyForStage, skinUnlocked, type Rarity, type Slot } from './game'
 import { EVENTS } from './extras'
 
 export interface CodexEntry {
@@ -12,7 +12,7 @@ export interface CodexEntry {
   slot?: Slot
 }
 export interface CodexSection {
-  key: 'gear' | 'boss' | 'skin' | 'event'
+  key: 'gear' | 'boss' | 'secret' | 'skin' | 'event'
   label: string
   entries: CodexEntry[]
   /** 割合に数えるか (季節イベントの限定装備は数えない) */
@@ -62,9 +62,19 @@ export function codexOf(x: CodexInput) {
       key: 'boss',
       label: 'ボス',
       counted: true,
-      entries: Array.from({ length: MAIN_STAGES }, (_, i) => {
+      entries: Array.from({ length: OPEN_STAGES }, (_, i) => {
         const e = enemyForStage(i + 1)
         return { id: `b:${i + 1}`, name: e.name, icon: e.icon, got: x.stage > i + 1 }
+      }),
+    },
+    // シークレットのボス: 倒したものだけ載る (数には入らない)
+    {
+      key: 'secret',
+      label: 'シークレットボス',
+      counted: false,
+      entries: Array.from({ length: Math.max(0, Math.min(x.stage - 1, MAIN_STAGES) - OPEN_STAGES) }, (_, i) => {
+        const e = enemyForStage(OPEN_STAGES + i + 1)
+        return { id: `b:${e.stage}`, name: e.name, icon: e.icon, got: true }
       }),
     },
     {

@@ -1,10 +1,10 @@
 import type { Person } from '../../shared/types'
-import { MAIN_STAGES, enemyForStage } from '../../shared/game'
+import { MAIN_STAGES, OPEN_STAGES, enemyForStage, isSecretStage } from '../../shared/game'
 import { Avatar } from './Dock'
 
 /** 誰がどのステージにいるかを一目で: 30 ステージの道に各自のアイコンを置く */
 export function StageBoard({ people, onOpen }: { people: Person[]; onOpen: (id: string) => void }) {
-  const pos = (stage: number) => `${(Math.min(stage, MAIN_STAGES) - 1) / (MAIN_STAGES - 1) * 100}%`
+  const pos = (stage: number) => `${(Math.min(stage, OPEN_STAGES) - 1) / (OPEN_STAGES - 1) * 100}%`
   return (
     <section className="panel glass board" data-testid="stage-board">
       <div className="panel-head">
@@ -34,7 +34,7 @@ export function StageBoard({ people, onOpen }: { people: Person[]; onOpen: (id: 
                 </span>
               </span>
               <span className="track-stage">
-                {p.stage > MAIN_STAGES ? `🗼${p.stage - MAIN_STAGES}F` : `${boss.icon}${p.stage}`}
+                {p.stage > MAIN_STAGES ? `🗼${p.stage - MAIN_STAGES}F` : isSecretStage(p.stage) ? `🌌${p.stage}` : `${boss.icon}${p.stage}`}
               </span>
             </button>
           )

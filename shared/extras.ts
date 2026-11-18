@@ -102,28 +102,38 @@ export const enhanceGold = (rarity: Rarity, plus: number) => ENHANCE_GOLD[rarity
 
 // ---------- 装備の強化 (素材の装備を 1 つ使って +1。最大 +10) ----------
 export const PLUS_MAX = 10
-/** 強化 1 回で各ステータス +10% (最低 +1) */
-export const plusUp = (v: number) => (v > 0 ? v + Math.max(1, Math.round(v * 0.1)) : 0)
-/** n 段階ぶん強化したステータス */
-export const plusUpN = (v: number, n: number) => Array.from({ length: Math.max(0, n) }).reduce<number>((x) => plusUp(x), v)
+/** 強化 1 段階ごとに強化前の強さの ×1.04 (積み重ね)。+10 で約 1.48 倍 (1 つ上のレア度の +0 には届かない) */
+export const PLUS_RATE = 1.04
+type GearStats = Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>
+const STAT_KEYS = ['atk', 'hp', 'crit', 'heal'] as const
+/** 強化前の強さと強化段階から、今の強さ */
+export const statAt = (base: number, plus: number) => (base > 0 ? Math.round(base * Math.pow(PLUS_RATE, Math.max(0, plus))) : 0)
+/** 強化前の強さから、plus 段階の今の強さ */
+export const statsAt = (base: GearStats, plus: number): GearStats => ({ atk: statAt(base.atk, plus), hp: statAt(base.hp, plus), crit: statAt(base.crit, plus), heal: statAt(base.heal, plus) })
+/** 装備の強化前の強さ (持っていない古いデータは、今の強さから戻す) */
+export function baseOf(item: Pick<Item, 'plus' | 'base'> & GearStats): GearStats {
+  const b = item.base
+  if (b && STAT_KEYS.some((k) => b[k] > 0)) return b
+  const back = (v: number) => (v > 0 ? Math.max(1, Math.round(v / Math.pow(PLUS_RATE, item.plus ?? 0))) : 0)
+  return { atk: back(item.atk), hp: back(item.hp), crit: back(item.crit), heal: back(item.heal) }
+}
 
 // ---------- 装備の打ち直し (手に入れたときのステージで決まった強さを、今のステージの水準に上げ直す) ----------
 /** 打ち直しの値段 (レア度ごと) */
 export const REFORGE_GOLD: Record<Rarity, number> = { N: 50, R: 100, SR: 250, SSR: 600, UR: 1200 }
-type GearStats = Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>
 /**
- * 打ち直したあとのステータス。その部位・レア度で stage の宝箱から出る装備の平均の強さに、強化段階のぶんを足したもの。
+ * 打ち直したあとの強化前の強さ。その部位・レア度で stage の宝箱から出る装備の平均の強さ。
  * もともと付いていないステータスは付けない。今より下がるステータスはそのまま (下がることはない)
  */
-export function reforgeStats(item: Pick<Item, 'slot' | 'rarity' | 'plus'> & GearStats, stage: number): GearStats {
+export function reforgeBase(item: Pick<Item, 'slot' | 'rarity' | 'plus' | 'base'> & GearStats, stage: number): GearStats {
   const p = gearPower(item.rarity, stage)
   const std: GearStats = { atk: 0, hp: 0, crit: 0, heal: 0 }
   if (item.slot === 'weapon') {
     std.atk = 2.2 * p
-    if (item.crit > 0) std.crit = 1 + 0.8 * p
+    if (item.crit > 0) std.crit = 1.1 * p
   } else if (item.slot === 'head') {
     std.hp = 5 * p
-    std.crit = 1 + p
+    std.crit = 1.3 * p
   } else if (item.slot === 'body') {
     std.hp = 12 * p
     if (item.heal > 0) std.heal = p
@@ -132,14 +142,20 @@ export function reforgeStats(item: Pick<Item, 'slot' | 'rarity' | 'plus'> & Gear
     std.hp = 4 * p
     if (item.heal > 0) std.heal = 0.6 * p
   }
-  const out = { ...std }
-  for (const k of ['atk', 'hp', 'crit', 'heal'] as const) out[k] = Math.max(item[k], std[k] > 0 ? plusUpN(Math.round(std[k]), item.plus ?? 0) : 0)
+  const base = baseOf(item)
+  const out = { ...base }
+  for (const k of STAT_KEYS) if (std[k] > 0) out[k] = Math.max(base[k], Math.round(std[k]))
   return out
 }
+/** 打ち直したあとのステータス (強化段階のぶんも上がる。下がるステータスはない) */
+export function reforgeStats(item: Parameters<typeof reforgeBase>[0], stage: number): GearStats {
+  const n = statsAt(reforgeBase(item, stage), item.plus ?? 0)
+  return { atk: Math.max(item.atk, n.atk), hp: Math.max(item.hp, n.hp), crit: Math.max(item.crit, n.crit), heal: Math.max(item.heal, n.heal) }
+}
 /** 打ち直すと強くなるか */
-export const canReforge = (item: Parameters<typeof reforgeStats>[0], stage: number) => {
+export const canReforge = (item: Parameters<typeof reforgeBase>[0], stage: number) => {
   const n = reforgeStats(item, stage)
-  return (['atk', 'hp', 'crit', 'heal'] as const).some((k) => n[k] > item[k])
+  return STAT_KEYS.some((k) => n[k] > item[k])
 }
 /**
  * 素材を使った強化のあとの段階。同じレア度の素材は強化段階を引き継ぐ (+2 の素材なら 1 + 2 = 3 段階上がる)。

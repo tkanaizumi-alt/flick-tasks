@@ -20,6 +20,8 @@ export interface Item {
   effect: string | null
   /** 強化段階 (+1〜+10) */
   plus?: number
+  /** 強化する前の強さ (今の強さ = base × 1.04^plus) */
+  base?: Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>
 }
 
 /** 冒険職。倍率は最終ステータスにかかる */
@@ -260,8 +262,14 @@ export interface Enemy {
   atk: number
 }
 
-export const MAIN_STAGES = 30
-/** 10 ステージごとに章が変わる。10・20・30 は章ボス */
+/** 最初から見えるステージ (第1〜3章) */
+export const OPEN_STAGES = 30
+/** ステージの数。OPEN_STAGES より先はシークレット (倒すまで地図に出ない)。その先は無限の塔 */
+export const MAIN_STAGES = 100
+export const isSecretStage = (n: number) => n > OPEN_STAGES && n <= MAIN_STAGES
+/** まだ倒していないシークレットのボスは、名前とアイコンを隠す (バトルでは本当の姿で出る) */
+export const veiled = (e: Enemy, cleared: boolean): Enemy => (isSecretStage(e.stage) && !cleared ? { ...e, name: '？？？', icon: '❓' } : e)
+/** 10 ステージごとに章が変わる。10 の倍数は章ボス。31〜100 はシークレット */
 const BOSS_NAMES: [string, string][] = [
   ['スライム', '💧'], ['ゴブリン', '👺'], ['オオカミ', '🐺'], ['ゴーレム', '🗿'], ['魔術師', '🧙'],
   ['ワイバーン', '🦅'], ['騎士団長', '🤺'], ['ドラゴン', '🐲'], ['堕天使', '👼'], ['魔王', '😈'],
@@ -269,25 +277,41 @@ const BOSS_NAMES: [string, string][] = [
   ['ゾンビ将軍', '🧟'], ['一つ目巨人', '👁️'], ['クラーケン', '🦑'], ['雷神', '🌩️'], ['冥王', '💀'],
   ['機械兵', '🤖'], ['炎の精霊', '🔥'], ['氷の女王', '🧊'], ['大樹の番人', '🌳'], ['海竜', '🐉'],
   ['宇宙人', '👽'], ['時の番人', '⌛'], ['影の王', '🌑'], ['星の巨人', '🌠'], ['終焉の竜', '🌋'],
+  // ここからシークレット (31〜100)
+  ['嵐の精霊', '🌪️'], ['砂漠の王', '🐪'], ['マンモス', '🦣'], ['鬼', '👹'], ['大蛇', '🐍'], ['大猿', '🦍'], ['大バッタ', '🦗'], ['骸骨騎士', '☠️'], ['幽霊船長', '🏴‍☠️'], ['深淵の魔王', '👿'],
+  ['呪いの人形', '🪆'], ['大コウモリ', '🦇'], ['毒グモ', '🕷️'], ['巨大ガニ', '🦀'], ['サメ王', '🦈'], ['クジャク姫', '🦚'], ['雪女', '❄️'], ['雷獣', '⚡'], ['岩の巨人', '🪨'], ['天空城の主', '🏯'],
+  ['からくり人形', '🎎'], ['ピエロ', '🤡'], ['ガマ仙人', '🐸'], ['ユニコーン', '🦄'], ['怪鳥', '🦤'], ['サイボーグ', '🦾'], ['謎の円盤', '🛸'], ['隕石の魔物', '☄️'], ['宇宙クジラ', '🐋'], ['銀河の王', '🌌'],
+  ['悪夢', '😱'], ['鏡の魔人', '🪞'], ['時計仕掛けの竜', '⏰'], ['歯車の巨人', '⚙️'], ['黒騎士', '🗡️'], ['魔女', '🧙‍♀️'], ['影法師', '👤'], ['双頭の犬', '🐕'], ['炎の魔獣', '🦁'], ['冥界の女王', '👸'],
+  ['古代兵器', '🏺'], ['アンモナイト', '🐚'], ['暴君竜', '🦖'], ['首長竜', '🦕'], ['溶岩魔人', '💥'], ['氷河の巨人', '🏔️'], ['樹海の主', '🌲'], ['毒の沼', '🦠'], ['雷雲の王', '⛈️'], ['天変地異', '🌀'],
+  ['夢喰い', '🌙'], ['星獣', '⭐'], ['太陽の化身', '☀️'], ['月の女神', '🌕'], ['時空の旅人', '🧭'], ['ブラックホール', '🕳️'], ['光の天使', '😇'], ['闇の使徒', '🦹'], ['神の門番', '⛩️'], ['創造神', '✨'],
+  ['終末の騎士', '🏇'], ['虚無', '⚫'], ['混沌', '🎭'], ['無限', '♾️'], ['原初の竜', '🦎'], ['世界樹', '🎋'], ['最後の審判', '⚖️'], ['運命の糸', '🧶'], ['神々の黄昏', '🌅'], ['真・終焉', '👑'],
 ]
 
 /** ボスの強さ。序盤はすぐ勝て、章が進むほど伸びる */
 export const bossHp = (n: number) => Math.round(30 * Math.pow(n, 1.75))
 export const bossAtk = (n: number) => Math.round(4 * Math.pow(n, 1.25))
 
+/** シークレットのステージ (31〜100) の強さ。30 からなめらかにつながり、ゆるやかに強くなる */
+const secretHp = (n: number) => Math.round(bossHp(OPEN_STAGES) * Math.pow(n / OPEN_STAGES, 2.6))
+const secretAtk = (n: number) => Math.round(bossAtk(OPEN_STAGES) * Math.pow(n / OPEN_STAGES, 1.9))
+
 export function enemyForStage(stage: number): Enemy {
-  if (stage <= MAIN_STAGES) {
+  if (stage <= OPEN_STAGES) {
     const [name, icon] = BOSS_NAMES[stage - 1]
     return { stage, name, icon, hp: bossHp(stage), atk: bossAtk(stage) }
   }
-  // 終焉の竜の先は無限の塔。1 階ごとに強くなる
+  if (stage <= MAIN_STAGES) {
+    const [name, icon] = BOSS_NAMES[stage - 1]
+    return { stage, name, icon, hp: secretHp(stage), atk: secretAtk(stage) }
+  }
+  // ステージ 100 の先は無限の塔。1 階ごとに強くなる
   const floor = stage - MAIN_STAGES
   return {
     stage,
     name: `無限の塔 ${floor}階`,
     icon: '🗼',
-    hp: Math.round(bossHp(MAIN_STAGES) * Math.pow(1.12, floor)),
-    atk: Math.round(bossAtk(MAIN_STAGES) * Math.pow(1.08, floor)),
+    hp: Math.round(secretHp(MAIN_STAGES) * Math.pow(1.12, floor)),
+    atk: Math.round(secretAtk(MAIN_STAGES) * Math.pow(1.08, floor)),
   }
 }
 
@@ -686,7 +710,8 @@ export const RARITY_RATE: [Rarity, number][] = [
   ['R', 0.3],
   ['N', 1],
 ]
-const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.6, SR: 2.4, SSR: 3.5, UR: 4.8 }
+/** レア度ごとの強さ。1 つ上のレア度の +0 が、下のレア度の +10 (×1.04^10 ≒ 1.48。ゆらぎ ±5% こみ) より強くなるように差をつける */
+const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.7, SR: 2.85, SSR: 4.8, UR: 8.1 }
 
 type FxTier = 'SR' | 'SSR' | 'UR'
 /**
@@ -790,14 +815,14 @@ export function rollItem(seed: number, stage: number, forceRarity?: Rarity, forc
   const names = GEAR_NAMES[slot][rarity]
   const name = names[Math.floor(r() * names.length)]
   const power = gearPower(rarity, stage)
-  const j = () => 0.85 + r() * 0.3
+  const j = () => 0.95 + r() * 0.1
   const st = { atk: 0, hp: 0, crit: 0, heal: 0 }
   if (slot === 'weapon') {
     st.atk = Math.round(2.2 * power * j())
-    if (rarity !== 'N' && r() < 0.5) st.crit = Math.round(1 + 0.8 * power * j())
+    if (rarity !== 'N' && r() < 0.5) st.crit = Math.round(1.1 * power * j())
   } else if (slot === 'head') {
     st.hp = Math.round(5 * power * j())
-    st.crit = Math.round(1 + power * j())
+    st.crit = Math.round(1.3 * power * j())
   } else if (slot === 'body') {
     st.hp = Math.round(12 * power * j())
     if (rarity !== 'N' && r() < 0.5) st.heal = Math.round(power * j())

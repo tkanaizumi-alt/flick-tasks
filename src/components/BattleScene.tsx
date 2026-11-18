@@ -5,7 +5,16 @@
  */
 import type { CSSProperties, ReactNode } from 'react'
 import type { TbFx } from '../../shared/turn'
-import { Avatar } from './Dock'
+import { SKIN_MAP } from '../../shared/game'
+import { EVENT_SKIN_MAP } from '../../shared/extras'
+
+/** バトルの自分のキャラ: 丸い枠のない切り抜き (スキンの絵文字・絵)。スキンがなければ写真をふちをぼかして出す */
+function Sprite({ me }: { me: { name: string; picture?: string; skin?: string | null } }) {
+  const sk = me.skin ? (SKIN_MAP[me.skin] ?? EVENT_SKIN_MAP[me.skin]) : undefined
+  if (sk) return 'img' in sk && sk.img ? <img className="sc-sprite-img" src={sk.img} alt="" draggable={false} /> : <span className="sc-sprite">{sk.emoji}</span>
+  if (me.picture) return <img className="sc-photo" src={me.picture} alt="" referrerPolicy="no-referrer" draggable={false} />
+  return <span className="sc-sprite">🧑</span>
+}
 
 export interface Beat {
   /** 自分の行動の演出 (攻撃しない行動は null) */
@@ -30,8 +39,10 @@ export interface Beat {
 }
 
 export type SceneTheme = 'meadow' | 'forest' | 'desert' | 'night' | 'volcano' | 'tower' | 'event' | 'arena'
+/** シークレットの章 (31〜100) の背景 */
+const SECRET_THEMES: SceneTheme[] = ['night', 'desert', 'meadow', 'tower', 'forest', 'volcano', 'tower']
 export const themeFor = (stage: number, mode?: string): SceneTheme =>
-  mode === 'spar' ? 'arena' : mode === 'event' ? 'event' : stage <= 6 ? 'meadow' : stage <= 12 ? 'forest' : stage <= 18 ? 'desert' : stage <= 24 ? 'night' : stage <= 30 ? 'volcano' : 'tower'
+  mode === 'spar' ? 'arena' : mode === 'event' ? 'event' : stage <= 6 ? 'meadow' : stage <= 12 ? 'forest' : stage <= 18 ? 'desert' : stage <= 24 ? 'night' : stage <= 30 ? 'volcano' : stage > 100 ? 'tower' : SECRET_THEMES[Math.floor((stage - 31) / 10) % SECRET_THEMES.length]
 
 /** 近づいて斬る技 / 飛び道具の技 / その場で使う技 */
 const MELEE: TbFx[] = ['slash', 'double', 'stab', 'bash', 'shadow', 'poison']
@@ -166,7 +177,7 @@ export function BattleScene({
           <div className="sc-bob">
             {aura?.atk && <span className="sc-aura atk" />}
             {aura?.guard && <span className="sc-aura guard" />}
-            <Avatar name={me.name} picture={me.picture} skin={me.skin} size={72} />
+            <Sprite me={me} />
           </div>
           <span className="sc-shadow" />
         </div>

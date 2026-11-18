@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, bulkMergePlan, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, plusUpN, SEED_DROP_STAGE, SEED_DROP_EVENT, mondayOf, plusUp, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
+import { EVENTS, PETS, activeEvent, bagPrice, battleAdvice, enhanceGold, eventBoss, eventGearRarity, REMATCH_DAILY, rematchGold, hasEventSkin, bulkMergePlan, higherRarity, lowerRarity, materialsFor, PLUS_MAX, enhanceTo, statAt, statsAt, baseOf, reforgeBase, SEED_DROP_STAGE, SEED_DROP_EVENT, mondayOf, raidForWeek, shopPrice, srChestRarity } from '../shared/extras'
 import { INVENTORY_MAX, SKINS, computeXp, duelRate, effectiveStats, enemyForStage, invMax, simulateDuel, skinEffectLabel, skinUnlocked, spInfo, type BattleResult } from '../shared/game'
 
 describe('ゲームの追加要素', () => {
@@ -18,10 +18,35 @@ describe('ゲームの追加要素', () => {
     expect(hasEventSkin(['ev_halloween_2025'], 'halloween')).toBe(true)
     expect(EVENTS.every((e) => e.from <= e.to)).toBe(true)
   })
-  it('強化は +10% (最低 +1)、0 は 0 のまま', () => {
-    expect(plusUp(50)).toBe(55)
-    expect(plusUp(3)).toBe(4)
-    expect(plusUp(0)).toBe(0)
+  it('強化は強化前の強さの ×1.04 ずつ (積み重ね)、0 は 0 のまま', () => {
+    expect(statAt(100, 1)).toBe(104)
+    expect(statAt(100, 10)).toBe(148)
+    expect(statAt(0, 10)).toBe(0)
+    // 強化前の強さを持っていない古いデータは、今の強さから戻す
+    expect(baseOf({ plus: 2, atk: 108, hp: 0, crit: 0, heal: 0 }).atk).toBe(100)
+    expect(statsAt(baseOf({ plus: 2, atk: 108, hp: 0, crit: 0, heal: 0 }), 3).atk).toBe(112)
+  })
+  it('宝箱のゆらぎがあっても、同じステージなら 1 つ上のレア度の +0 は下のレア度の +10 に負けない', async () => {
+    const { rollItem } = await import('../shared/game')
+    const order = ['N', 'R', 'SR', 'SSR', 'UR'] as const
+    for (const stage of [5, 30, 80])
+      for (let i = 1; i < order.length; i++) {
+        const sum = (it: { atk: number; hp: number }) => it.atk * 5 + it.hp
+        const lows = Array.from({ length: 40 }, (_, k) => sum(statsAt({ ...rollItem(k, stage, order[i - 1], 'feet') }, 10)))
+        const highs = Array.from({ length: 40 }, (_, k) => sum(rollItem(k + 100, stage, order[i], 'feet')))
+        expect(Math.min(...highs), `${stage} ${order[i]}`).toBeGreaterThanOrEqual(Math.max(...lows))
+      }
+  })
+  it('同じステージなら、1 つ上のレア度の +0 は下のレア度の +10 より強い (どのステータスも)', () => {
+    const order = ['N', 'R', 'SR', 'SSR', 'UR'] as const
+    const zero = { atk: 1, hp: 1, crit: 1, heal: 1 }
+    for (const slot of ['head', 'body', 'feet', 'weapon'] as const)
+      for (let stage = 1; stage <= 100; stage += 3)
+        for (let i = 1; i < order.length; i++) {
+          const lo = statsAt(reforgeBase({ slot, rarity: order[i - 1], plus: 0, ...zero, base: zero }, stage), 10)
+          const hi = reforgeBase({ slot, rarity: order[i], plus: 0, ...zero, base: zero }, stage)
+          for (const k of ['atk', 'hp', 'crit', 'heal'] as const) if (hi[k] > 1 && lo[k] >= 10) expect(hi[k], `${slot} ${stage} ${order[i]} ${k}`).toBeGreaterThanOrEqual(lo[k])
+        }
   })
   it('SR 以上確定の宝箱', () => {
     expect(srChestRarity(0.1)).toBe('SSR')
@@ -133,8 +158,6 @@ describe('強化の引き継ぎ', () => {
     expect(enhanceTo({ rarity: 'R', plus: 4 }, { rarity: 'R', plus: 0 })).toBe(5)
     expect(enhanceTo({ rarity: 'R', plus: 0 }, { rarity: 'N', plus: 10 })).toBe(1)
     expect(enhanceTo({ rarity: 'R', plus: 8 }, { rarity: 'R', plus: 5 })).toBe(10)
-    expect(plusUpN(100, 3)).toBe(133)
-    expect(plusUpN(100, 0)).toBe(100)
   })
 })
 

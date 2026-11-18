@@ -78,6 +78,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'early20', name: '朝型', icon: '🌅', desc: '朝10時までに20件完了', stat: 'early', goal: 20, tier: 2 },
   { id: 'stage10', name: '冒険者', icon: '🗺️', desc: 'ステージ10をクリア', stat: 'cleared', goal: 10, tier: 2 },
   { id: 'stage30', name: '伝説の勇者', icon: '👑', desc: 'ステージ30をクリア', stat: 'cleared', goal: 30, tier: 4 },
+  { id: 'h_stage50', name: '深淵の探索者', icon: '🌌', desc: 'シークレットのステージ50をクリア', stat: 'cleared', goal: 50, tier: 3, hidden: true },
+  { id: 'h_stage100', name: '真・終焉を越えし者', icon: '🌟', desc: 'シークレットのステージ100をクリア', stat: 'cleared', goal: 100, tier: 4, hidden: true },
   { id: 'lv20', name: 'ベテラン', icon: '🎖️', desc: 'レベル20になる', stat: 'level', goal: 20, tier: 3 },
   { id: 'ssr', name: '幸運の持ち主', icon: '🍀', desc: 'SSR以上の装備を手に入れる', stat: 'ssr', goal: 1, tier: 3 },
   { id: 'skin1', name: 'おしゃれさん', icon: '👗', desc: 'ゴールドでスキンを買う', stat: 'paidSkins', goal: 1, tier: 1 },

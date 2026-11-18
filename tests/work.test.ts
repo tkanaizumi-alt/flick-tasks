@@ -172,10 +172,9 @@ describe('装備の打ち直し', () => {
     const now = reforgeStats(old, 43)
     expect(now.hp).toBeGreaterThan(old.hp)
     expect(now.atk).toBe(0) // 付いていないステータスは付けない
-    // 同じステージなら UR+0 は SR+6 より強く、UR+3 で SR+10 を超える
-    const sr = (plus: number) => reforgeStats({ ...rollItem(2, 43, 'SR', 'body'), plus, hp: 0, heal: 0 }, 43).hp
-    expect(now.hp).toBeGreaterThan(sr(6))
-    expect(reforgeStats({ ...old, plus: 3 }, 43).hp).toBeGreaterThan(sr(10))
+    // 同じステージなら UR+0 は SR+10 より強い
+    const sr = (plus: number) => reforgeStats({ ...rollItem(2, 43, 'SR', 'body'), plus, hp: 0, heal: 0, base: undefined }, 43).hp
+    expect(now.hp).toBeGreaterThan(sr(10))
     // 強化段階のぶんも上がる
     expect(reforgeStats({ ...old, plus: 5 }, 43).hp).toBeGreaterThan(now.hp)
     // もう今の強さなら打ち直せない。ステージが同じでも平均より上振れしたものは下げない

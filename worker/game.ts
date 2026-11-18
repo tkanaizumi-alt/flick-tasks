@@ -28,8 +28,9 @@ import {
   activeEvent,
   hasEventSkin,
   petUnlocked,
-  plusUp,
-  plusUpN,
+  baseOf,
+  statsAt,
+  reforgeBase,
   enhanceTo,
   srChestRarity,
   type ShopId,
@@ -95,6 +96,7 @@ const toItem = (r: any): Item => ({
   heal: r.heal,
   effect: r.effect ?? null,
   plus: r.plus ?? 0,
+  base: { atk: r.base_atk ?? 0, hp: r.base_hp ?? 0, crit: r.base_crit ?? 0, heal: r.base_heal ?? 0 },
 })
 
 export async function getPlayer(db: D1Database, userId: string): Promise<PlayerState> {
@@ -363,15 +365,16 @@ export async function reforgeItem(db: D1Database, userId: string, itemId: string
   if (!item) return { error: 'アイテムがありません' }
   const next = reforgeStats(item, p.stage)
   if (!(['atk', 'hp', 'crit', 'heal'] as const).some((k) => next[k] > item[k])) return { error: 'もう今のステージの強さです' }
+  const nb = reforgeBase(item, p.stage)
   const price = REFORGE_GOLD[item.rarity]
   if (p.gold < price) return { error: 'ゴールドが足りません' }
   // 同時に強化・打ち直しをしていないとき (ステータスが変わっていないとき) だけ
   const r = await db.batch([
     db
       .prepare(
-        'UPDATE items SET atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ? AND atk = ? AND hp = ? AND crit = ? AND heal = ? AND plus = ? AND (SELECT gold FROM players WHERE user_id = ?) >= ?',
+        'UPDATE items SET atk = ?, hp = ?, crit = ?, heal = ?, base_atk = ?, base_hp = ?, base_crit = ?, base_heal = ? WHERE id = ? AND user_id = ? AND atk = ? AND hp = ? AND crit = ? AND heal = ? AND plus = ? AND (SELECT gold FROM players WHERE user_id = ?) >= ?',
       )
-      .bind(next.atk, next.hp, next.crit, next.heal, item.id, userId, item.atk, item.hp, item.crit, item.heal, item.plus ?? 0, userId, price),
+      .bind(next.atk, next.hp, next.crit, next.heal, nb.atk, nb.hp, nb.crit, nb.heal, item.id, userId, item.atk, item.hp, item.crit, item.heal, item.plus ?? 0, userId, price),
     db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND changes() > 0').bind(price, Date.now(), userId),
   ])
   if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
@@ -387,9 +390,11 @@ export async function enhanceItem(db: D1Database, userId: string, itemId: string
   const item = p.items.find((i) => i.id === itemId)
   if (!item) return { error: 'アイテムがありません' }
   if ((item.plus ?? 0) >= PLUS_MAX) return { error: `+${PLUS_MAX}が最大です` }
+  const base = baseOf(item)
+  const s1 = statsAt(base, (item.plus ?? 0) + 1)
   const up = db
-    .prepare('UPDATE items SET plus = plus + 1, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ?')
-    .bind(plusUp(item.atk), plusUp(item.hp), plusUp(item.crit), plusUp(item.heal), item.id, userId)
+    .prepare('UPDATE items SET plus = plus + 1, atk = ?, hp = ?, crit = ?, heal = ?, base_atk = ?, base_hp = ?, base_crit = ?, base_heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
+    .bind(s1.atk, s1.hp, s1.crit, s1.heal, base.atk, base.hp, base.crit, base.heal, item.id, userId, item.plus ?? 0)
   if (by === 'gold') {
     const price = enhanceGold(item.rarity, item.plus ?? 0)
     if (p.gold < price) return { error: 'ゴールドが足りません' }
@@ -410,15 +415,15 @@ export async function enhanceItem(db: D1Database, userId: string, itemId: string
   // 素材の強化段階を引き継ぐ (同じレア度のとき)。強化前の段階が変わっていなければ (同時に押していなければ) 反映
   const before = item.plus ?? 0
   const after = enhanceTo(item, material)
-  const steps = after - before
+  const s2 = statsAt(base, after)
   const r = await db.batch([
     db
-      .prepare('UPDATE items SET plus = ?, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
-      .bind(after, plusUpN(item.atk, steps), plusUpN(item.hp, steps), plusUpN(item.crit, steps), plusUpN(item.heal, steps), item.id, userId, before),
+      .prepare('UPDATE items SET plus = ?, atk = ?, hp = ?, crit = ?, heal = ?, base_atk = ?, base_hp = ?, base_crit = ?, base_heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
+      .bind(after, s2.atk, s2.hp, s2.crit, s2.heal, base.atk, base.hp, base.crit, base.heal, item.id, userId, before),
     db.prepare('DELETE FROM items WHERE id = ? AND user_id = ? AND changes() > 0').bind(material.id, userId),
   ])
   if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
-  return { player: await getPlayer(db, userId), plus: after, gained: steps }
+  return { player: await getPlayer(db, userId), plus: after, gained: after - before }
 }
 
 /**
@@ -432,11 +437,12 @@ export async function mergeAll(db: D1Database, userId: string) {
   const stmts: D1PreparedStatement[] = []
   for (const s of plan) {
     const t = s.target
-    const n = s.to - s.from
+    const tb = baseOf(t)
+    const ts = statsAt(tb, s.to)
     stmts.push(
       db
-        .prepare('UPDATE items SET plus = ?, atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
-        .bind(s.to, plusUpN(t.atk, n), plusUpN(t.hp, n), plusUpN(t.crit, n), plusUpN(t.heal, n), t.id, userId, s.from),
+        .prepare('UPDATE items SET plus = ?, atk = ?, hp = ?, crit = ?, heal = ?, base_atk = ?, base_hp = ?, base_crit = ?, base_heal = ? WHERE id = ? AND user_id = ? AND plus = ?')
+        .bind(s.to, ts.atk, ts.hp, ts.crit, ts.heal, tb.atk, tb.hp, tb.crit, tb.heal, t.id, userId, s.from),
     )
     for (const m of s.materials) {
       stmts.push(db.prepare('DELETE FROM items WHERE id = ? AND user_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND plus = ?)').bind(m.id, userId, t.id, s.to))
@@ -658,9 +664,9 @@ function insertItem(db: D1Database, userId: string, item: Omit<Item, 'id'>) {
     item: { id, ...item } as Item,
     stmt: db
       .prepare(
-        'INSERT INTO items (id, user_id, slot, name, icon, rarity, atk, hp, crit, heal, effect, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO items (id, user_id, slot, name, icon, rarity, atk, hp, crit, heal, effect, created_at, base_atk, base_hp, base_crit, base_heal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
-      .bind(id, userId, item.slot, item.name, item.icon, item.rarity, item.atk, item.hp, item.crit, item.heal, item.effect, Date.now()),
+      .bind(id, userId, item.slot, item.name, item.icon, item.rarity, item.atk, item.hp, item.crit, item.heal, item.effect, Date.now(), item.atk, item.hp, item.crit, item.heal),
   }
 }
 
