@@ -236,28 +236,6 @@
 .merge-to { flex: none; font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .merge-to b { color: var(--rc); font-size: 15px; }
 
-/* ---------- バトルの両者 ---------- */
-.battle-stage { height: 118px; }
-.fighters { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0 22px; }
-.fighter { position: relative; display: grid; place-items: center; width: 96px; height: 96px; }
-.fighter .foe-icon { font-size: 64px; line-height: 1; }
-.fighter.me.lunge { animation: lunge-r 0.32s ease; }
-.fighter.foe.lunge { animation: lunge-l 0.32s ease 0.16s; }
-.fighter.me.hurt { animation: hit 0.3s ease 0.2s; }
-.fighter.foe.hurt { animation: hit 0.3s ease 0.08s; }
-.fighter.me.lunge.hurt { animation: lunge-r 0.32s ease, hit 0.3s ease 0.32s; }
-.fighter.foe.lunge.hurt { animation: hit 0.3s ease 0.08s, lunge-l 0.32s ease 0.36s; }
-.fighter.down { animation: down 0.6s ease forwards; }
-@keyframes lunge-r { 40% { transform: translateX(26px) scale(1.06); } }
-@keyframes lunge-l { 40% { transform: translateX(-26px) scale(1.06); } }
-.vs { font-weight: 900; font-size: 13px; color: var(--ink-3); letter-spacing: 1px; }
-.emote {
-  position: absolute; z-index: 4; top: -10px; right: -2px; font-size: 20px; line-height: 1; padding: 4px 5px; border-radius: 12px 12px 12px 3px;
-  background: #fff; box-shadow: 0 2px 6px rgba(20, 28, 48, 0.2); animation: pop-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.4);
-}
-.fighter.foe .emote { right: auto; left: -2px; border-radius: 12px 12px 3px 12px; }
-.dmg.heal { left: 26% !important; }
-
 /* ---------- ターン制バトル ---------- */
 .battle-style { display: flex; align-items: center; gap: 6px; margin: 0 4px 10px; font-size: 12.5px; }
 .battle-style .muted { margin-right: 4px; }
@@ -270,7 +248,7 @@
 .tb-intent.danger { background: rgba(255, 77, 106, 0.12); color: #e03150; animation: flash-soft 0.9s ease-in-out infinite; }
 .tb-intent.calm { background: rgba(22, 199, 132, 0.12); color: #0f9d68; }
 @keyframes flash-soft { 50% { opacity: 0.65; } }
-.tb-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tb-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .tb-act {
   border: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 16px; padding: 8px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;
   background: rgba(255, 255, 255, 0.8); box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.08), 0 1px 2px rgba(20, 28, 48, 0.08);

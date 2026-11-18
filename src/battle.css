@@ -1,0 +1,285 @@
+/* ---------- バトルの舞台 (動画のような演出) ----------
+   動かすのは transform / opacity だけ。時間は --k (再生の速さの逆数) をかけて早送りできるようにする。
+   要素の中央合わせは margin で行う (transform はアニメーションで使うため) */
+.battle.big { max-width: 520px; padding-top: 0; }
+.scene {
+  --k: 1;
+  position: relative; height: 230px; margin: 0 -18px 12px; overflow: hidden; border-radius: 28px 28px 0 0;
+  container-type: inline-size; isolation: isolate; user-select: none;
+}
+.sc-sky, .sc-far, .sc-ground { position: absolute; inset: 0; pointer-events: none; }
+.sc-sky { background: var(--sky, linear-gradient(#8fd3ff, #d9f2ff 70%)); }
+.sc-far {
+  top: auto; height: 46%; bottom: 24%;
+  background:
+    radial-gradient(60% 90% at 18% 100%, var(--hill1, #8ad17a) 60%, transparent 61%),
+    radial-gradient(55% 80% at 70% 100%, var(--hill2, #6cbf6a) 60%, transparent 61%),
+    radial-gradient(40% 70% at 100% 100%, var(--hill1, #8ad17a) 60%, transparent 61%);
+  opacity: 0.9;
+}
+.sc-ground {
+  top: auto; height: 26%;
+  background: var(--ground, linear-gradient(#7fcf6b, #5fae55));
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.25);
+}
+.sc-cloud {
+  position: absolute; top: 14%; left: -30%; width: 90px; height: 26px; border-radius: 20px; pointer-events: none;
+  background: var(--cloud, rgba(255, 255, 255, 0.85)); box-shadow: 26px -10px 0 4px var(--cloud, rgba(255, 255, 255, 0.85));
+  animation: sc-drift 26s linear infinite;
+}
+.sc-cloud.c2 { top: 30%; width: 60px; height: 18px; animation-duration: 38s; animation-delay: -18s; opacity: 0.7; }
+@keyframes sc-drift { to { transform: translateX(170cqw); } }
+
+/* 背景の種類 */
+.th-forest { --sky: linear-gradient(#ffcf8f, #ffe9c7 70%); --hill1: #3f8f5a; --hill2: #2e7550; --ground: linear-gradient(#4f9a52, #3b7e41); }
+.th-desert { --sky: linear-gradient(#ffb36b, #ffe1a8 70%); --hill1: #f0c070; --hill2: #e0a85a; --ground: linear-gradient(#f2cf86, #ddb06a); --cloud: rgba(255, 245, 225, 0.7); }
+.th-night { --sky: linear-gradient(#1b2350, #3b3f7a 75%); --hill1: #2b3266; --hill2: #222851; --ground: linear-gradient(#2c3a5c, #1f2a45); --cloud: rgba(200, 210, 255, 0.18); }
+.th-volcano { --sky: linear-gradient(#4a1020, #c2412d 80%); --hill1: #5a1d1d; --hill2: #3d1414; --ground: linear-gradient(#5a2a20, #3a1a14); --cloud: rgba(60, 20, 20, 0.5); }
+.th-tower { --sky: linear-gradient(#20104a, #5a2d8c 80%); --hill1: #34206a; --hill2: #281850; --ground: linear-gradient(#3a2a6a, #251a48); --cloud: rgba(200, 170, 255, 0.18); }
+.th-event { --sky: linear-gradient(#ffb8d9, #fff0f7 75%); --hill1: #ff9ccc; --hill2: #f58bbf; --ground: linear-gradient(#ffc6e0, #f7a6cc); }
+.th-arena { --sky: linear-gradient(#a9c6ff, #e7efff 75%); --hill1: #c9b48a; --hill2: #b39c72; --ground: linear-gradient(#d9c08f, #c2a571); }
+/* 夜・塔・火山は星や火の粉をちらす */
+.th-night .sc-sky::after, .th-tower .sc-sky::after {
+  content: ''; position: absolute; width: 2px; height: 2px; border-radius: 50%; left: 10%; top: 12%; background: #fff;
+  box-shadow: 40px 20px #fff, 90px 6px #fff, 150px 30px #fffa, 210px 12px #fff, 260px 40px #fff9, 320px 8px #fff, 380px 26px #fffb, 30px 60px #fff8, 180px 70px #fff9, 300px 64px #fff8;
+  animation: sc-twinkle 2.4s ease-in-out infinite;
+}
+.th-volcano .sc-sky::after {
+  content: ''; position: absolute; width: 4px; height: 4px; border-radius: 50%; left: 20%; bottom: 20%; background: #ffb347;
+  box-shadow: 60px -10px #ff7b39, 140px -30px #ffb347, 220px -5px #ff7b39, 300px -40px #ffd166;
+  animation: sc-embers 3s linear infinite;
+}
+@keyframes sc-twinkle { 50% { opacity: 0.4; } }
+@keyframes sc-embers { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-120px); opacity: 0; } }
+
+/* カメラ (ゆれ・寄り) */
+.sc-cam { position: absolute; inset: 0; transform-origin: 70% 60%; }
+@keyframes sc-shake { 20% { transform: translate(-5px, 2px); } 40% { transform: translate(4px, -3px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, -1px); } }
+@keyframes sc-shake-big { 15% { transform: translate(-9px, 4px); } 30% { transform: translate(8px, -5px); } 45% { transform: translate(-6px, 3px); } 60% { transform: translate(5px, -2px); } 80% { transform: translate(-2px, 1px); } }
+@keyframes sc-zoom { 30%, 75% { transform: scale(1.1); } }
+
+/* 両者 */
+.sc-fighter { position: absolute; bottom: 18%; width: 96px; height: 96px; margin-left: -48px; display: grid; place-items: center; z-index: 2; }
+.sc-bob { position: relative; display: grid; place-items: center; animation: sc-bob 1.6s ease-in-out infinite; }
+.sc-fighter.foe .sc-bob { animation-delay: -0.8s; }
+.sc-fighter .av-img, .sc-fighter .av-text, .sc-fighter .av-skin { box-shadow: 0 0 0 3px #fff, 0 6px 14px rgba(0, 0, 0, 0.25); }
+.sc-foe-icon { font-size: 78px; line-height: 1; display: block; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, 0.25)); }
+.sc-shadow { position: absolute; bottom: -6px; left: 50%; width: 64px; height: 10px; margin-left: -32px; border-radius: 50%; background: rgba(0, 0, 0, 0.22); z-index: -1; }
+@keyframes sc-bob { 50% { transform: translateY(-4px); } }
+
+@keyframes sc-dash-r { 30% { transform: translateX(34cqw) scale(1.05); } 55% { transform: translateX(34cqw) scale(1.05); } }
+@keyframes sc-dash-l { 30%, 52% { transform: translateX(-34cqw) scale(1.06); } }
+@keyframes sc-dash-heavy { 20% { transform: translateX(6cqw) scale(1.2); } 42%, 60% { transform: translateX(-36cqw) scale(1.3); } }
+@keyframes sc-cast { 30% { transform: translateY(-10px) scale(1.08); } 60% { transform: translateX(4px); } }
+@keyframes sc-hop { 40% { transform: translateY(-14px); } }
+@keyframes sc-hurt { 15% { transform: translateX(-12px) rotate(-6deg); opacity: 0.5; } 35% { transform: translateX(-4px); opacity: 1; } 55% { transform: translateX(-8px); opacity: 0.6; } }
+@keyframes sc-hurt-big { 15% { transform: translateX(-26px) rotate(-14deg); opacity: 0.4; } 40% { transform: translateX(-10px) rotate(-4deg); opacity: 1; } 60% { transform: translateX(-16px); opacity: 0.5; } }
+@keyframes sc-dodge { 40% { transform: translate(-10px, -26px) rotate(-12deg); } }
+@keyframes sc-knock { 20% { transform: translateX(12px) rotate(6deg); opacity: 0.5; } 50% { transform: translateX(4px); opacity: 1; } }
+@keyframes sc-knock-big { 15% { transform: translateX(26px) rotate(14deg) scale(0.92); opacity: 0.4; } 45% { transform: translateX(10px) rotate(4deg); opacity: 1; } 65% { transform: translateX(16px); opacity: 0.6; } }
+@keyframes sc-swell { 50% { transform: scale(1.15); } }
+@keyframes sc-wobble { 20% { transform: rotate(-10deg); } 40% { transform: rotate(8deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(4deg); } }
+
+/* オーラ (攻撃アップ・守り・ため) */
+.sc-aura { position: absolute; inset: -14px; border-radius: 50%; z-index: -1; animation: sc-pulse 1.1s ease-in-out infinite; }
+.sc-aura.atk { background: radial-gradient(circle, rgba(255, 110, 60, 0.55), transparent 68%); }
+.sc-aura.guard { inset: -10px; background: radial-gradient(circle, transparent 55%, rgba(80, 160, 255, 0.45) 66%, transparent 72%); }
+.sc-aura.charge { inset: -22px; background: radial-gradient(circle, rgba(255, 40, 70, 0.6), transparent 66%); animation-duration: 0.6s; }
+@keyframes sc-pulse { 50% { transform: scale(1.15); opacity: 0.6; } }
+
+/* 決着 */
+.sc-fighter.down { animation: sc-down 0.8s ease forwards; }
+@keyframes sc-down { 30% { transform: translateY(-12px) rotate(-10deg); } to { transform: translateY(14px) rotate(-80deg) scale(0.85); opacity: 0.5; } }
+.sc-fighter.shatter { opacity: 0; transition: opacity 0.05s; }
+.sc-shards { position: absolute; bottom: calc(18% + 48px); width: 0; height: 0; z-index: 3; }
+.sc-shard { position: absolute; left: -39px; top: -40px; font-size: 78px; line-height: 1; animation: sc-fly 0.9s cubic-bezier(.2,.7,.3,1) forwards; }
+.sc-shard.s0 { clip-path: inset(0 50% 50% 0); --fx: -60px; --fy: -70px; --fr: -50deg; }
+.sc-shard.s1 { clip-path: inset(0 0 50% 50%); --fx: 70px; --fy: -60px; --fr: 60deg; }
+.sc-shard.s2 { clip-path: inset(50% 50% 0 0); --fx: -50px; --fy: 50px; --fr: -30deg; }
+.sc-shard.s3 { clip-path: inset(50% 0 0 50%); --fx: 60px; --fy: 60px; --fr: 40deg; }
+@keyframes sc-fly { 10% { transform: scale(1.1); } to { transform: translate(var(--fx), var(--fy)) rotate(var(--fr)) scale(0.6); opacity: 0; } }
+.sc-ko {
+  position: absolute; left: 50%; top: 30%; z-index: 6; margin-left: -120px; width: 240px; text-align: center;
+  font-size: 46px; font-weight: 900; font-style: italic; letter-spacing: 2px; color: #ffd43b;
+  text-shadow: 0 3px 0 #e8590c, 0 6px 14px rgba(0, 0, 0, 0.35); animation: sc-ko 0.6s cubic-bezier(.2,1.4,.4,1) both 0.25s;
+}
+.sc-ko.lose { color: #ced4da; text-shadow: 0 3px 0 #495057, 0 6px 14px rgba(0, 0, 0, 0.35); font-size: 36px; }
+@keyframes sc-ko { from { transform: scale(2.4) rotate(-8deg); opacity: 0; } }
+.scene.lost::after { content: ''; position: absolute; inset: 0; background: rgba(30, 30, 40, 0.35); z-index: 5; animation: sc-fade 0.8s ease both; }
+.scene.won::after { content: ''; position: absolute; inset: 0; background: #fff; z-index: 5; animation: sc-flash 0.5s ease both; pointer-events: none; }
+@keyframes sc-fade { from { opacity: 0; } }
+@keyframes sc-flash { from { opacity: 0.85; } to { opacity: 0; } }
+
+/* ---------- 技の演出 (どれも最初は見えず、delay のあとに 1 回だけ動く) ---------- */
+.fx-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.fx-layer > *, .fx-p { position: absolute; opacity: 0; animation-fill-mode: both; animation-timing-function: ease-out; }
+
+/* 斬撃: 三日月形の線がすばやく回る */
+.fx-slash {
+  top: 30%; width: 110px; height: 110px; margin-left: -55px; border-radius: 50%;
+  border-top: 5px solid #fff; border-right: 2px solid rgba(255, 255, 255, 0.5);
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9));
+  animation-name: fx-slash; animation-duration: calc(300ms * var(--k));
+}
+.fx-slash.rev { animation-name: fx-slash-rev; }
+.fx-slash.gold { border-top-color: #ffd43b; border-right-color: rgba(255, 212, 59, 0.5); filter: drop-shadow(0 0 8px #ffb703); width: 140px; height: 140px; margin-left: -70px; top: 24%; }
+.fx-slash.dark { border-top-color: #7b2cff; border-right-color: rgba(123, 44, 255, 0.5); filter: drop-shadow(0 0 8px #3b0a7a); }
+.fx-slash.venom { border-top-color: #9be15d; border-right-color: rgba(155, 225, 93, 0.5); filter: drop-shadow(0 0 6px #6a1b9a); }
+@keyframes fx-slash { from { opacity: 0; transform: rotate(-120deg) scale(0.7); } 25% { opacity: 1; } to { opacity: 0; transform: rotate(60deg) scale(1.1); } }
+@keyframes fx-slash-rev { from { opacity: 0; transform: scaleX(-1) rotate(-120deg) scale(0.7); } 25% { opacity: 1; } to { opacity: 0; transform: scaleX(-1) rotate(60deg) scale(1.1); } }
+
+/* 突き: 横に走る光 */
+.fx-stab {
+  top: 52%; width: 140px; height: 6px; margin-left: -120px; border-radius: 3px;
+  background: linear-gradient(90deg, transparent, #fff 70%, #ffd43b); box-shadow: 0 0 10px #fff;
+  animation-name: fx-stab; animation-duration: calc(260ms * var(--k));
+}
+@keyframes fx-stab { from { opacity: 0; transform: translateX(-40px) scaleX(0.3); } 30% { opacity: 1; } to { opacity: 0; transform: translateX(20px) scaleX(1); } }
+
+/* 衝撃の輪 */
+.fx-ring {
+  top: 58%; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 5px solid #fff;
+  animation-name: fx-ring; animation-duration: calc(420ms * var(--k));
+}
+.fx-ring.fire { border-color: #ff922b; }
+.fx-ring.red { border-color: #ff4d6a; }
+@keyframes fx-ring { 0% { opacity: 0; transform: scale(0.3); } 1% { opacity: 1; transform: scale(0.3); } to { opacity: 0; transform: scale(2.2); border-width: 1px; } }
+
+/* 飛び道具 (自分の位置から敵の位置まで飛ぶ) */
+.fx-ball {
+  left: 26%; top: 54%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%;
+  animation-name: fx-fly; animation-duration: calc(260ms * var(--k)); animation-timing-function: ease-in;
+}
+.fx-ball.fire { background: radial-gradient(circle at 40% 40%, #fff6, #ffd43b 30%, #ff6b1a 65%, transparent 70%); box-shadow: -14px 0 18px rgba(255, 120, 30, 0.7); }
+.fx-ball.ice { background: radial-gradient(circle at 40% 40%, #fff, #a5f3ff 40%, #3bc9db 65%, transparent 70%); box-shadow: -14px 0 18px rgba(80, 200, 255, 0.7); }
+@keyframes fx-fly { 0% { opacity: 0; transform: translateX(0) scale(0.6); } 1% { opacity: 1; transform: translateX(0) scale(0.6); } 90% { opacity: 1; } to { opacity: 0; transform: translateX(48cqw) scale(1.2); } }
+.fx-freeze {
+  top: 28%; width: 104px; height: 104px; margin-left: -52px; border-radius: 30%;
+  background: linear-gradient(135deg, rgba(200, 245, 255, 0.85), rgba(80, 190, 255, 0.45)); box-shadow: inset 0 0 0 2px #fff;
+  animation-name: fx-freeze; animation-duration: calc(700ms * var(--k));
+}
+@keyframes fx-freeze { from { opacity: 0; transform: scale(0.4) rotate(20deg); } 20%, 70% { opacity: 0.85; transform: scale(1) rotate(0); } to { opacity: 0; transform: scale(1.1); } }
+
+/* 光の柱 */
+.fx-pillar {
+  top: 0; width: 70px; height: 78%; margin-left: -35px; transform-origin: top;
+  background: linear-gradient(90deg, transparent, rgba(255, 245, 190, 0.95), transparent); box-shadow: 0 0 30px rgba(255, 230, 140, 0.8);
+  animation-name: fx-pillar; animation-duration: calc(560ms * var(--k));
+}
+@keyframes fx-pillar { from { opacity: 0; transform: scaleY(0); } 35% { opacity: 1; transform: scaleY(1); } to { opacity: 0; transform: scaleY(1) scaleX(0.2); } }
+
+/* 隕石 (右上から落ちる) */
+.fx-meteor { top: 50%; width: 0; height: 0; animation-name: fx-meteor; animation-duration: calc(320ms * var(--k)); animation-timing-function: ease-in; }
+.fx-meteor i {
+  position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #fff, #ffd43b 35%, #ff6b1a 70%); box-shadow: 18px -22px 18px 2px rgba(255, 140, 40, 0.55);
+}
+@keyframes fx-meteor { 0% { opacity: 0; transform: translate(90px, -150px) scale(0.6); } 1% { opacity: 1; transform: translate(90px, -150px) scale(0.6); } 90% { opacity: 1; } to { opacity: 0; transform: translate(0, 0) scale(1.2); } }
+
+/* 毒の泡・炎のオーラ・回復のきらめき (下から上へ) */
+.fx-bubble { top: 62%; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e9b8ff, #9c36b5); animation-name: fx-rise; animation-duration: calc(700ms * var(--k)); }
+.fx-flame { top: 66%; width: 14px; height: 22px; border-radius: 50% 50% 40% 40%; background: radial-gradient(circle at 50% 70%, #ffd43b, #ff6b1a 60%, transparent 72%); animation-name: fx-rise; animation-duration: calc(620ms * var(--k)); }
+.fx-sparkle { top: 66%; width: 10px; height: 10px; background: #b2f2bb; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation-name: fx-rise; animation-duration: calc(760ms * var(--k)); }
+@keyframes fx-rise { from { opacity: 0; transform: translateY(0) scale(0.6); } 25% { opacity: 1; } to { opacity: 0; transform: translateY(-70px) scale(1.1); } }
+.fx-glow { top: 30%; width: 120px; height: 120px; margin-left: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(180, 255, 200, 0.7), transparent 65%); animation-name: fx-glow; animation-duration: calc(700ms * var(--k)); }
+@keyframes fx-glow { from { opacity: 0; transform: scale(0.5); } 40% { opacity: 1; } to { opacity: 0; transform: scale(1.2); } }
+
+/* 守り (バリア) */
+.fx-barrier {
+  top: 32%; width: 110px; height: 110px; margin-left: -55px; border-radius: 50%;
+  background: radial-gradient(circle, transparent 55%, rgba(120, 200, 255, 0.55) 68%, rgba(255, 255, 255, 0.9) 71%, transparent 73%);
+  animation-name: fx-barrier; animation-duration: calc(1000ms * var(--k));
+}
+@keyframes fx-barrier { from { opacity: 0; transform: scale(0.5); } 20%, 80% { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.15); } }
+
+/* 敵: 力をためる・ひるむ・強攻撃 */
+.fx-charge { top: 26%; width: 120px; height: 120px; margin-left: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 50, 80, 0.6), transparent 65%); animation-name: fx-glow; animation-duration: calc(800ms * var(--k)); }
+.fx-stars { top: 16%; margin-left: -14px; font-size: 28px; animation-name: fx-stars; animation-duration: calc(800ms * var(--k)); }
+@keyframes fx-stars { from { opacity: 0; transform: rotate(0) scale(0.5); } 30%, 80% { opacity: 1; } to { opacity: 0; transform: rotate(360deg) scale(1); } }
+.fx-redflash { inset: 0; background: radial-gradient(circle at 26% 60%, rgba(255, 60, 80, 0.55), transparent 70%); animation-name: sc-flash-red; animation-duration: calc(380ms * var(--k)); }
+.fx-dark { inset: 0; background: rgba(20, 0, 40, 0.55); animation-name: fx-dark; animation-duration: calc(700ms * var(--k)); }
+@keyframes sc-flash-red { 0% { opacity: 0; } 1% { opacity: 1; } to { opacity: 0; } }
+@keyframes fx-dark { 20%, 70% { opacity: 1; } from, to { opacity: 0; } }
+
+/* 飛び散る粒 */
+.fx-p { width: 7px; height: 7px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fff; animation-name: fx-burst; animation-duration: calc(480ms * var(--k)); }
+.fx-p.gold { background: #ffd43b; }
+.fx-p.red { background: #ff6b81; }
+.fx-p.ember { background: #ff922b; width: 8px; height: 8px; }
+.fx-p.shard { background: #a5f3ff; border-radius: 2px; }
+@keyframes fx-burst { 0% { opacity: 0; transform: translate(0, 0) scale(1); } 1% { opacity: 1; transform: translate(0, 0) scale(1); } to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); } }
+
+/* カットイン (必殺技) */
+.fx-cutin { inset: 0; z-index: 8; background: rgba(10, 10, 30, 0.45); animation-name: fx-cutin-bg; animation-duration: calc(800ms * var(--k)); }
+.fx-cutin-band {
+  position: absolute; left: -10%; right: -10%; top: 34%; height: 64px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  transform: skewY(-6deg);
+  background: repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.12) 0 6px, transparent 6px 22px), linear-gradient(90deg, #ff922b, #e8467c, #7b2cff);
+  box-shadow: 0 0 0 3px #fff, 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation-name: fx-band; animation-duration: calc(800ms * var(--k)); animation-timing-function: cubic-bezier(.2,.8,.2,1);
+  animation-fill-mode: both; animation-delay: inherit;
+}
+.fx-cutin-icon { font-size: 40px; line-height: 1; }
+.fx-cutin-name { font-size: 26px; font-weight: 900; font-style: italic; color: #fff; letter-spacing: 2px; text-shadow: 0 3px 0 rgba(0, 0, 0, 0.3); }
+@keyframes fx-cutin-bg { 0% { opacity: 0; } 15%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes fx-band { 0% { transform: skewY(-6deg) translateX(-110%); } 20%, 75% { transform: skewY(-6deg) translateX(0); } 100% { transform: skewY(-6deg) translateX(110%); } }
+
+/* わざの名前 */
+.fx-techname {
+  left: 50%; top: 8px; width: 200px; margin-left: -100px; text-align: center; font-size: 14px; font-weight: 900; color: #fff;
+  padding: 4px 0; border-radius: 12px; background: rgba(20, 28, 48, 0.55);
+  animation-name: fx-tag; animation-duration: calc(900ms * var(--k));
+}
+@keyframes fx-tag { from { opacity: 0; transform: translateY(-10px); } 15%, 80% { opacity: 1; transform: translateY(0); } to { opacity: 0; } }
+
+/* 数字 (ダメージ・回復) */
+.fx-num {
+  margin-left: -40px; width: 80px; text-align: center; display: flex; flex-direction: column; align-items: center; line-height: 1;
+  font-weight: 900; font-size: 24px; color: #fff; text-shadow: 0 2px 0 rgba(20, 28, 48, 0.55), 0 0 6px rgba(20, 28, 48, 0.45);
+  animation-name: fx-num; animation-duration: calc(900ms * var(--k)); animation-timing-function: cubic-bezier(.2,.8,.3,1);
+}
+.fx-num small { font-size: 11px; color: #ffd43b; }
+.fx-num.crit { font-size: 34px; color: #ffd43b; text-shadow: 0 3px 0 #e8590c, 0 0 10px rgba(255, 150, 0, 0.6); }
+.fx-num.taken { color: #ff6b81; font-size: 22px; }
+.fx-num.heal { color: #69db7c; font-size: 18px; }
+.fx-num.dot { color: #da77f2; font-size: 17px; }
+@keyframes fx-num { from { opacity: 0; transform: translateY(10px) scale(0.4); } 18% { opacity: 1; transform: translateY(-4px) scale(1.25); } 30% { transform: translateY(0) scale(1); } 80% { opacity: 1; } to { opacity: 0; transform: translateY(-22px); } }
+
+/* 真ん中に出る言葉 */
+.fx-call {
+  left: 50%; top: 22%; width: 200px; margin-left: -100px; text-align: center; font-size: 26px; font-weight: 900; font-style: italic; color: #fff;
+  text-shadow: 0 3px 0 rgba(20, 28, 48, 0.4), 0 0 10px rgba(20, 28, 48, 0.3); z-index: 7;
+  animation-name: fx-call; animation-duration: calc(800ms * var(--k));
+}
+.fx-call.yellow { color: #ffd43b; }
+.fx-call.red { color: #ff6b81; }
+.fx-call.blue { color: #74c0fc; }
+.fx-call.green { color: #8ce99a; }
+@keyframes fx-call { from { opacity: 0; transform: scale(1.8); } 20% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } to { opacity: 0; transform: translateY(-10px); } }
+
+/* 早送り・ステータス */
+.battle-tools { display: flex; justify-content: center; gap: 4px; }
+.speed-btn { border: 0; font: inherit; font-size: 12px; font-weight: 800; padding: 6px 12px; border-radius: 12px; background: rgba(20, 28, 48, 0.06); color: var(--ink-2); cursor: pointer; }
+.tb-status { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 20px; margin: 2px 0; }
+.tb-status span { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 10px; background: rgba(20, 28, 48, 0.06); color: var(--ink-2); }
+.tb-status span.up { background: rgba(255, 120, 60, 0.14); color: #e8590c; }
+.tb-status span.def { background: rgba(80, 160, 255, 0.14); color: #1c7ed6; }
+.tb-status span.foe { background: rgba(156, 54, 181, 0.13); color: #9c36b5; }
+
+/* HP バー: 少し遅れて減る白い影 */
+.hp-track { position: relative; }
+.hp-track .ghost { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.85) !important; transition: transform calc(600ms * var(--k, 1)) ease 0.35s; }
+.hp-track .bar { position: relative; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-cam, .sc-cloud, .sc-bob, .fx-p, .sc-aura, .th-night .sc-sky::after, .th-tower .sc-sky::after, .th-volcano .sc-sky::after { animation: none !important; }
+}
+
+/* ターン制のボタン */
+.tb-act b { font-size: 11.5px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.tb-act.tech:not(:disabled) { background: linear-gradient(135deg, rgba(166, 91, 255, 0.1), rgba(255, 95, 162, 0.1)); box-shadow: inset 0 0 0 1.5px rgba(166, 91, 255, 0.55); }
+.tb-act.tech.cool small { color: var(--ink-3); }
+.tb-act.tech:not(:disabled) small { color: #9c36b5; font-weight: 800; }
+.tb-act:not(:disabled) .tb-icon { animation: tb-ready 2.4s ease-in-out infinite; }
+.tb-act.skill.ready .tb-icon { animation-duration: 0.9s; }
+@keyframes tb-ready { 50% { transform: translateY(-2px) scale(1.06); } }

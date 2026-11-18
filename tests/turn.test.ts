@@ -61,3 +61,52 @@ describe('ターン制バトル', () => {
     expect(canAct(s, 'attack')).toBeTruthy()
   })
 })
+
+describe('職業のわざ', () => {
+  const withJob = (techs: string[], special?: string): BattleStats => ({ ...p, job: { ...BASE_JOBS[1], techs, special } })
+  it('職業にないわざ・待ち時間中のわざは使えない', () => {
+    const q = withJob(['twin'])
+    const s0 = turnBattle(q, enemy, 5, [])
+    expect(canAct(s0, 'twin')).toBeNull()
+    expect(canAct(s0, 'ice')).toBeTruthy()
+    const s1 = turnBattle(q, enemy, 5, ['twin'])
+    expect(s1.turns[0].tech).toBe('twin')
+    expect(s1.turns[0].hits.length).toBe(2)
+    expect(canAct(s1, 'twin')).toBe('あと1ターンで使えます')
+    const s2 = turnBattle(q, enemy, 5, ['twin', 'attack'])
+    expect(canAct(s2, 'twin')).toBeNull()
+    // 使えないわざは「たたかう」になる
+    expect(turnBattle(q, enemy, 5, ['ice']).turns[0].action).toBe('attack')
+  })
+  it('必殺技は職業ごと。回復つきの必殺技は体力も戻る', () => {
+    const q = withJob([], 'bless')
+    const s = turnBattle(q, enemy, 1, ['guard', 'guard', 'guard', 'guard', 'skill'])
+    expect(s.special).toBe('bless')
+    expect(s.turns[4].tech).toBe('bless')
+    expect(s.turns[4].fx).toBe('pray')
+    expect(turnBattle({ ...p, job: { ...BASE_JOBS[1], special: undefined } }, enemy, 1, []).special).toBe('basic')
+  })
+  it('毒は数ターン続けてダメージ。攻撃アップは次のターンから', () => {
+    const q = withJob(['venom', 'rage'])
+    const s = turnBattle(q, enemy, 3, ['venom', 'attack', 'attack'])
+    expect(s.done).toBe(false)
+    expect(s.turns.filter((t) => (t.dot ?? 0) > 0).length).toBe(3)
+    const r = turnBattle(q, enemy, 3, ['rage'])
+    expect(r.status.atk).toBe(3)
+  })
+  it('止めるわざ: 攻撃とためは止められるが、強攻撃は止められない。ためを崩すと次はふつうの攻撃', () => {
+    const q = withJob(['ice'])
+    const sc = [...Array(300).keys()].find((x) => enemyMoves(x)[1] === 'charge')!
+    // 60% なので、止まった seed を探す
+    let found = false
+    for (let k = 0; k < 50 && !found; k++) {
+      const s = turnBattle(q, enemy, sc + k * 1000, ['attack', 'ice', 'attack'])
+      if (enemyMoves(sc + k * 1000)[1] !== 'charge' || !s.turns[1].stunned) continue
+      found = true
+      expect(s.turns[2].enemyMove).toBe('attack')
+    }
+    expect(found).toBe(true)
+    const sh = [...Array(300).keys()].find((x) => enemyMoves(x)[2] === 'heavy')!
+    for (let k = 0; k < 20; k++) expect(turnBattle(q, enemy, sh, ['attack', 'attack', 'ice']).turns[2].stunned).toBeFalsy()
+  })
+})

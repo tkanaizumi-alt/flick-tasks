@@ -196,6 +196,33 @@ async function run(label, viewport) {
     return note.includes('練習試合')
   })
 
+  await step('ターン制バトル: わざを使うと演出のあとに次の行動を選べる', async () => {
+    // 続きのバトルがあれば終わらせずにそのまま使う。なければステージのボスで始める (回数を 1 使う)
+    await page.evaluate(() => localStorage.setItem('flick.battle.style', JSON.stringify('turn')))
+    await page.reload()
+    await dismiss()
+    await page.getByTestId('nav-game').click()
+    await page.getByTestId('adv-battle').click()
+    const resume = page.getByTestId('turn-resume')
+    if (await resume.count()) await resume.click()
+    else await page.getByTestId('fight').click()
+    await page.getByTestId('turn-battle').waitFor()
+    const scene = await page.locator('.scene').count()
+    const tech = page.locator('.tb-act.tech').first()
+    let used = false
+    if ((await tech.count()) && (await tech.isEnabled())) {
+      await tech.click()
+      // 演出中は押せない → 終わると押せる
+      const locked = await page.getByTestId('tb-attack').isDisabled()
+      await page.waitForFunction(() => !document.querySelector('[data-testid=tb-attack]')?.hasAttribute('disabled') || !!document.querySelector('[data-testid=battle-result]'), null, { timeout: 8000 })
+      used = locked && (await page.getByTestId('tb-log').innerText()).includes('ターン')
+    } else used = true
+    await page.getByTestId('tb-later').click().catch(() => page.getByTestId('battle-close').click())
+    await page.getByTestId('turn-battle').waitFor({ state: 'detached' })
+    await page.evaluate(() => localStorage.setItem('flick.battle.style', JSON.stringify('auto')))
+    return scene === 1 && used
+  })
+
   await step('地図から過去のボスを選んで再戦', async () => {
     const st = await (await page.request.get(`${base}/api/rematch`)).json()
     const picks = page.getByTestId('rematch-pick')

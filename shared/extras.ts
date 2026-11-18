@@ -1,5 +1,5 @@
 /** レイドボス・ペット・ショップ・季節イベント・負けたときのアドバイス */
-import { GEAR_SETS, MAX_TURNS, bossGold, enemyForStage, type BattleResult, type Enemy, type Item, type Rarity, type Slot } from './game'
+import { GEAR_SETS, MAX_TURNS, bossGold, enemyForStage, gearPower, type BattleResult, type Enemy, type Item, type Rarity, type Slot } from './game'
 import type { AchievementStats } from './achievements'
 
 const DAY = 86400000
@@ -106,6 +106,41 @@ export const PLUS_MAX = 10
 export const plusUp = (v: number) => (v > 0 ? v + Math.max(1, Math.round(v * 0.1)) : 0)
 /** n 段階ぶん強化したステータス */
 export const plusUpN = (v: number, n: number) => Array.from({ length: Math.max(0, n) }).reduce<number>((x) => plusUp(x), v)
+
+// ---------- 装備の打ち直し (手に入れたときのステージで決まった強さを、今のステージの水準に上げ直す) ----------
+/** 打ち直しの値段 (レア度ごと) */
+export const REFORGE_GOLD: Record<Rarity, number> = { N: 50, R: 100, SR: 250, SSR: 600, UR: 1200 }
+type GearStats = Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>
+/**
+ * 打ち直したあとのステータス。その部位・レア度で stage の宝箱から出る装備の平均の強さに、強化段階のぶんを足したもの。
+ * もともと付いていないステータスは付けない。今より下がるステータスはそのまま (下がることはない)
+ */
+export function reforgeStats(item: Pick<Item, 'slot' | 'rarity' | 'plus'> & GearStats, stage: number): GearStats {
+  const p = gearPower(item.rarity, stage)
+  const std: GearStats = { atk: 0, hp: 0, crit: 0, heal: 0 }
+  if (item.slot === 'weapon') {
+    std.atk = 2.2 * p
+    if (item.crit > 0) std.crit = 1 + 0.8 * p
+  } else if (item.slot === 'head') {
+    std.hp = 5 * p
+    std.crit = 1 + p
+  } else if (item.slot === 'body') {
+    std.hp = 12 * p
+    if (item.heal > 0) std.heal = p
+  } else {
+    std.atk = 0.9 * p
+    std.hp = 4 * p
+    if (item.heal > 0) std.heal = 0.6 * p
+  }
+  const out = { ...std }
+  for (const k of ['atk', 'hp', 'crit', 'heal'] as const) out[k] = Math.max(item[k], std[k] > 0 ? plusUpN(Math.round(std[k]), item.plus ?? 0) : 0)
+  return out
+}
+/** 打ち直すと強くなるか */
+export const canReforge = (item: Parameters<typeof reforgeStats>[0], stage: number) => {
+  const n = reforgeStats(item, stage)
+  return (['atk', 'hp', 'crit', 'heal'] as const).some((k) => n[k] > item[k])
+}
 /**
  * 素材を使った強化のあとの段階。同じレア度の素材は強化段階を引き継ぐ (+2 の素材なら 1 + 2 = 3 段階上がる)。
  * 1 つ下のレア度の +10 は 1 段階。上限 +10

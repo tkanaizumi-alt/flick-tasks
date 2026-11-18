@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { EFFECTS, RARITY_ORDER, RARITY_SELL, REROLL_GOLD, SET_NEED, SLOTS, setEffectLabel, setOf, type Item } from '../../shared/game'
-import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity, type MergeStep } from '../../shared/extras'
+import { effectLabel, RARITY_ORDER, RARITY_SELL, REROLL_GOLD, SET_NEED, SLOTS, setEffectLabel, setOf, type Item } from '../../shared/game'
+import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity, type MergeStep, REFORGE_GOLD, reforgeStats } from '../../shared/extras'
 import { GearIcon } from './GearIcon'
 
 const slotLabel = (i: Pick<Item, 'slot'>) => SLOTS.find((s) => s.key === i.slot)?.label ?? ''
@@ -67,7 +67,7 @@ export function ChestReveal({ item, onClose }: { item: Item; onClose: () => void
             <div className="reveal-name">{item.name}</div>
             <div className="reveal-slot">{slotLabel(item)}</div>
             <div className="reveal-stats">{statText(item)}</div>
-            {item.effect && <div className="reveal-fx">✦ {EFFECTS[item.effect]}</div>}
+            {item.effect && <div className="reveal-fx">✦ {effectLabel(item.effect, item.rarity)}</div>}
             <button className="pill-btn primary" onClick={onClose} data-testid="reveal-close">
               OK
             </button>
@@ -208,10 +208,18 @@ interface SheetProps {
   onEnhance: (by: 'item' | 'gold', material?: string) => void
   /** ✦ 特殊効果の付け直し */
   onReroll: () => void
+  /** 打ち直し (今のステージの強さに上げ直す) */
+  stage: number
+  onReforge: () => void
 }
 
+const STAT_NAME = { atk: '攻撃', hp: '体力', crit: '会心', heal: '回復' } as const
+
 /** アイテムの詳細と 装備 / 外す / 売る */
-export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, gold, onEnhance, onReroll }: SheetProps) {
+export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onSell, materials, gold, onEnhance, onReroll, stage, onReforge }: SheetProps) {
+  const reforged = reforgeStats(item, stage)
+  const gains = (['atk', 'hp', 'crit', 'heal'] as const).filter((k) => reforged[k] > item[k])
+  const reforgeCost = REFORGE_GOLD[item.rarity]
   const series = setOf(item.name)
   const rerollCost = REROLL_GOLD[item.rarity]
   const maxed = (item.plus ?? 0) >= PLUS_MAX
@@ -253,7 +261,7 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
               const d = diff(k)
               return (
                 <li key={k}>
-                  <span>{{ atk: '攻撃', hp: '体力', crit: '会心', heal: '回復' }[k]}</span>
+                  <span>{STAT_NAME[k]}</span>
                   <b>+{item[k]}</b>
                   {!equipped && current && d !== 0 && <em className={d > 0 ? 'up' : 'down'}>{d > 0 ? `▲${d}` : `▼${-d}`}</em>}
                 </li>
@@ -262,9 +270,19 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
         </ul>
         {item.effect && (
           <div className="is-fx-row">
-            <p className="is-fx">✦ {EFFECTS[item.effect]}</p>
+            <p className="is-fx">✦ {effectLabel(item.effect, item.rarity)}</p>
             <button className="pill-btn ghost small" disabled={busy || gold < rerollCost} onClick={onReroll} data-testid="reroll" title="今と違う効果にランダムで付け直します">
               🔄 💰{rerollCost}で付け直す
+            </button>
+          </div>
+        )}
+        {gains.length > 0 && (
+          <div className="is-fx-row reforge-row" data-testid="reforge-row">
+            <p className="is-fx">
+              🔨 打ち直すと今のステージの強さに（{gains.map((k) => `${STAT_NAME[k]} ${item[k]}→${reforged[k]}`).join('・')}）
+            </p>
+            <button className="pill-btn ghost small" disabled={busy || gold < reforgeCost} onClick={onReforge} data-testid="reforge" title="レア度・強化段階・✦効果はそのままで、元の強さだけ上げ直します">
+              🔨 💰{reforgeCost}で打ち直す
             </button>
           </div>
         )}

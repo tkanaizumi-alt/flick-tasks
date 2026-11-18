@@ -137,3 +137,50 @@ describe('新しい実績', () => {
     for (const id of ['ontime10', 'ontime50', 'rescue3', 'rescue20', 'coop1', 'coop10', 'set1', 'pet3', 'codex50', 'codex100']) expect(ACHIEVEMENT_MAP[id], id).toBeTruthy()
   })
 })
+
+describe('✦ 効果はレア度で強くなる', () => {
+  it('SR < SSR < UR。N・R とスキルは SR と同じ', async () => {
+    const { EFFECT_VALUES, effectValue, effectLabel, effectValues, BASE_JOBS } = await import('../shared/game')
+    for (const [id, v] of Object.entries(EFFECT_VALUES)) {
+      expect(v.SR).toBeLessThan(v.SSR)
+      expect(v.SSR).toBeLessThan(v.UR)
+      expect(effectValue(id, 'N')).toBe(v.SR)
+      expect(effectValue(id)).toBe(v.SR)
+    }
+    expect(effectLabel('wall', 'UR')).toBe('鉄壁: 受けるダメージ-30%')
+    expect(effectLabel('first', 'SSR')).toBe('先制: 1ターン目の攻撃×2.5')
+    // スキルの鉄壁 (SR 相当) と UR の鉄壁が重なったら強い方
+    const w = item('覇王の鎧', 'body', { effect: 'wall', rarity: 'UR' })
+    const fx = effectValues({ stats: { atk: 0, hp: 0, crit: 0, heal: 0 }, skills: ['wall'], job: BASE_JOBS[0], items: [w], equipped: { body: w.id } } as never)
+    expect(fx.wall).toBe(0.3)
+  })
+  it('XP・ゴールドの ✦ もレア度の分だけ上がる', () => {
+    const base = { weight: 'M' as const, createdAt: 0, now: 10 * 60 * 1000, doneToday: 1, doneYesterday: false, source: 'manual', skills: [] }
+    const sr = computeXp({ ...base, effects: { xpup: 0.1, goldup: 0.2 } })
+    const ur = computeXp({ ...base, effects: { xpup: 0.15, goldup: 0.3 } })
+    expect(ur.amount).toBeGreaterThan(sr.amount)
+    expect(ur.gold).toBeGreaterThan(sr.gold)
+    expect(ur.bonuses).toContain('装備 XP+15%')
+  })
+})
+
+describe('装備の打ち直し', () => {
+  it('昔の UR を今のステージの強さに上げ直す。下がるステータスはない', async () => {
+    const { reforgeStats, canReforge } = await import('../shared/extras')
+    const { rollItem } = await import('../shared/game')
+    const old = { ...rollItem(1, 26, 'UR', 'body'), plus: 0 }
+    const now = reforgeStats(old, 43)
+    expect(now.hp).toBeGreaterThan(old.hp)
+    expect(now.atk).toBe(0) // 付いていないステータスは付けない
+    // 同じステージなら UR+0 は SR+6 より強く、UR+3 で SR+10 を超える
+    const sr = (plus: number) => reforgeStats({ ...rollItem(2, 43, 'SR', 'body'), plus, hp: 0, heal: 0 }, 43).hp
+    expect(now.hp).toBeGreaterThan(sr(6))
+    expect(reforgeStats({ ...old, plus: 3 }, 43).hp).toBeGreaterThan(sr(10))
+    // 強化段階のぶんも上がる
+    expect(reforgeStats({ ...old, plus: 5 }, 43).hp).toBeGreaterThan(now.hp)
+    // もう今の強さなら打ち直せない。ステージが同じでも平均より上振れしたものは下げない
+    expect(canReforge({ ...old, ...now }, 43)).toBe(false)
+    const lucky = { ...old, hp: 99999 }
+    expect(reforgeStats(lucky, 43).hp).toBe(99999)
+  })
+})

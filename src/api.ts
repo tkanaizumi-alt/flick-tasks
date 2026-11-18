@@ -46,6 +46,7 @@ export const api = {
   player: () => req<{ player: PlayerState; stats?: AchievementStats; unlocked?: AchievementDef[] }>('/api/player'),
   setPet: (pet: string | null) => req<{ player: PlayerState }>('/api/player/pet', { method: 'POST', json: { pet } }),
   mergeAll: () => req<{ player: PlayerState; merged: number; used: number }>('/api/items/merge-all', { method: 'POST', json: {} }),
+  reforge: (id: string) => req<{ player: PlayerState }>(`/api/items/${id}/reforge`, { method: 'POST', json: {} }),
   reroll: (id: string) => req<{ player: PlayerState; effect: string }>(`/api/items/${id}/reroll`, { method: 'POST', json: {} }),
   evolvePet: (id: string) => req<{ player: PlayerState; level: number }>(`/api/pets/${id}/evolve`, { method: 'POST', json: {} }),
   codex: () => req<{ names: string[]; claimed: number }>('/api/codex'),

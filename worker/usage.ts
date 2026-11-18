@@ -32,6 +32,7 @@ const ROUTES: [string, RegExp, string][] = [
   ['POST', /^\/items\/[^/]+\/enhance$/, 'enhance'],
   ['POST', /^\/items\/merge-all$/, 'merge_all'],
   ['POST', /^\/items\/[^/]+\/reroll$/, 'reroll'],
+  ['POST', /^\/items\/[^/]+\/reforge$/, 'reforge'],
   ['POST', /^\/pets\/[^/]+\/evolve$/, 'pet_evolve'],
   ['POST', /^\/codex\/claim$/, 'codex'],
   ['POST', /^\/coop\/claim$/, 'coop'],

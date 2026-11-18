@@ -1,5 +1,5 @@
 /** 冒険 (ミニゲーム) */
-import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, mergeAll, buyShop, buySkin, evolvePet, rerollItem } from '../game'
+import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, mergeAll, buyShop, buySkin, evolvePet, rerollItem, reforgeItem } from '../game'
 import { claimCodex, claimCoop, codexState, coopState } from '../coop'
 import { activeTurn, actTurn, startTurn, type TurnKind } from '../turn'
 import type { TurnAction } from '../../shared/turn'
@@ -74,6 +74,11 @@ game.post('/player/pet', async (c) => {
 /** 持ち物の一括合成 (:id のルートより先に置く) */
 game.post('/items/merge-all', async (c) => {
   const r = await mergeAll(c.env.DB, c.get('user').id)
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+
+game.post('/items/:id/reforge', async (c) => {
+  const r = await reforgeItem(c.env.DB, c.get('user').id, c.req.param('id'))
   return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
 })
 

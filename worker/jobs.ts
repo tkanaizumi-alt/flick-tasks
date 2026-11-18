@@ -6,6 +6,15 @@ export const JOB_UNLOCK_LEVEL = 10
 
 type LockedJob = JobDef & { requires: string[] }
 
+/** 上位職ごとの [わざ1, わざ2, 必殺技] (ターン制バトル) */
+const FAMILY: Record<string, [string, string, string]> = {
+  blademaster: ['twin', 'rage', 'sword'],
+  paladin: ['bash', 'fort', 'aegis'],
+  assassin: ['stab', 'venom', 'shadow'],
+  saint: ['pray', 'smite', 'bless'],
+  archmage: ['fire', 'ice', 'meteor'],
+}
+
 /** 上位職: 基本職を Lv10 まで育てると現れる */
 export const ADVANCED_JOBS: (LockedJob & { from: string })[] = [
   { id: 'blademaster', from: 'warrior', name: '剣聖', icon: '⚡', desc: '攻撃・体力・会心すべてが高い', tier: 2, atk: 1.4, hp: 1.25, crit: 10, heal: 1, healAdd: 0, guard: 1, critDmg: 0.3 },
@@ -13,7 +22,7 @@ export const ADVANCED_JOBS: (LockedJob & { from: string })[] = [
   { id: 'assassin', from: 'thief', name: 'アサシン', icon: '🌙', desc: '会心率+30%、会心ダメージ+90%', tier: 2, atk: 1.4, hp: 1.15, crit: 30, heal: 1, healAdd: 0, guard: 1, critDmg: 0.9 },
   { id: 'saint', from: 'cleric', name: '聖女', icon: '👑', desc: '圧倒的な回復力で倒れない', tier: 2, atk: 1.15, hp: 1.3, crit: 0, heal: 1.6, healAdd: 5, guard: 0.9, critDmg: 0 },
   { id: 'archmage', from: 'mage', name: '大賢者', icon: '🔮', desc: '全職業で最高の攻撃力', tier: 2, atk: 2, hp: 1.05, crit: 12, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
-].map((j) => ({ ...j, tier: 2 as const, requires: [j.from] }))
+].map((j) => ({ ...j, tier: 2 as const, requires: [j.from], techs: FAMILY[j.id].slice(0, 2), special: FAMILY[j.id][2] }))
 
 /**
  * 複合職 (隠し職業): 上位職を 2 つ Lv10 まで育てると現れる。職業そのものが戦闘効果を 1 つ持つ。
@@ -32,6 +41,17 @@ export const SECRET_JOBS: LockedJob[] = [
   { id: 'sorcerer', requires: ['saint', 'archmage'], name: '大魔導師', icon: '🌌', desc: '1度だけHP50%で復活。攻撃と回復の両方が高い', tier: 3, atk: 1.5, hp: 1.15, crit: 10, heal: 1.4, healAdd: 3, guard: 1, critDmg: 0, effects: ['phoenix'] },
   { id: 'hero', requires: ['blademaster', 'paladin', 'assassin', 'saint', 'archmage'], name: '勇者', icon: '🌠', desc: 'すべての道を極めた者。先制し、毎ターン回復する', tier: 3, atk: 1.55, hp: 1.4, crit: 12, heal: 1.15, healAdd: 3, guard: 0.88, critDmg: 0.3, effects: ['first', 'regen'] },
 ]
+
+// 複合職のわざ: もとになった上位職の 2 つめのわざを 1 つずつ (勇者だけは専用)。必殺技は 1 つめの上位職のもの
+for (const s of SECRET_JOBS) {
+  if (s.id === 'hero') {
+    s.techs = ['brave', 'fort']
+    s.special = 'hero'
+  } else {
+    s.techs = s.requires.map((r) => FAMILY[r][1])
+    s.special = FAMILY[s.requires[0]][2]
+  }
+}
 
 const LOCKED_JOBS: LockedJob[] = [...ADVANCED_JOBS, ...SECRET_JOBS]
 export const ALL_JOBS: JobDef[] = [...BASE_JOBS, ...LOCKED_JOBS]

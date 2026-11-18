@@ -38,6 +38,9 @@ export interface JobDef {
   critDmg: number // 会心ダメージ倍率 (加算)
   /** 職業そのものが持つ戦闘効果 (装備の効果・スキルと同じ ID)。複合職だけが持つ */
   effects?: string[]
+  /** ターン制バトルで使えるわざ (shared/turn.ts の TECHS) と必殺技 (SPECIALS) */
+  techs?: string[]
+  special?: string
 }
 
 export interface JobProgress {
@@ -114,11 +117,11 @@ export type BattleStats = Pick<PlayerState, 'stats' | 'skills'> &
 
 // ---------- 冒険職 (基本職) ----------
 export const BASE_JOBS: JobDef[] = [
-  { id: 'warrior', name: '戦士', icon: '⚔️', desc: '攻撃と体力のバランスが良い', tier: 1, atk: 1.2, hp: 1.1, crit: 0, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
-  { id: 'knight', name: '騎士', icon: '🛡️', desc: '体力が高く、受けるダメージ-12%', tier: 1, atk: 1.1, hp: 1.3, crit: 0, heal: 1, healAdd: 0, guard: 0.88, critDmg: 0 },
-  { id: 'thief', name: '盗賊', icon: '🗡️', desc: '会心率+18%、会心ダメージ+40%', tier: 1, atk: 1.15, hp: 1.05, crit: 18, heal: 1, healAdd: 0, guard: 1, critDmg: 0.4 },
-  { id: 'cleric', name: '僧侶', icon: '✨', desc: '毎ターンの回復が大きい', tier: 1, atk: 1.05, hp: 1.15, crit: 0, heal: 1.45, healAdd: 4, guard: 1, critDmg: 0 },
-  { id: 'mage', name: '魔法使い', icon: '🪄', desc: '攻撃力がとても高いが打たれ弱い', tier: 1, atk: 1.55, hp: 0.8, crit: 8, heal: 1, healAdd: 0, guard: 1, critDmg: 0 },
+  { id: 'warrior', name: '戦士', icon: '⚔️', desc: '攻撃と体力のバランスが良い', tier: 1, atk: 1.2, hp: 1.1, crit: 0, heal: 1, healAdd: 0, guard: 1, critDmg: 0, techs: ['twin'], special: 'sword' },
+  { id: 'knight', name: '騎士', icon: '🛡️', desc: '体力が高く、受けるダメージ-12%', tier: 1, atk: 1.1, hp: 1.3, crit: 0, heal: 1, healAdd: 0, guard: 0.88, critDmg: 0, techs: ['bash'], special: 'aegis' },
+  { id: 'thief', name: '盗賊', icon: '🗡️', desc: '会心率+18%、会心ダメージ+40%', tier: 1, atk: 1.15, hp: 1.05, crit: 18, heal: 1, healAdd: 0, guard: 1, critDmg: 0.4, techs: ['stab'], special: 'shadow' },
+  { id: 'cleric', name: '僧侶', icon: '✨', desc: '毎ターンの回復が大きい', tier: 1, atk: 1.05, hp: 1.15, crit: 0, heal: 1.45, healAdd: 4, guard: 1, critDmg: 0, techs: ['pray'], special: 'bless' },
+  { id: 'mage', name: '魔法使い', icon: '🪄', desc: '攻撃力がとても高いが打たれ弱い', tier: 1, atk: 1.55, hp: 0.8, crit: 8, heal: 1, healAdd: 0, guard: 1, critDmg: 0, techs: ['fire'], special: 'meteor' },
 ]
 export const DEFAULT_JOB = BASE_JOBS[0]
 
@@ -326,9 +329,10 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
   const s = effectiveStats(p)
   const job = p.job ?? DEFAULT_JOB
   const has = (id: string) => hasEffect(p, id)
+  const fx = effectValues(p)
   const bonus = p.bonus ?? NO_BONUS
   const sb = setBonus(equippedItems(p))
-  const critMult = 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg + sb.critDmg
+  const critMult = 2 + (has('critup') ? 0.5 : 0) + (fx.critdmg ?? 0) + job.critDmg + bonus.critDmg + sb.critDmg
   let hp = s.hp
   let enemyHp = enemy.hp
   let gutsUsed = false
@@ -341,7 +345,7 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
     let dmg = s.atk * (0.9 + r() * 0.2) * scale
     if (crit) dmg *= critMult
     if (smash) dmg *= 3
-    if (turn === 1 && first && has('first')) dmg *= 2
+    if (turn === 1 && first && fx.first) dmg *= fx.first
     if (has('berserk') && hp <= s.hp / 2) dmg *= 1.5
     if (has('finisher') && enemyHp <= enemy.hp * 0.25) dmg *= 2
     dmg = Math.max(1, Math.round(dmg))
@@ -351,7 +355,7 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
 
   for (let turn = 1; turn <= MAX_TURNS; turn++) {
     const log: TurnLog = { turn, hits: [], taken: 0, dodged: false, healed: 0, guts: false, revive: false, hp, enemyHp }
-    const swings = has('double') && r() < 0.25 ? 2 : 1
+    const swings = fx.double && r() < fx.double ? 2 : 1
     let dealt = 0
     for (let i = 0; i < swings && enemyHp > 0; i++) {
       const h = strike(turn, i === 0)
@@ -363,21 +367,21 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
         dealt += c.dmg
       }
     }
-    if (has('lifesteal') && dealt > 0) {
+    if (fx.lifesteal && dealt > 0) {
       const before = hp
-      hp = Math.min(s.hp, hp + Math.round(dealt * 0.1))
+      hp = Math.min(s.hp, hp + Math.round(dealt * fx.lifesteal))
       log.healed += hp - before
     }
     if (enemyHp > 0) {
-      if (has('dodge') && r() < 0.15) {
+      if (fx.dodge && r() < fx.dodge) {
         log.dodged = true
       } else {
         let taken = enemy.atk * (0.9 + r() * 0.2) * job.guard * bonus.guard * sb.guard
-        if (has('wall')) taken *= 0.8
+        if (fx.wall) taken *= 1 - fx.wall
         if (has('barrier') && turn <= 3) taken *= 0.5
         log.taken = Math.max(1, Math.round(taken))
         hp -= log.taken
-        if (has('thorns')) enemyHp = Math.max(0, enemyHp - Math.round(log.taken * 0.3))
+        if (fx.thorns) enemyHp = Math.max(0, enemyHp - Math.round(log.taken * fx.thorns))
         if (has('counter')) enemyHp = Math.max(0, enemyHp - Math.round(log.taken * 0.25))
       }
       if (hp <= 0 && has('guts') && !gutsUsed) {
@@ -390,7 +394,7 @@ export function simulateBattle(p: BattleStats, enemy: Enemy, seed: number): Batt
         log.revive = true
       }
       if (hp > 0) {
-        const heal = s.heal + (has('regen') ? Math.round(s.hp * 0.05) : 0)
+        const heal = s.heal + (fx.regen ? Math.round(s.hp * fx.regen) : 0)
         const before = hp
         hp = Math.min(s.hp, hp + heal)
         log.healed += hp - before
@@ -415,8 +419,9 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
     const job = p.job ?? DEFAULT_JOB
     const bonus = p.bonus ?? NO_BONUS
     const has = (id: string) => hasEffect(p, id)
+    const fx = effectValues(p)
     const sb = setBonus(equippedItems(p))
-    return { s, job, bonus, sb, has, hp: s.hp, gutsUsed: false, phoenixUsed: false, critMult: 2 + (has('critup') ? 0.5 : 0) + (has('critdmg') ? 0.5 : 0) + job.critDmg + bonus.critDmg + sb.critDmg }
+    return { s, job, bonus, sb, has, fx, hp: s.hp, gutsUsed: false, phoenixUsed: false, critMult: 2 + (has('critup') ? 0.5 : 0) + (fx.critdmg ?? 0) + job.critDmg + bonus.critDmg + sb.critDmg }
   }
   type F = ReturnType<typeof fighter>
   const A = fighter(me)
@@ -429,16 +434,16 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
     let dmg = att.s.atk * (0.9 + r() * 0.2) * scale
     if (crit) dmg *= att.critMult
     if (smash) dmg *= 3
-    if (turn === 1 && first && att.has('first')) dmg *= 2
+    if (turn === 1 && first && att.fx.first) dmg *= att.fx.first
     if (att.has('berserk') && att.hp <= att.s.hp / 2) dmg *= 1.5
     if (att.has('finisher') && def.hp <= def.s.hp * 0.25) dmg *= 2
     dmg *= def.job.guard * def.bonus.guard * def.sb.guard
-    if (def.has('wall')) dmg *= 0.8
+    if (def.fx.wall) dmg *= 1 - def.fx.wall
     if (def.has('barrier') && turn <= 3) dmg *= 0.5
     dmg = Math.max(1, Math.round(dmg))
     def.hp -= dmg
     // 受けた側の反撃 (棘・カウンター)
-    if (def.has('thorns')) att.hp -= Math.round(dmg * 0.3)
+    if (def.fx.thorns) att.hp -= Math.round(dmg * def.fx.thorns)
     if (def.has('counter')) att.hp -= Math.round(dmg * 0.25)
     return { dmg, crit, smash }
   }
@@ -459,9 +464,9 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
   }
   /** att の手番: 回避されなければ連撃・追撃・吸収 */
   const attack = (att: F, def: F, turn: number) => {
-    if (def.has('dodge') && r() < 0.15) return { hits: [] as TurnLog['hits'], dealt: 0, dodged: true, stolen: 0 }
+    if (def.fx.dodge && r() < def.fx.dodge) return { hits: [] as TurnLog['hits'], dealt: 0, dodged: true, stolen: 0 }
     const hits: TurnLog['hits'] = []
-    const swings = att.has('double') && r() < 0.25 ? 2 : 1
+    const swings = att.fx.double && r() < att.fx.double ? 2 : 1
     for (let i = 0; i < swings && def.hp > 0; i++) {
       const h = strike(att, def, turn, i === 0)
       hits.push(h)
@@ -469,13 +474,13 @@ export function simulateDuel(me: BattleStats, opp: BattleStats, who: { name: str
     }
     const dealt = hits.reduce((a, h) => a + h.dmg, 0)
     const before = att.hp
-    if (att.has('lifesteal') && dealt > 0 && att.hp > 0) att.hp = Math.min(att.s.hp, att.hp + Math.round(dealt * 0.1))
+    if (att.fx.lifesteal && dealt > 0 && att.hp > 0) att.hp = Math.min(att.s.hp, att.hp + Math.round(dealt * att.fx.lifesteal))
     return { hits, dealt, dodged: false, stolen: att.hp - before }
   }
   const heal = (f: F) => {
     if (f.hp <= 0) return 0
     const before = f.hp
-    f.hp = Math.min(f.s.hp, f.hp + f.s.heal + (f.has('regen') ? Math.round(f.s.hp * 0.05) : 0))
+    f.hp = Math.min(f.s.hp, f.hp + f.s.heal + (f.fx.regen ? Math.round(f.s.hp * f.fx.regen) : 0))
     return f.hp - before
   }
 
@@ -581,7 +586,7 @@ export interface XpInput {
   doneYesterday: boolean
   source: string
   skills: string[]
-  effects?: string[] // 装備の効果
+  effects?: Record<string, number> // 装備の ✦ 効果とその強さ
   bonus?: Pick<Bonus, 'xp' | 'gold'> // 隠しスキルの効果
   /** ペット・季節イベント・XP 2 倍チケットなどの上乗せ (加算倍率) */
   extras?: { label: string; xp?: number; gold?: number; double?: boolean }[]
@@ -602,7 +607,7 @@ export const BONUS_CAP = 1
 
 export function computeXp(x: XpInput) {
   const bonuses: string[] = []
-  const fx = x.effects ?? []
+  const fx = x.effects ?? {}
   const has = (id: string) => x.skills.includes(id)
   if (x.base === 0) return { amount: 0, gold: 0, bonuses: ['分解済み: XPは子タスクへ'] }
   let amount = x.base ?? WEIGHT_XP[x.weight ?? 'M']
@@ -624,7 +629,7 @@ export function computeXp(x: XpInput) {
   add(has('ai') && x.source === 'ai', 0.1, '分解の達人 +10%')
   add(has('streak') && x.doneYesterday, 0.15, '継続 +15%')
   add(has('scholar'), 0.15, '博識 +15%')
-  add(fx.includes('xpup'), 0.1, '装備 XP+10%')
+  add(!!fx.xpup, fx.xpup ?? 0, `装備 XP+${Math.round((fx.xpup ?? 0) * 100)}%`)
   add((x.bonus?.xp ?? 0) > 0, x.bonus?.xp ?? 0, `隠しスキル XP+${Math.round((x.bonus?.xp ?? 0) * 100)}%`)
   for (const e of x.extras ?? []) if (!e.double) add(!!e.xp, e.xp ?? 0, e.label)
   // スキル・装備・ペット・イベントなどの上乗せは合計 BONUS_CAP (+100%) まで (重なりすぎてレベルが上がりすぎないように)
@@ -651,7 +656,7 @@ export function computeXp(x: XpInput) {
     bonuses.push('今日の初完了 +5')
   }
   const goldMult =
-    1 + (fx.includes('goldup') ? 0.2 : 0) + (has('goldsmith') ? 0.3 : 0) + (x.bonus?.gold ?? 0) + (x.extras ?? []).reduce((a, e) => a + (e.gold ?? 0), 0)
+    1 + (fx.goldup ?? 0) + (has('goldsmith') ? 0.3 : 0) + (x.bonus?.gold ?? 0) + (x.extras ?? []).reduce((a, e) => a + (e.gold ?? 0), 0)
   const gold = Math.ceil((amount / 2) * goldMult)
   return { amount, gold, bonuses }
 }
@@ -683,17 +688,55 @@ export const RARITY_RATE: [Rarity, number][] = [
 ]
 const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.6, SR: 2.4, SSR: 3.5, UR: 4.8 }
 
-export const EFFECTS: Record<string, string> = {
-  first: '先制: 1ターン目の攻撃×2',
-  lifesteal: '吸収: 与ダメージの10%回復',
-  double: '連撃: 25%で2回攻撃',
-  critdmg: '鋭眼: 会心ダメージ+50%',
-  xpup: '学び: タスクのXP+10%',
-  goldup: '金運: タスクのゴールド+20%',
-  thorns: '反撃: 受けたダメージの30%を返す',
-  wall: '鉄壁: 受けるダメージ-20%',
-  regen: '再生: 毎ターン最大HPの5%回復',
-  dodge: '回避: 15%で攻撃をかわす',
+type FxTier = 'SR' | 'SSR' | 'UR'
+/**
+ * ✦ 効果の強さ。レア度が高いほど強い。
+ * N・R に付いたときと、スキル・職業・隠しスキルで付く効果は SR と同じ。同じ効果が重なったときは一番強いものだけ効く
+ */
+export const EFFECT_VALUES: Record<string, Record<FxTier, number>> = {
+  first: { SR: 2, SSR: 2.5, UR: 3 }, // 1ターン目の攻撃の倍率
+  lifesteal: { SR: 0.1, SSR: 0.12, UR: 0.15 },
+  double: { SR: 0.25, SSR: 0.3, UR: 0.35 },
+  critdmg: { SR: 0.5, SSR: 0.65, UR: 0.8 },
+  xpup: { SR: 0.1, SSR: 0.12, UR: 0.15 },
+  goldup: { SR: 0.2, SSR: 0.25, UR: 0.3 },
+  thorns: { SR: 0.3, SSR: 0.4, UR: 0.5 },
+  wall: { SR: 0.2, SSR: 0.25, UR: 0.3 },
+  regen: { SR: 0.05, SSR: 0.06, UR: 0.08 },
+  dodge: { SR: 0.15, SSR: 0.18, UR: 0.22 },
+}
+const fxTier = (r?: Rarity | null): FxTier => (r === 'SSR' || r === 'UR' ? r : 'SR')
+export const effectValue = (id: string, rarity?: Rarity | null) => EFFECT_VALUES[id]?.[fxTier(rarity)] ?? 0
+const pct = (v: number) => `${Math.round(v * 100)}%`
+/** 効果の説明 (レア度に合わせた数字で) */
+export function effectLabel(id: string, rarity?: Rarity | null): string {
+  const v = effectValue(id, rarity)
+  const text: Record<string, string> = {
+    first: `先制: 1ターン目の攻撃×${v}`,
+    lifesteal: `吸収: 与ダメージの${pct(v)}回復`,
+    double: `連撃: ${pct(v)}で2回攻撃`,
+    critdmg: `鋭眼: 会心ダメージ+${pct(v)}`,
+    xpup: `学び: タスクのXP+${pct(v)}`,
+    goldup: `金運: タスクのゴールド+${pct(v)}`,
+    thorns: `反撃: 受けたダメージの${pct(v)}を返す`,
+    wall: `鉄壁: 受けるダメージ-${pct(v)}`,
+    regen: `再生: 毎ターン最大HPの${pct(v)}回復`,
+    dodge: `回避: ${pct(v)}で攻撃をかわす`,
+  }
+  return text[id] ?? id
+}
+/** 基本 (SR) の説明 */
+export const EFFECTS: Record<string, string> = Object.fromEntries(Object.keys(EFFECT_VALUES).map((id) => [id, effectLabel(id)]))
+
+/** 効いている ✦ 効果とその強さ (重なったら一番強いもの) */
+export function effectValues(p: BattleStats): Record<string, number> {
+  const out: Record<string, number> = {}
+  const put = (id: string, v: number) => {
+    if (v > (out[id] ?? 0)) out[id] = v
+  }
+  for (const id of [...p.skills, ...(p.bonus?.effects ?? []), ...(p.job?.effects ?? [])]) if (EFFECT_VALUES[id]) put(id, effectValue(id))
+  for (const i of equippedItems(p)) if (i.effect) put(i.effect, effectValue(i.effect, i.rarity))
+  return out
 }
 export const EFFECT_POOL: Record<Slot, string[]> = {
   weapon: ['first', 'lifesteal', 'double'],

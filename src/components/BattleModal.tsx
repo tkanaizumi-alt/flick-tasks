@@ -3,9 +3,8 @@ import { motion } from 'motion/react'
 import { battleAdvice } from '../../shared/extras'
 import type { BattleResult, Item } from '../../shared/game'
 import { ItemCard } from './Loot'
-import { Fighters, type FighterMoment } from './Fighters'
-
-const TURN_MS = 380
+import { BattleScene, HpBar, SPEEDS, SPEED_KEY, themeFor, timeline, type Beat } from './BattleScene'
+import { store } from '../store'
 
 export type BattleMode = 'stage' | 'spar' | 'event' | 'rematch'
 
@@ -19,36 +18,48 @@ interface Props {
   me: { name: string; picture?: string; skin?: string | null }
 }
 
-/** サーバーで決まった戦闘結果をターンごとに再生する (演出は transform / opacity のみで軽量) */
+/** サーバーで決まった戦闘結果を、1 ターンずつ短い動画のように再生する (演出は transform / opacity のみで軽量) */
 export function BattleModal({ result, reward, onClose, mode = 'stage', me }: Props) {
   const [step, setStep] = useState(0) // 再生済みターン数
+  const [speed, setSpeedState] = useState<number>(() => {
+    const v = store.get<number>(SPEED_KEY, 1)
+    return (SPEEDS as readonly number[]).includes(v) ? v : 1
+  })
+  const setSpeed = (v: number) => {
+    setSpeedState(v)
+    store.set(SPEED_KEY, v)
+  }
   const done = step >= result.turns.length
   const turn = step > 0 ? result.turns[step - 1] : null
   const hp = turn ? turn.hp : result.maxHp
   const enemyHp = turn ? turn.enemyHp : result.enemy.hp
-  const big = turn?.hits.some((h) => h.crit || h.smash)
-  const moment: FighterMoment | null = turn
+  const beat: Beat | null = turn
     ? {
-        meAttack: turn.hits.length > 0,
-        foeHurt: turn.hits.length > 0,
-        foeAttack: turn.taken > 0 || turn.dodged,
-        meHurt: turn.taken > 0,
-        meEmote: turn.guts ? '😤' : turn.revive ? '🔥' : turn.dodged ? '💨' : big ? '✨' : undefined,
-        foeEmote: big ? '💢' : undefined,
+        fx: turn.hits.length ? 'slash' : null,
+        hits: turn.hits,
+        foe: turn.taken > 0 || turn.dodged ? 'attack' : 'none',
+        dodged: turn.dodged,
+        taken: turn.taken,
+        healed: turn.healed,
+        guts: turn.guts,
+        revive: turn.revive,
       }
     : null
+  const t = timeline(beat)
+  const k = 1 / speed
 
   useEffect(() => {
     if (done) return
-    const t = setTimeout(() => setStep((s) => s + 1), step === 0 ? 450 : TURN_MS)
-    return () => clearTimeout(t)
-  }, [step, done])
+    const wait = step === 0 ? 500 : (t.end + 160) * k
+    const id = setTimeout(() => setStep((s) => s + 1), wait)
+    return () => clearTimeout(id)
+  }, [step, done, t.end, k])
 
   return (
     <>
       <motion.div className="scrim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={done ? onClose : undefined} />
       <motion.div
-        className={`battle glass ${big && !done ? 'flash' : ''}`}
+        className="battle big glass"
         role="dialog"
         aria-label="バトル"
         data-testid="battle"
@@ -57,26 +68,7 @@ export function BattleModal({ result, reward, onClose, mode = 'stage', me }: Pro
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.2 }}
       >
-        <div className="battle-stage">
-          <Fighters me={me} foe={{ icon: result.enemy.icon }} moment={moment} step={step} done={done} win={result.win} />
-          {/* ダメージ数値をターンごとに浮かせる */}
-          {turn && !done && (
-            <div key={`d${step}`} className="dmg-layer" aria-hidden="true">
-              {turn.hits.map((h, i) => (
-                <span key={i} className={`dmg ${h.crit || h.smash ? 'crit' : ''}`} style={{ left: `${74 + i * 10}%` }}>
-                  {h.dmg}
-                  {h.crit && <small>会心!</small>}
-                  {h.smash && <small>渾身!</small>}
-                </span>
-              ))}
-              {turn.taken > 0 && <span className="dmg taken">-{turn.taken}</span>}
-              {turn.healed > 0 && <span className="dmg heal">+{turn.healed}</span>}
-              {turn.guts && <span className="dmg crit guts">不屈!</span>}
-              {turn.revive && <span className="dmg crit guts">復活!</span>}
-              {turn.dodged && <span className="dmg heal">回避!</span>}
-            </div>
-          )}
-        </div>
+        <BattleScene me={me} foe={result.enemy} theme={themeFor(result.enemy.stage, mode)} beat={beat} step={step} done={done} win={result.win} speed={speed} />
         <div className="battle-name">
           {mode === 'spar'
             ? `${result.enemy.name}と腕試し`
@@ -84,8 +76,8 @@ export function BattleModal({ result, reward, onClose, mode = 'stage', me }: Pro
               ? `限定ボス ${result.enemy.name}`
               : `${mode === 'rematch' ? '再戦 ' : ''}ステージ ${result.enemy.stage} ${result.enemy.name}`}
         </div>
-        <Bar label={mode === 'spar' ? '相手' : '敵'} value={enemyHp} max={result.enemy.hp} kind="enemy" />
-        <Bar label="自分" value={hp} max={result.maxHp} kind="me" />
+        <HpBar label={mode === 'spar' ? '相手' : '敵'} value={enemyHp} max={result.enemy.hp} kind="enemy" delay={turn ? t.hit * k : 0} />
+        <HpBar label="自分" value={hp} max={result.maxHp} kind="me" delay={turn ? t.foeHit * k : 0} />
         <div className="battle-turn">{turn ? `ターン ${turn.turn}` : 'バトル開始！'}</div>
 
         {done ? (
@@ -127,25 +119,17 @@ export function BattleModal({ result, reward, onClose, mode = 'stage', me }: Pro
             </button>
           </motion.div>
         ) : (
-          <button className="skip" onClick={() => setStep(result.turns.length)} data-testid="battle-skip">
-            スキップ
-          </button>
+          <div className="battle-tools">
+            <button className="speed-btn" onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed as 1) + 1) % SPEEDS.length])} data-testid="battle-speed">
+              ⏩ ×{speed}
+            </button>
+            <button className="skip" onClick={() => setStep(result.turns.length)} data-testid="battle-skip">
+              スキップ
+            </button>
+          </div>
         )}
       </motion.div>
     </>
   )
 }
 
-function Bar({ label, value, max, kind }: { label: string; value: number; max: number; kind: 'me' | 'enemy' }) {
-  return (
-    <div className={`hp hp-${kind}`}>
-      <span className="hp-label">{label}</span>
-      <div className="hp-track">
-        <span style={{ transform: `scaleX(${Math.max(0, value) / max})` }} />
-      </div>
-      <span className="hp-num">
-        {Math.max(0, value)}/{max}
-      </span>
-    </div>
-  )
-}

@@ -33,6 +33,8 @@ import {
   enhanceTo,
   srChestRarity,
   type ShopId,
+  REFORGE_GOLD,
+  reforgeStats,
 } from '../shared/extras'
 import {
   DEFAULT_JOB,
@@ -56,6 +58,7 @@ import {
   bossGold,
   canLearn,
   computeXp,
+  effectValue,
   DAILY_ALL,
   dailyMissions,
   enemyForStage,
@@ -190,7 +193,12 @@ function jobUnlocks(p: PlayerState, jobId: string, amount: number) {
     .map((j) => ({ name: j.name, icon: j.icon, tier: j.tier }))
 }
 
-const effectsOf = (p: PlayerState) => equippedItems(p).map((i) => i.effect).filter((e): e is string => !!e)
+/** 装備の ✦ 効果とその強さ (レア度で変わる) */
+const effectsOf = (p: PlayerState) => {
+  const out: Record<string, number> = {}
+  for (const i of equippedItems(p)) if (i.effect) out[i.effect] = Math.max(out[i.effect] ?? 0, effectValue(i.effect, i.rarity))
+  return out
+}
 
 /** タスクのステータス変化に応じて XP・ゴールドを付与・取り消しする。更新前のタスク行を受け取る */
 export async function applyTaskXp(db: D1Database, userId: string, before: any, nextStatus: string): Promise<XpChange | null> {
@@ -346,6 +354,28 @@ export async function rerollItem(db: D1Database, userId: string, itemId: string)
   ])
   if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
   return { player: await getPlayer(db, userId), effect: next }
+}
+
+/** 装備の打ち直し: 今のステージの水準まで強さを上げ直す (レア度・強化段階・✦効果はそのまま)。強くなるときだけ */
+export async function reforgeItem(db: D1Database, userId: string, itemId: string) {
+  const p = await getPlayer(db, userId)
+  const item = p.items.find((i) => i.id === itemId)
+  if (!item) return { error: 'アイテムがありません' }
+  const next = reforgeStats(item, p.stage)
+  if (!(['atk', 'hp', 'crit', 'heal'] as const).some((k) => next[k] > item[k])) return { error: 'もう今のステージの強さです' }
+  const price = REFORGE_GOLD[item.rarity]
+  if (p.gold < price) return { error: 'ゴールドが足りません' }
+  // 同時に強化・打ち直しをしていないとき (ステータスが変わっていないとき) だけ
+  const r = await db.batch([
+    db
+      .prepare(
+        'UPDATE items SET atk = ?, hp = ?, crit = ?, heal = ? WHERE id = ? AND user_id = ? AND atk = ? AND hp = ? AND crit = ? AND heal = ? AND plus = ? AND (SELECT gold FROM players WHERE user_id = ?) >= ?',
+      )
+      .bind(next.atk, next.hp, next.crit, next.heal, item.id, userId, item.atk, item.hp, item.crit, item.heal, item.plus ?? 0, userId, price),
+    db.prepare('UPDATE players SET gold = gold - ?, updated_at = ? WHERE user_id = ? AND changes() > 0').bind(price, Date.now(), userId),
+  ])
+  if (!r[0].meta.changes) return { error: 'もう一度お試しください' }
+  return { player: await getPlayer(db, userId) }
 }
 
 /**

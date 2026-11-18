@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   BRANCHES,
-  EFFECTS,
+  effectLabel,
   CHEST_COST,
   CHEST_COUNTS,
   TEN_PULL,
@@ -840,12 +840,20 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             }}
             materials={materialsFor(openItem, player.items, Object.values(player.equipped) as string[])}
             gold={player.gold}
+            stage={player.stage}
+            onReforge={async () => {
+              const r = await run(() => api.reforge(openItem.id))
+              if (!r) return
+              const next = r.player.items.find((i) => i.id === openItem.id)
+              if (next) setOpenItem(next)
+              toast('🔨 打ち直しました')
+            }}
             onReroll={async () => {
               const r = await run(() => api.reroll(openItem.id))
               if (!r) return
               const next = r.player.items.find((i) => i.id === openItem.id)
               if (next) setOpenItem(next)
-              toast(`✦ ${EFFECTS[r.effect] ?? r.effect} に付け直しました`)
+              toast(`✦ ${effectLabel(r.effect, openItem.rarity)} に付け直しました`)
             }}
             onEnhance={async (by, material) => {
               const r = await run(() => api.enhance(openItem.id, by, material))

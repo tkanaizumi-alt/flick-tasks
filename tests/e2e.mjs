@@ -423,6 +423,33 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   check('助けた回数は実績の集計に入る (手伝いとは別)', st.rescues >= 1, { rescues: st.rescues, helps: st.helps })
 }
 
+// 装備の打ち直し (今のステージの強さに上げ直す。強くなるときだけ)
+{
+  const p0 = (await A.call('/api/player')).player
+  check('ない装備は打ち直せない', (await A.call('/api/items/nope/reforge', 'POST', {})).status === 400)
+  const price = { N: 50, R: 100, SR: 250, SSR: 600, UR: 1200 }
+  let done = null
+  for (const it of p0.items) {
+    if (p0.gold < price[it.rarity]) continue
+    const r = await A.call(`/api/items/${it.id}/reforge`, 'POST', {})
+    if (r.status === 200) {
+      done = { it, r }
+      break
+    }
+  }
+  if (done) {
+    const after = done.r.player.items.find((i) => i.id === done.it.id)
+    const ks = ['atk', 'hp', 'crit', 'heal']
+    check(
+      '打ち直すとステータスが上がり (下がらない)、レア度・強化・効果はそのまま',
+      ks.every((k) => after[k] >= done.it[k]) && ks.some((k) => after[k] > done.it[k]) && after.rarity === done.it.rarity && (after.plus ?? 0) === (done.it.plus ?? 0) && after.effect === done.it.effect,
+      { before: done.it, after },
+    )
+    check('打ち直しの💰が減る', done.r.player.gold === p0.gold - price[done.it.rarity], [p0.gold, done.r.player.gold])
+    check('もう今の強さの装備は打ち直せない', (await A.call(`/api/items/${done.it.id}/reforge`, 'POST', {})).status === 400)
+  }
+}
+
 // ✦ 効果の付け直し・ペットの進化
 {
   const p0 = (await A.call('/api/player')).player
@@ -479,6 +506,15 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   check('他の人のバトルは動かせない', (await B.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'attack' })).status === 400)
   let r = await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'guard' })
   check('1ターン進む', r.state?.turns.length === 1 && r.state.turns[0].action === 'guard', r.state?.turns)
+  // 職業のわざ (どの職業にもわざが 1 つ以上ある)
+  const tech = r.state?.techs?.[0]
+  check('職業のわざと必殺技がある', !!tech && !!r.state.special && r.state.cd && typeof r.state.cd === 'object', { techs: r.state?.techs, special: r.state?.special })
+  check('職業にないわざは断る', (await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: r.state?.techs?.includes('ice') ? 'twin' : 'ice' })).status === 400)
+  if (tech && !r.state.done) {
+    r = await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: tech })
+    check('わざを使える', r.state?.turns.at(-1)?.tech === tech, r.state?.turns.at(-1))
+    if (!r.state?.done) check('使ったわざはしばらく使えない', (await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: tech })).status === 400 && r.state.cd[tech] > 0, r.state?.cd)
+  }
   for (let i = 0; i < 40 && !r.state?.done; i++) {
     const st = r.state
     const a = st.next === 'heavy' ? 'guard' : st.hp < st.maxHp * 0.35 && st.potions > 0 ? 'heal' : st.gauge >= 100 ? 'skill' : 'attack'
