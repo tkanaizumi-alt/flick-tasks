@@ -660,27 +660,36 @@ export async function fight(db: D1Database, userId: string) {
   const day = jstDayStart(Date.now())
   await ensureDaily(db, userId, day)
   const stmts: D1PreparedStatement[] = [db.prepare('UPDATE daily SET battles = battles + 1 WHERE user_id = ? AND day = ?').bind(userId, day)]
-  let reward: { gold: number; item: Item | null; seed?: boolean } | null = null
+  let reward: StageReward | null = null
   if (result.win) {
-    const gold = bossGold(enemy.stage)
-    const gotSeed = rand() < SEED_DROP_STAGE
-    if (gotSeed) stmts.push(addSeed(db, userId))
-    // 宝箱は R 以上確定。持ち物がいっぱいならゴールドのみ
-    let item: Item | null = null
-    if (p.items.length < invMax(p)) {
-      const rolled = rollItem(seed(), enemy.stage)
-      const ins = insertItem(db, userId, rolled.rarity === 'N' ? { ...rollItem(seed(), enemy.stage, 'R') } : rolled)
-      item = ins.item
-      stmts.push(ins.stmt, ...itemActivity(db, userId, item))
-    }
-    stmts.push(
-      db.prepare('UPDATE players SET stage = stage + 1, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), userId),
-      logActivity(db, userId, 'boss', `${enemy.icon} ${enemy.name}`),
-    )
-    reward = { gold, item, seed: gotSeed }
+    const w = stageWin(db, userId, p, enemy)
+    stmts.push(...w.stmts)
+    reward = w.reward
   }
   await db.batch(stmts)
   return { result, reward, player: await getPlayer(db, userId) }
+}
+
+export type StageReward = { gold: number; item: Item | null; seed?: boolean }
+/** ステージのボスに勝ったときの報酬: 次のステージ・ゴールド・宝箱 (R 以上確定)・ときどき SP のタネ (オートとターン制で共通) */
+export function stageWin(db: D1Database, userId: string, p: PlayerState, enemy: { stage: number; name: string; icon: string }) {
+  const stmts: D1PreparedStatement[] = []
+  const gold = bossGold(enemy.stage)
+  const gotSeed = rand() < SEED_DROP_STAGE
+  if (gotSeed) stmts.push(addSeed(db, userId))
+  // 持ち物がいっぱいならゴールドのみ
+  let item: Item | null = null
+  if (p.items.length < invMax(p)) {
+    const rolled = rollItem(seed(), enemy.stage)
+    const ins = insertItem(db, userId, rolled.rarity === 'N' ? { ...rollItem(seed(), enemy.stage, 'R') } : rolled)
+    item = ins.item
+    stmts.push(ins.stmt, ...itemActivity(db, userId, item))
+  }
+  stmts.push(
+    db.prepare('UPDATE players SET stage = stage + 1, gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), userId),
+    logActivity(db, userId, 'boss', `${enemy.icon} ${enemy.name}`),
+  )
+  return { stmts, reward: { gold, item, seed: gotSeed } as StageReward }
 }
 
 /** まとめ買いの回数の確認と、足りないときの理由 */
@@ -871,6 +880,8 @@ export async function purgeOldDone(db: D1Database) {
     db.prepare('DELETE FROM notifications WHERE created_at < ?').bind(now - 30 * 86400000),
     db.prepare('DELETE FROM errors WHERE created_at < ?').bind(now - 30 * 86400000),
     db.prepare('DELETE FROM usage WHERE created_at < ?').bind(now - 90 * 86400000),
+    // ターン制バトルの記録 (続きができるのは当日だけで十分)
+    db.prepare('DELETE FROM turn_battles WHERE created_at < ?').bind(now - 2 * 86400000),
   ])
   return res.meta.changes ?? 0
 }

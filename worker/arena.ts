@@ -3,7 +3,7 @@ import type { Env } from './env'
 import { addSeed, ensureDaily, getPlayer, insertItemFor, logActivity } from './game'
 import { allowedUsers } from './lib'
 import { SEED_DROP_EVENT, EVENT_SKIN_MAP, EVENT_BOSS_TRIES, REMATCH_DAILY, SPAR_DAILY, activeEvent, eventBoss, eventBossGold, eventGearRarity, rematchGold } from '../shared/extras'
-import { SKIN_MAP, duelRate, enemyForStage, invMax, jstDayStart, jstToday, levelInfo, rollItem, simulateBattle, simulateDuel, effectiveStats, SLOTS, type Item } from '../shared/game'
+import { SKIN_MAP, duelRate, enemyForStage, invMax, jstDayStart, jstToday, levelInfo, rollItem, simulateBattle, simulateDuel, effectiveStats, SLOTS, type Item, type PlayerState } from '../shared/game'
 
 const seed = () => crypto.getRandomValues(new Uint32Array(1))[0]
 const skinEmoji = (skin: string | null | undefined) => (skin ? (SKIN_MAP[skin] ?? EVENT_SKIN_MAP[skin])?.emoji : undefined) ?? '🧑'
@@ -82,44 +82,65 @@ export async function fightEventBoss(env: Env, me: string) {
   const db = env.DB
   const ev = activeEvent(jstToday())
   if (!ev) return { error: '開催中のイベントはありません' }
-  const day = jstToday()
   const p = await getPlayer(db, me)
-  // 挑戦回数を先に数える (同時に押しても回数を超えない)
-  await db.prepare('INSERT OR IGNORE INTO event_battles (user_id, day, event) VALUES (?, ?, ?)').bind(me, day, ev.id).run()
-  const take = await db
-    .prepare('UPDATE event_battles SET tries = tries + 1 WHERE user_id = ? AND day = ? AND wins = 0 AND tries < ?')
-    .bind(me, day, EVENT_BOSS_TRIES)
-    .run()
-  if (!take.meta.changes) return { error: '今日の挑戦は終わりました。また明日' }
+  if (!(await takeEventTry(db, me, ev.id))) return { error: '今日の挑戦は終わりました。また明日' }
   const enemy = eventBoss(ev, p.stage)
   const result = simulateBattle(p, enemy, seed())
   let reward: { gold: number; item: Item | null; seed?: boolean } | null = null
   if (result.win) {
-    const gold = eventBossGold(enemy.stage)
-    const gotSeed = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 < SEED_DROP_EVENT
-    const stmts: D1PreparedStatement[] = [
-      db.prepare('UPDATE event_battles SET wins = wins + 1 WHERE user_id = ? AND day = ?').bind(me, day),
-      db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), me),
-      logActivity(db, me, 'boss', `${ev.icon}${ev.boss.icon} ${ev.boss.name}を撃破`),
-    ]
-    let item: Item | null = null
-    if (p.items.length < invMax(p)) {
-      const missing = SLOTS.filter((s) => !p.items.some((i) => i.name === ev.gear[s.key]))
-      const pool = missing.length ? missing : SLOTS
-      const slot = pool[seed() % pool.length].key
-      const rolled = rollItem(seed(), p.stage, eventGearRarity(seed() / 2 ** 32), slot)
-      const ins = insertItemFor(db, me, { ...rolled, name: ev.gear[slot] })
-      item = ins.item
-      stmts.push(ins.stmt, logActivity(db, me, 'item', `${item.rarity} ${item.name}`))
-    }
-    if (gotSeed) stmts.push(addSeed(db, me))
-    await db.batch(stmts)
-    reward = { gold, item, seed: gotSeed }
+    const w = eventWin(db, me, p, ev, enemy)
+    await db.batch(w.stmts)
+    reward = w.reward
   }
   return { result, reward, player: await getPlayer(db, me) }
 }
 
+/** 限定ボスの挑戦回数を 1 つ使う (同時に押しても回数を超えない)。使えなければ false */
+export async function takeEventTry(db: D1Database, me: string, eventId: string) {
+  const day = jstToday()
+  await db.prepare('INSERT OR IGNORE INTO event_battles (user_id, day, event) VALUES (?, ?, ?)').bind(me, day, eventId).run()
+  const take = await db
+    .prepare('UPDATE event_battles SET tries = tries + 1 WHERE user_id = ? AND day = ? AND wins = 0 AND tries < ?')
+    .bind(me, day, EVENT_BOSS_TRIES)
+    .run()
+  return !!take.meta.changes
+}
+
+/** 限定ボスに勝ったときの報酬 (ゴールド・限定装備・ときどき SP のタネ)。オートとターン制で共通 */
+export function eventWin(db: D1Database, me: string, p: PlayerState, ev: NonNullable<ReturnType<typeof activeEvent>>, enemy: { stage: number }) {
+  const day = jstToday()
+  const gold = eventBossGold(enemy.stage)
+  const gotSeed = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 < SEED_DROP_EVENT
+  const stmts: D1PreparedStatement[] = [
+    db.prepare('UPDATE event_battles SET wins = wins + 1 WHERE user_id = ? AND day = ?').bind(me, day),
+    db.prepare('UPDATE players SET gold = gold + ?, updated_at = ? WHERE user_id = ?').bind(gold, Date.now(), me),
+    logActivity(db, me, 'boss', `${ev.icon}${ev.boss.icon} ${ev.boss.name}を撃破`),
+  ]
+  let item: Item | null = null
+  if (p.items.length < invMax(p)) {
+    const missing = SLOTS.filter((s) => !p.items.some((i) => i.name === ev.gear[s.key]))
+    const pool = missing.length ? missing : SLOTS
+    const slot = pool[seed() % pool.length].key
+    const rolled = rollItem(seed(), p.stage, eventGearRarity(seed() / 2 ** 32), slot)
+    const ins = insertItemFor(db, me, { ...rolled, name: ev.gear[slot] })
+    item = ins.item
+    stmts.push(ins.stmt, logActivity(db, me, 'item', `${item.rarity} ${item.name}`))
+  }
+  if (gotSeed) stmts.push(addSeed(db, me))
+  return { stmts, reward: { gold, item, seed: gotSeed } }
+}
+
 // ---------- 過去のボスと再戦 ----------
+/** 再戦の回数を 1 つ使う (同時に押しても上限を超えない)。ミッションの「バトル」にも数える。使えなければ false */
+export async function takeRematch(db: D1Database, me: string) {
+  const day = jstDayStart(Date.now())
+  await ensureDaily(db, me, day)
+  const take = await db
+    .prepare('UPDATE daily SET rematches = rematches + 1, battles = battles + 1 WHERE user_id = ? AND day = ? AND rematches < ?')
+    .bind(me, day, REMATCH_DAILY)
+    .run()
+  return !!take.meta.changes
+}
 /** 今日の再戦の残り回数 */
 export async function rematchState(env: Env, me: string) {
   const r = await env.DB.prepare('SELECT rematches FROM daily WHERE user_id = ? AND day = ?').bind(me, jstDayStart(Date.now())).first<{ rematches: number }>()
@@ -131,14 +152,7 @@ export async function rematch(env: Env, me: string, stage: number) {
   const db = env.DB
   const p = await getPlayer(db, me)
   if (!Number.isInteger(stage) || stage < 1 || stage >= p.stage) return { error: 'まだ倒していないボスです' }
-  const day = jstDayStart(Date.now())
-  await ensureDaily(db, me, day)
-  // 回数を先に数える (同時に押しても上限を超えない)。ミッションの「バトル」にも数える
-  const take = await db
-    .prepare('UPDATE daily SET rematches = rematches + 1, battles = battles + 1 WHERE user_id = ? AND day = ? AND rematches < ?')
-    .bind(me, day, REMATCH_DAILY)
-    .run()
-  if (!take.meta.changes) return { error: `再戦は1日${REMATCH_DAILY}回までです。また明日` }
+  if (!(await takeRematch(db, me))) return { error: `再戦は1日${REMATCH_DAILY}回までです。また明日` }
   const enemy = enemyForStage(stage)
   const result = simulateBattle(p, enemy, seed())
   let reward: { gold: number; item: Item | null } | null = null

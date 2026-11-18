@@ -235,3 +235,52 @@
 .merge-mats { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .merge-to { flex: none; font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .merge-to b { color: var(--rc); font-size: 15px; }
+
+/* ---------- バトルの両者 ---------- */
+.battle-stage { height: 118px; }
+.fighters { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0 22px; }
+.fighter { position: relative; display: grid; place-items: center; width: 96px; height: 96px; }
+.fighter .foe-icon { font-size: 64px; line-height: 1; }
+.fighter.me.lunge { animation: lunge-r 0.32s ease; }
+.fighter.foe.lunge { animation: lunge-l 0.32s ease 0.16s; }
+.fighter.me.hurt { animation: hit 0.3s ease 0.2s; }
+.fighter.foe.hurt { animation: hit 0.3s ease 0.08s; }
+.fighter.me.lunge.hurt { animation: lunge-r 0.32s ease, hit 0.3s ease 0.32s; }
+.fighter.foe.lunge.hurt { animation: hit 0.3s ease 0.08s, lunge-l 0.32s ease 0.36s; }
+.fighter.down { animation: down 0.6s ease forwards; }
+@keyframes lunge-r { 40% { transform: translateX(26px) scale(1.06); } }
+@keyframes lunge-l { 40% { transform: translateX(-26px) scale(1.06); } }
+.vs { font-weight: 900; font-size: 13px; color: var(--ink-3); letter-spacing: 1px; }
+.emote {
+  position: absolute; z-index: 4; top: -10px; right: -2px; font-size: 20px; line-height: 1; padding: 4px 5px; border-radius: 12px 12px 12px 3px;
+  background: #fff; box-shadow: 0 2px 6px rgba(20, 28, 48, 0.2); animation: pop-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.fighter.foe .emote { right: auto; left: -2px; border-radius: 12px 12px 3px 12px; }
+.dmg.heal { left: 26% !important; }
+
+/* ---------- ターン制バトル ---------- */
+.battle-style { display: flex; align-items: center; gap: 6px; margin: 0 4px 10px; font-size: 12.5px; }
+.battle-style .muted { margin-right: 4px; }
+.resume-battle { width: 100%; margin-bottom: 10px; }
+.tb-gauge { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+.tb-gauge .hp-track span { background: linear-gradient(90deg, #ffd43b, #ff922b); }
+.tb-gauge .hp-track.full span { background: linear-gradient(90deg, #ff922b, #e8467c, #a65bff); animation: gauge-full 1s ease-in-out infinite; }
+@keyframes gauge-full { 50% { opacity: 0.7; } }
+.tb-intent { font-size: 12.5px; font-weight: 700; margin: 8px 0 10px; padding: 6px 10px; border-radius: 12px; background: rgba(20, 28, 48, 0.05); color: var(--ink-2); }
+.tb-intent.danger { background: rgba(255, 77, 106, 0.12); color: #e03150; animation: flash-soft 0.9s ease-in-out infinite; }
+.tb-intent.calm { background: rgba(22, 199, 132, 0.12); color: #0f9d68; }
+@keyframes flash-soft { 50% { opacity: 0.65; } }
+.tb-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tb-act {
+  border: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 16px; padding: 8px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  background: rgba(255, 255, 255, 0.8); box-shadow: inset 0 0 0 1px rgba(20, 28, 48, 0.08), 0 1px 2px rgba(20, 28, 48, 0.08);
+}
+.tb-act b { font-size: 12px; }
+.tb-act small { font-size: 10px; color: var(--ink-3); }
+.tb-icon { font-size: 22px; line-height: 1.1; }
+.tb-act:disabled { opacity: 0.45; cursor: default; }
+.tb-act.attack:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--c-todo); }
+.tb-act.skill.ready { background: linear-gradient(135deg, #fff3bf, #ffd8f0); box-shadow: inset 0 0 0 1.5px #ff922b; }
+.tb-act.skill.ready small { color: #e8590c; font-weight: 800; }
+.tb-act:active:not(:disabled) { transform: scale(0.95); }
+.turn-battle .battle-turn { min-height: 32px; line-height: 1.4; }

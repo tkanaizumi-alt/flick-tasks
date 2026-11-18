@@ -30,6 +30,8 @@ import { api, HttpError, type Mission } from '../api'
 import { store } from '../store'
 import { bestGear } from '../../shared/optimize'
 import { BattleModal } from '../components/BattleModal'
+import { TurnBattleModal } from '../components/TurnBattle'
+import type { TurnBattleInfo, TurnKind } from '../api'
 import { CharacterHeader } from '../components/CharacterHeader'
 import { ChestReveal, ChestRevealMany, ItemCard, ItemSheet, MergeSheet } from '../components/Loot'
 import { StageMap } from '../components/StageMap'
@@ -53,6 +55,10 @@ const INV_SORTS: { key: InvSort; label: string }[] = [
   { key: 'rarity', label: 'レア度順' },
   { key: 'slot', label: '部位順' },
 ]
+/** バトルの進め方: オート (結果を再生) / ターン制 (毎ターン行動を選ぶ)。この端末に保存 */
+type BattleStyle = 'auto' | 'turn'
+const BATTLE_STYLE_KEY = 'flick.battle.style'
+
 const rarityRank = (i: Item) => RARITY_ORDER.indexOf(i.rarity)
 const slotRank = (i: Item) => SLOTS.findIndex((s) => s.key === i.slot)
 // 新しい順はサーバーの並び (入手が新しい順) のまま
@@ -85,6 +91,32 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   }, [arenaTick])
   const pickedEnemy = picked ? enemyForStage(picked) : null
   const pickedRate = useMemo(() => (pickedEnemy ? winRate(player, pickedEnemy) : 0), [player, pickedEnemy?.stage])
+  // ターン制バトル: 進め方の切り替えと、戦っている最中 (続き) のバトル
+  const [style, setStyleState] = useState<BattleStyle>(() => (store.get<BattleStyle>(BATTLE_STYLE_KEY, 'auto') === 'turn' ? 'turn' : 'auto'))
+  const setStyle = (v: BattleStyle) => {
+    setStyleState(v)
+    store.set(BATTLE_STYLE_KEY, v)
+  }
+  const [turnBattle, setTurnBattle] = useState<TurnBattleInfo | null>(null)
+  const [pending, setPending] = useState<TurnBattleInfo | null>(null)
+  useEffect(() => {
+    api.turnActive().then((r) => setPending(r.battle), () => {})
+  }, [])
+  const startTurn = async (kind: TurnKind, stage?: number) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const b = await api.turnStart(kind, stage)
+      setPending(null)
+      setTurnBattle(b)
+      if (kind === 'rematch') api.rematchState().then((r) => setRematchLeft(r.left), () => {})
+    } catch (e) {
+      toast(e instanceof HttpError && e.reason ? e.reason : '始められませんでした')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const me = { name, picture, skin: player.skin }
   const [reveal, setReveal] = useState<Item | null>(null)
   const [revealMany, setRevealMany] = useState<Item[] | null>(null)
   const [merging, setMerging] = useState(false)
@@ -157,6 +189,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   }
 
   const challenge = async () => {
+    if (style === 'turn') return startTurn('stage')
     const r = await run(api.battle)
     if (r) {
       setBattle({ result: r.result, reward: r.reward })
@@ -189,6 +222,27 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
 
       {tab === 'battle' && (
         <>
+          <div className="battle-style" role="radiogroup" aria-label="バトルの進め方" data-testid="battle-style">
+            <span className="muted">バトルの進め方</span>
+            {(
+              [
+                ['auto', '⚡ オート'],
+                ['turn', '🎮 ターン制'],
+              ] as const
+            ).map(([k, label]) => (
+              <button key={k} role="radio" aria-checked={style === k} className={`sort-btn ${style === k ? 'on' : ''}`} onClick={() => setStyle(k)} data-testid={`style-${k}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {pending && (
+            <button className="pill-btn ghost resume-battle" onClick={() => {
+                setTurnBattle(pending)
+                setPending(null)
+              }} data-testid="turn-resume">
+              ⚔️ 続きのバトルがあります（{pending.state.enemy.name}・ターン{pending.state.turns.length}）
+            </button>
+          )}
           <RaidPanel
             refresh={player.xp}
             toast={toast}
@@ -212,6 +266,11 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             busy={busy}
             refresh={arenaTick}
             onFight={async () => {
+              if (style === 'turn') {
+                await startTurn('event')
+                setArenaTick((n) => n + 1)
+                return
+              }
               const r = await run(api.fightEventBoss)
               if (r) {
                 setBattle({ result: r.result, reward: r.reward, mode: 'event' })
@@ -261,6 +320,7 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
                   className="pill-btn primary small"
                   disabled={busy || rematchLeft === 0}
                   onClick={async () => {
+                    if (style === 'turn') return startTurn('rematch', pickedEnemy.stage)
                     const r = await run(() => api.rematch(pickedEnemy.stage))
                     if (r) {
                       setBattle({ result: r.result, reward: r.reward, mode: 'rematch' })
@@ -722,8 +782,27 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             result={battle.result}
             reward={battle.reward}
             mode={battle.mode}
+            me={me}
             onClose={() => {
               setBattle(null)
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {turnBattle && (
+          <TurnBattleModal
+            key={turnBattle.id}
+            battle={turnBattle}
+            me={me}
+            toast={toast}
+            onPlayer={onPlayer}
+            onClose={() => {
+              // 途中で閉じたら「続き」から再開できる
+              api.turnActive().then((r) => setPending(r.battle), () => {})
+              setTurnBattle(null)
+              loadMissions()
+              setArenaTick((n) => n + 1)
             }}
           />
         )}

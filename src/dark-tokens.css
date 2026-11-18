@@ -64,3 +64,9 @@
 :root[data-theme='dark'] .codex-sec { border-top-color: rgba(255, 255, 255, 0.08); }
 :root[data-theme='dark'] .set-row.on .set-fx,
 :root[data-theme='dark'] .is-set { color: #c4a0ff; }
+:root[data-theme='dark'] .emote { background: #2a2f3e; }
+:root[data-theme='dark'] .tb-act { background: rgba(255, 255, 255, 0.07); }
+:root[data-theme='dark'] .tb-act.skill.ready { background: linear-gradient(135deg, #5a4210, #5a1f45); }
+:root[data-theme='dark'] .tb-intent { background: rgba(255, 255, 255, 0.06); }
+:root[data-theme='dark'] .tb-intent.danger { color: #ff8a9e; }
+:root[data-theme='dark'] .tb-intent.calm { color: #69db7c; }

@@ -24,6 +24,7 @@ const ROUTES: [string, RegExp, string][] = [
   ['GET', /^\/history\/search$/, 'search'],
   ['POST', /^\/history\/report$/, 'report'],
   ['POST', /^\/battle$/, 'battle'],
+  ['POST', /^\/battle\/turn$/, 'turn_battle'],
   ['POST', /^\/chest$/, 'chest'],
   ['POST', /^\/items\/[^/]+\/sell$/, 'sell'],
   ['POST', /^\/items\/[^/]+\/equip$/, 'equip'],

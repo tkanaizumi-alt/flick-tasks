@@ -468,6 +468,29 @@ check('知らない種類は断る', (await B.call(`/api/tasks/${rt.id}/reaction
   check('新しい集計 (期限内・図鑑・セット・ペット・協力)', ['ontime', 'codex', 'sets', 'petMax', 'coops'].every((k) => typeof st[k] === 'number'), st)
 }
 
+// ターン制バトル (毎ターン行動を選ぶ。乱数の種は画面に出さない)
+{
+  const p0 = (await A.call('/api/player')).player
+  const b = await A.call('/api/battle/turn', 'POST', { kind: 'stage' })
+  check('ターン制バトルを始める', b.status === 200 && b.state?.turns.length === 0 && b.state.enemy.stage === p0.stage && !('seed' in b), b)
+  check('続きのバトルが取れる', (await A.call('/api/battle/turn')).battle?.id === b.id)
+  check('ゲージがたまる前の必殺技は断る', (await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'skill' })).status === 400)
+  check('知らない行動は断る', (await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'dance' })).status === 400)
+  check('他の人のバトルは動かせない', (await B.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'attack' })).status === 400)
+  let r = await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'guard' })
+  check('1ターン進む', r.state?.turns.length === 1 && r.state.turns[0].action === 'guard', r.state?.turns)
+  for (let i = 0; i < 40 && !r.state?.done; i++) {
+    const st = r.state
+    const a = st.next === 'heavy' ? 'guard' : st.hp < st.maxHp * 0.35 && st.potions > 0 ? 'heal' : st.gauge >= 100 ? 'skill' : 'attack'
+    r = await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: a })
+  }
+  check('最後まで戦うと終わる', r.state?.done === true, r.state && { done: r.state.done, turns: r.state.turns.length })
+  if (r.state?.win) check('勝つとオートと同じ報酬（次のステージへ）', r.reward?.gold > 0 && r.player?.stage === p0.stage + 1, { reward: r.reward, stage: r.player?.stage })
+  check('終わったバトルは動かせない', (await A.call(`/api/battle/turn/${b.id}`, 'POST', { action: 'attack' })).status === 400)
+  check('終わったら続きのバトルはない', (await A.call('/api/battle/turn')).battle === null)
+  check('倒していないボスとは再戦できない', (await A.call('/api/battle/turn', 'POST', { kind: 'rematch', stage: 999 })).status === 400)
+}
+
 // ミッションのまとめて受け取り・隠し要素の「？？？」の数
 {
   const ms = (await A.call('/api/missions')).missions

@@ -51,6 +51,8 @@ export const FEATURES: Record<string, string> = {
   pet_evolve: 'ペットの進化',
   codex: '図鑑のご褒美',
   coop: '協力クエストの報酬',
+  turn_battle: 'ターン制バトル',
+  turn_win: 'ターン制バトルの勝利',
   raid: 'レイド報酬',
   spar: 'メンバーと腕試し',
   event_boss: 'イベントの限定ボス',

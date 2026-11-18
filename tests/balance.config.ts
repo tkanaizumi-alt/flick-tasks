@@ -1,2 +1,2 @@
 import { defineConfig } from 'vitest/config'
-export default defineConfig({ test: { include: ['tests/balance.sim.ts'] } })
+export default defineConfig({ test: { include: ['tests/*.sim.ts'] } })

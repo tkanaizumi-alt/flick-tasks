@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { battleAdvice } from '../../shared/extras'
 import type { BattleResult, Item } from '../../shared/game'
 import { ItemCard } from './Loot'
+import { Fighters, type FighterMoment } from './Fighters'
 
 const TURN_MS = 380
 
@@ -14,16 +15,28 @@ interface Props {
   onClose: () => void
   /** stage: ステージのボス / spar: メンバーと腕試し / event: 季節イベントの限定ボス / rematch: 過去のボスと再戦 */
   mode?: BattleMode
+  /** 自分のキャラ (装備を着たアバターで出す) */
+  me: { name: string; picture?: string; skin?: string | null }
 }
 
 /** サーバーで決まった戦闘結果をターンごとに再生する (演出は transform / opacity のみで軽量) */
-export function BattleModal({ result, reward, onClose, mode = 'stage' }: Props) {
+export function BattleModal({ result, reward, onClose, mode = 'stage', me }: Props) {
   const [step, setStep] = useState(0) // 再生済みターン数
   const done = step >= result.turns.length
   const turn = step > 0 ? result.turns[step - 1] : null
   const hp = turn ? turn.hp : result.maxHp
   const enemyHp = turn ? turn.enemyHp : result.enemy.hp
   const big = turn?.hits.some((h) => h.crit || h.smash)
+  const moment: FighterMoment | null = turn
+    ? {
+        meAttack: turn.hits.length > 0,
+        foeHurt: turn.hits.length > 0,
+        foeAttack: turn.taken > 0 || turn.dodged,
+        meHurt: turn.taken > 0,
+        meEmote: turn.guts ? '😤' : turn.revive ? '🔥' : turn.dodged ? '💨' : big ? '✨' : undefined,
+        foeEmote: big ? '💢' : undefined,
+      }
+    : null
 
   useEffect(() => {
     if (done) return
@@ -45,14 +58,12 @@ export function BattleModal({ result, reward, onClose, mode = 'stage' }: Props) 
         transition={{ duration: 0.2 }}
       >
         <div className="battle-stage">
-          <div key={`e${step}`} className={`battle-enemy ${turn?.hits.length ? 'hit' : ''} ${done && result.win ? 'down' : ''}`}>
-            {result.enemy.icon}
-          </div>
+          <Fighters me={me} foe={{ icon: result.enemy.icon }} moment={moment} step={step} done={done} win={result.win} />
           {/* ダメージ数値をターンごとに浮かせる */}
           {turn && !done && (
             <div key={`d${step}`} className="dmg-layer" aria-hidden="true">
               {turn.hits.map((h, i) => (
-                <span key={i} className={`dmg ${h.crit || h.smash ? 'crit' : ''}`} style={{ left: `${42 + i * 16}%` }}>
+                <span key={i} className={`dmg ${h.crit || h.smash ? 'crit' : ''}`} style={{ left: `${74 + i * 10}%` }}>
                   {h.dmg}
                   {h.crit && <small>会心!</small>}
                   {h.smash && <small>渾身!</small>}

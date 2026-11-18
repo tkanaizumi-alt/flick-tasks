@@ -2,6 +2,7 @@ import type { Activity, AttentionItem, Comment, Flag, Notice, Person, ReactionKi
 import type { BattleResult, Enemy, Item, MissionDef, PlayerState, Slot, StatKey, Weight } from '../shared/game'
 import type { AchievementDef, AchievementStats } from '../shared/achievements'
 import type { ClientFeature } from '../shared/usage'
+import type { TbState, TurnAction } from '../shared/turn'
 
 export interface XpChange {
   amount: number
@@ -50,6 +51,10 @@ export const api = {
   codex: () => req<{ names: string[]; claimed: number }>('/api/codex'),
   claimCodex: () => req<{ player: PlayerState; gold: number; count: number; names: string[] }>('/api/codex/claim', { method: 'POST', json: {} }),
   coop: () => req<CoopState>('/api/coop'),
+  turnActive: () => req<{ battle: TurnBattleInfo | null }>('/api/battle/turn'),
+  turnStart: (kind: TurnKind, stage?: number) => req<TurnBattleInfo>('/api/battle/turn', { method: 'POST', json: { kind, stage } }),
+  turnAct: (id: string, action: TurnAction) =>
+    req<{ state: TbState; reward: { gold: number; item: Item | null; seed?: boolean } | null; player?: PlayerState }>(`/api/battle/turn/${id}`, { method: 'POST', json: { action } }),
   claimCoop: () => req<{ gold: number; item: Item | null; player: PlayerState }>('/api/coop/claim', { method: 'POST', json: {} }),
   enhance: (id: string, by: 'item' | 'gold' = 'item', material?: string) =>
     req<{ player: PlayerState; plus?: number; gained?: number }>(`/api/items/${id}/enhance`, { method: 'POST', json: { by, material } }),
@@ -210,6 +215,12 @@ export interface RaidState {
   ranking: (Who & { damage: number })[]
   mine: number
   claimed: boolean
+}
+export type TurnKind = 'stage' | 'rematch' | 'event'
+export interface TurnBattleInfo {
+  id: string
+  kind: TurnKind
+  state: TbState
 }
 export interface CoopState {
   week: string

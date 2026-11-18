@@ -35,6 +35,9 @@
 :root[data-theme='dark'] .mission { background: hsla(0, 0%, 12%, 0.72); }
 :root[data-theme='dark'] .multi-item { background: hsla(0, 0%, 12%, 0.765); }
 :root[data-theme='dark'] .merge-row { background: hsla(0, 0%, 12%, 0.72); }
+:root[data-theme='dark'] .emote { background: hsla(0, 0%, 12%, 1); }
+:root[data-theme='dark'] .tb-act { background: hsla(0, 0%, 12%, 0.81); }
+:root[data-theme='dark'] .tb-act.skill.ready { background: linear-gradient(135deg, hsla(49, 35%, 16%, 1), hsla(323, 35%, 15%, 1)); }
 
 /* ---- src/jobs.css ---- */
 :root[data-theme='dark'] .job { background: hsla(0, 0%, 12%, 0.72); }

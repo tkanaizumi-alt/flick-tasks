@@ -1,6 +1,8 @@
 /** 冒険 (ミニゲーム) */
 import { addStat, equipSet, claimAllMissions, claimMission,equipItem, fight, getMissions, getPlayer, learnSkill, openChest, resetBuild, sellItem, setJob, setSkin, setTitle, setPet, enhanceItem, mergeAll, buyShop, buySkin, evolvePet, rerollItem } from '../game'
 import { claimCodex, claimCoop, codexState, coopState } from '../coop'
+import { activeTurn, actTurn, startTurn, type TurnKind } from '../turn'
+import type { TurnAction } from '../../shared/turn'
 import { claimRaid, lastWeekMvp, raidState } from '../raid'
 import { eventBossState, fightEventBoss, rematch, rematchState, spar, sparList } from '../arena'
 import type { ShopId } from '../../shared/extras'
@@ -50,6 +52,19 @@ game.post('/player/skin', async (c) => {
 })
 
 game.post('/battle', async (c) => c.json(await fight(c.env.DB, c.get('user').id)))
+
+/** ターン制バトル: 続きのバトル / 始める / 1 ターン進める */
+game.get('/battle/turn', async (c) => c.json({ battle: await activeTurn(c.env, c.get('user').id) }))
+game.post('/battle/turn', async (c) => {
+  const { kind, stage } = await c.req.json<{ kind?: TurnKind; stage?: number }>().catch(() => ({}) as { kind?: TurnKind; stage?: number })
+  const r = await startTurn(c.env, c.get('user').id, kind ?? 'stage', typeof stage === 'number' ? stage : undefined)
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
+game.post('/battle/turn/:id', async (c) => {
+  const { action } = await c.req.json<{ action?: TurnAction }>().catch(() => ({}) as { action?: TurnAction })
+  const r = await actTurn(c.env, c.get('user').id, c.req.param('id'), action ?? ('' as TurnAction))
+  return 'error' in r ? c.json({ error: r.error }, 400) : c.json(r)
+})
 
 game.post('/player/pet', async (c) => {
   const { pet } = await c.req.json<{ pet?: string | null }>().catch(() => ({ pet: null }))
