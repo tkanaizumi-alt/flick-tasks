@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion, useDragControls } from 'motion/react'
+import { AnimatePresence, m as motion, useDragControls } from 'motion/react'
 import { san, type Task } from '../../shared/types'
 import { HELP_DOING_XP, SKILL_MAP, STATS, effectiveStats, equippedItems, type PlayerState } from '../../shared/game'
 import { api, HttpError, STATUS_LABEL, type XpChange } from '../api'

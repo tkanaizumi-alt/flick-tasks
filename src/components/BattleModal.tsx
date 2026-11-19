@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import { battleAdvice } from '../../shared/extras'
 import type { BattleResult, Item } from '../../shared/game'
 import { ItemCard } from './Loot'

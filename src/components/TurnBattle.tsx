@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import { battleAdvice } from '../../shared/extras'
 import type { Item, PlayerState } from '../../shared/game'
 import { SPECIALS, TB_ACTIONS, TB_GAUGE_MAX, TECHS, canAct, type TbState, type TbTurn, type TurnAction } from '../../shared/turn'

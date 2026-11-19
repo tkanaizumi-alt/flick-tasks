@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react'
+import { Suspense, lazy, type ReactNode } from 'react'
 import { AnimatePresence, LayoutGroup } from 'motion/react'
 import type { Status } from '../../shared/types'
 import type { UITask } from '../App'
 import { STATUS_LABEL } from '../api'
 import { TaskCard } from './TaskCard'
-import { ReorderList } from './ReorderList'
+// 手動の並べ替えは使うときだけ読み込む (Reorder はアニメーションの部品を丸ごと使うので重い)
+const ReorderList = lazy(() => import('./ReorderList').then((m) => ({ default: m.ReorderList })))
 import { CheckCircleIcon, CircleIcon, PlayIcon } from './icons'
 
 const ORDER: Status[] = ['todo', 'doing', 'done']
@@ -58,7 +59,9 @@ export function TaskBoard({ board, tasks, tab, searching, reordering, onReorder,
                 </h2>
                 {s === 'done' && col.length > 1 && doneSortRow}
                 {reordering && s !== 'done' ? (
-                  <ReorderList tasks={col} onChange={(ids) => onReorder(s, ids)} />
+                  <Suspense fallback={null}>
+                    <ReorderList tasks={col} onChange={(ids) => onReorder(s, ids)} />
+                  </Suspense>
                 ) : (
                   <ul className="list" data-testid={`list-${s}`}>
                     {cards(col)}
@@ -82,7 +85,9 @@ export function TaskBoard({ board, tasks, tab, searching, reordering, onReorder,
   return (
     <section className="list-page">
       {reordering && tab !== 'done' ? (
-        <ReorderList tasks={tasks} onChange={(ids) => onReorder(tab, ids)} />
+        <Suspense fallback={null}>
+          <ReorderList tasks={tasks} onChange={(ids) => onReorder(tab, ids)} />
+        </Suspense>
       ) : (
         <LayoutGroup>
           <ul className="list" data-testid={`list-${tab}`}>

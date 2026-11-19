@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { motion, useDragControls } from 'motion/react'
+import { m as motion, useDragControls } from 'motion/react'
 
 /** 使い方 (画面ごとにできること・PC のキーボード操作) */
 const SECTIONS: { title: string; items: string[] }[] = [

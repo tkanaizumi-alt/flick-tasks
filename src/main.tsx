@@ -1,11 +1,11 @@
 import { StrictMode } from 'react'
+import { LazyMotion } from 'motion/react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { api, HttpError } from './api'
 import { reloadForNewVersion } from './reload'
 import './styles.css'
 import './game.css'
-import './battle.css'
 import './jobs.css'
 import './links.css'
 import './features.css'
@@ -39,6 +39,9 @@ window.addEventListener('unhandledrejection', (e) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* アニメーションの機能は最初の表示のあとに読み込む */}
+    <LazyMotion features={() => import('./motion-features').then((r) => r.default)}>
+      <App />
+    </LazyMotion>
   </StrictMode>,
 )

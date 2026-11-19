@@ -4,6 +4,7 @@
  * 動かすのは transform と opacity だけ (軽くするため)。ターンが変わったら key を変えて最初から再生し直す
  */
 import type { CSSProperties, ReactNode } from 'react'
+import '../battle.css'
 import type { TbFx } from '../../shared/turn'
 import { SKIN_MAP } from '../../shared/game'
 import { EVENT_SKIN_MAP } from '../../shared/extras'

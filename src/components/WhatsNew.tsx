@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import { WHATS_NEW, type WhatsNewAction } from '../../shared/whatsnew'
 
 /** 「新しくなったこと」: 更新のあと最初に開いたときに一度だけ出す (メニューからいつでも見られる) */

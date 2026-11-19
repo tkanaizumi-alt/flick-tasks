@@ -18,6 +18,8 @@ const step = async (name, fn) => {
     check(name, r !== false, r)
   } catch (e) {
     check(name, false, String(e?.message ?? e).split('\n')[0])
+    // SHOT=フォルダ を付けて動かすと、失敗したときの画面を保存する (原因を調べる用)
+    if (process.env.SHOT) await page?.screenshot({ path: `${process.env.SHOT}/fail-${results.length}.png` }).catch(() => {})
     // 開いたままのシートを閉じて、次の確認に影響させない
     await page?.keyboard.press('Escape').catch(() => {})
     await page?.waitForTimeout(400)
@@ -38,6 +40,7 @@ async function run(label, viewport) {
   page = await ctx.newPage()
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
+  if (process.env.NET) page.on('response', (r) => r.url().includes(process.env.NET) && console.log('  net', r.request().method(), r.url().replace(base, ''), r.status()))
   await page.goto(process.env.E2E_TOKEN_A ? base : `${base}/auth/dev?as=3`)
   await page.waitForSelector('[data-testid="nav-me"]', { timeout: 20000 })
   // 初めての案内やお祝いが出ていたら閉じる
@@ -134,6 +137,8 @@ async function run(label, viewport) {
   await step('カレンダーの URL を作って止める', async () => {
     await openMenu('menu-calendar')
     await page.getByTestId('calendar').waitFor()
+    // シートが下から出てくる動きが終わってから押す (動いている途中だと隣のボタンを押してしまうことがある)
+    await page.waitForTimeout(500)
     // 読み込みが終わってから (URL がまだ無ければ作る)
     await page.locator('[data-testid="calendar-make"], [data-testid="calendar-url"]').first().waitFor()
     if (await page.getByTestId('calendar-make').isVisible()) await page.getByTestId('calendar-make').click()

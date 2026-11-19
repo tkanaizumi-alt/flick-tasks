@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, m as motion } from 'motion/react'
 import { FONT_LABEL, NEXT_FONT, type FontSize } from '../display'
 import { useState } from 'react'
 import type { User } from '../../shared/types'

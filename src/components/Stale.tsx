@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion, useDragControls } from 'motion/react'
+import { m as motion, useDragControls } from 'motion/react'
 import { STALE_DAYS, idleDays, type Task } from '../../shared/types'
 import { jstToday } from '../../shared/game'
 

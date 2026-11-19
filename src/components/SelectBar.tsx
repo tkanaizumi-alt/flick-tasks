@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import type { Status } from '../../shared/types'
 import { STATUS_LABEL } from '../api'
 import { CheckIcon, TrashIcon, XIcon } from './icons'

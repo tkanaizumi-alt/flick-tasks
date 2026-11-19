@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, m as motion } from 'motion/react'
 import { STATUSES, tagsOf, type Flag, type Status, type Task, type User, isStale } from '../shared/types'
 import { spInfo, type PlayerState, type Weight } from '../shared/game'
 import type { AchievementDef } from '../shared/achievements'

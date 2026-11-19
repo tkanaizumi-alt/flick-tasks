@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, useDragControls } from 'motion/react'
+import { AnimatePresence, m as motion, useDragControls } from 'motion/react'
 import { FLAGS, PRIORITIES, STATUSES, san, type Flag, type Person, type Priority, type Status } from '../../shared/types'
 import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_LABEL, WEIGHT_XP, jstToday, weightChoices, type Weight } from '../../shared/game'
 import type { UITask } from '../App'

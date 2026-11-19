@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import { san, type Person, type Task } from '../../shared/types'
 import { jstToday } from '../../shared/game'
 import { api, HttpError } from '../api'

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { motion, useDragControls } from 'motion/react'
+import { m as motion, useDragControls } from 'motion/react'
 import { api, HttpError, type Template } from '../api'
 
 /** 下から出るシート (下に引くと閉じる / Esc で閉じる) */

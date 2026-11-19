@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type Ref } from 'react'
-import { animate, motion, useMotionValue, useMotionValueEvent, useTransform, type Variants } from 'motion/react'
+import { m as motion, useMotionValue, useMotionValueEvent, useTransform, type Variants } from 'motion/react'
 import type { Status } from '../../shared/types'
 import { doneDaysLeft } from '../../shared/game'
 import { TaskLinks, XpChip, groupHue } from './TaskMeta'
@@ -209,7 +209,8 @@ export function TaskCard({ task, index, onSwipe, onOpen, selecting, selected, on
           setTimeout(() => (dragged.current = false), 0)
           if (!dir) return
           exitDir.set(task.id, dir)
-          animate(x, dir * (width + 80), { type: 'spring', stiffness: 260, damping: 30, velocity: vel })
+          // スワイプして離したときだけ使うので、そのときに読み込む (最初の表示を軽くするため)
+          void import('motion/react').then(({ animate }) => animate(x, dir * (width + 80), { type: 'spring', stiffness: 260, damping: 30, velocity: vel }))
           onSwipe(task, dir)
         }}
         onClick={() => {

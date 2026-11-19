@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { motion, useDragControls } from 'motion/react'
+import { m as motion, useDragControls } from 'motion/react'
 import { tagsOf, type Task } from '../../shared/types'
 import { WEIGHT_LABEL, jstToday } from '../../shared/game'
 import { api, HttpError, trackUsage } from '../api'

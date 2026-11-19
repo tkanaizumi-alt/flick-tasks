@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 
 export type ViewMode = 'mobile' | 'pc' | 'calendar'
 const MODE_LABEL: Record<ViewMode, [string, string, string]> = {

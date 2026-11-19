@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import { BREAKDOWN_MAX, WEIGHTS, WEIGHT_GUIDE, WEIGHT_LABEL, WEIGHT_XP } from '../../shared/game'
 
 /** 獲得 XP の決まり方と、タスクを登録する単位の目安 */

@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 
 const widths = [62, 44, 71, 38, 56, 48]
 

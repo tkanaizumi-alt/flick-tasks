@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, m as motion } from 'motion/react'
 import { FLAGS, type Activity, type ActivityKind, type AttentionItem, type Notice, type Person, type RequestItem, san } from '../../shared/types'
 import { enemyForStage, levelInfo } from '../../shared/game'
 import { ACHIEVEMENT_MAP, tierClass } from '../../shared/achievements'

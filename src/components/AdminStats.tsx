@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion, useDragControls } from 'motion/react'
+import { m as motion, useDragControls } from 'motion/react'
 import { api, type AdminStats as Stats } from '../api'
 
 const JST = 9 * 3600000

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import { effectLabel, RARITY_ORDER, RARITY_SELL, REROLL_GOLD, SET_NEED, SLOTS, setEffectLabel, setOf, type Item } from '../../shared/game'
 import { PLUS_MAX, enhanceGold, enhanceTo, higherRarity, lowerRarity, type MergeStep, REFORGE_GOLD, reforgeStats } from '../../shared/extras'
 import { GearIcon } from './GearIcon'

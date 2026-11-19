@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { motion } from 'motion/react'
+import { m as motion } from 'motion/react'
 import type { Task } from '../../shared/types'
 import { jstToday } from '../../shared/game'
 
