@@ -299,7 +299,7 @@ export function ItemSheet({ item, equipped, current, busy, onClose, onEquip, onS
                 ? `+${PLUS_MAX}が最大です。同じ部位の${higher}を強化する素材に使えます`
                 : `+${PLUS_MAX}が最大です`
               : materials.length
-                ? `素材にする装備を選んでください（${need}）。1段階ごとに全ステータス+4%。同じレア度の素材は強化段階を引き継ぎます`
+                ? `素材にする装備を選んでください（${need}）。1段階ごとに全ステータス+3%。同じレア度の素材は強化段階を引き継ぎます`
                 : `${need}の装備がもう1つあると強化できます`}
           </span>
         </div>

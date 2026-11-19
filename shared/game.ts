@@ -20,7 +20,7 @@ export interface Item {
   effect: string | null
   /** 強化段階 (+1〜+10) */
   plus?: number
-  /** 強化する前の強さ (今の強さ = base × 1.04^plus) */
+  /** 強化する前の強さ (今の強さ = base × 1.03^plus) */
   base?: Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>
 }
 
@@ -264,11 +264,9 @@ export interface Enemy {
 
 /** 最初から見えるステージ (第1〜3章) */
 export const OPEN_STAGES = 30
-/** ステージの数。OPEN_STAGES より先はシークレット (倒すまで地図に出ない)。その先は無限の塔 */
+/** ステージの数。OPEN_STAGES より先はシークレット (地図には倒したボスと次のボスだけが出る)。その先は無限の塔 */
 export const MAIN_STAGES = 100
 export const isSecretStage = (n: number) => n > OPEN_STAGES && n <= MAIN_STAGES
-/** まだ倒していないシークレットのボスは、名前とアイコンを隠す (バトルでは本当の姿で出る) */
-export const veiled = (e: Enemy, cleared: boolean): Enemy => (isSecretStage(e.stage) && !cleared ? { ...e, name: '？？？', icon: '❓' } : e)
 /** 10 ステージごとに章が変わる。10 の倍数は章ボス。31〜100 はシークレット */
 const BOSS_NAMES: [string, string][] = [
   ['スライム', '💧'], ['ゴブリン', '👺'], ['オオカミ', '🐺'], ['ゴーレム', '🗿'], ['魔術師', '🧙'],
@@ -710,8 +708,11 @@ export const RARITY_RATE: [Rarity, number][] = [
   ['R', 0.3],
   ['N', 1],
 ]
-/** レア度ごとの強さ。1 つ上のレア度の +0 が、下のレア度の +10 (×1.04^10 ≒ 1.48。ゆらぎ ±5% こみ) より強くなるように差をつける */
-const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.7, SR: 2.85, SSR: 4.8, UR: 8.1 }
+/**
+ * レア度ごとの強さ。1 つ上のレア度の +0 が、下のレア度の +10 (×1.03^10 ≒ 1.34。宝箱のゆらぎ ±3% こみ) に負けないように差をつける。
+ * UR は上げず、R・SR・SSR を下げて差をつけた
+ */
+const RARITY_MULT: Record<Rarity, number> = { N: 1, R: 1.55, SR: 2.25, SSR: 3.3, UR: 4.8 }
 
 type FxTier = 'SR' | 'SSR' | 'UR'
 /**
@@ -815,7 +816,7 @@ export function rollItem(seed: number, stage: number, forceRarity?: Rarity, forc
   const names = GEAR_NAMES[slot][rarity]
   const name = names[Math.floor(r() * names.length)]
   const power = gearPower(rarity, stage)
-  const j = () => 0.95 + r() * 0.1
+  const j = () => 0.97 + r() * 0.06
   const st = { atk: 0, hp: 0, crit: 0, heal: 0 }
   if (slot === 'weapon') {
     st.atk = Math.round(2.2 * power * j())

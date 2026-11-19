@@ -4,7 +4,7 @@ const CHAPTER = 10
 
 /**
  * ステージの道のり (10 ごとに章)。現在地を強調する。
- * 第1〜3章 (30 ステージ) は最初から見える。その先 (31〜100) はシークレットで、倒したボスと今のステージ (？) だけが出る。
+ * 第1〜3章 (30 ステージ) は最初から見える。その先 (31〜100) はシークレットで、倒したボスと次のボスだけが出る。
  * 100 の先は無限の塔の階数。onPick があれば、倒したボスを押して再戦の相手に選べる
  */
 export function StageMap({ stage, picked, onPick }: { stage: number; picked?: number | null; onPick?: (n: number) => void }) {
@@ -29,7 +29,7 @@ export function StageMap({ stage, picked, onPick }: { stage: number; picked?: nu
                 const n = from + i
                 const e = enemyForStage(n)
                 const state = n < stage ? 'cleared' : n === stage ? 'current' : 'locked'
-                const hide = state === 'locked' || (secret && state === 'current')
+                const hide = state === 'locked'
                 const body = (
                   <>
                     <span className="sn-icon">{hide ? '？' : e.icon}</span>

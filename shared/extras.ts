@@ -102,8 +102,8 @@ export const enhanceGold = (rarity: Rarity, plus: number) => ENHANCE_GOLD[rarity
 
 // ---------- 装備の強化 (素材の装備を 1 つ使って +1。最大 +10) ----------
 export const PLUS_MAX = 10
-/** 強化 1 段階ごとに強化前の強さの ×1.04 (積み重ね)。+10 で約 1.48 倍 (1 つ上のレア度の +0 には届かない) */
-export const PLUS_RATE = 1.04
+/** 強化 1 段階ごとに強化前の強さの ×1.03 (積み重ね)。+10 で約 1.34 倍 (1 つ上のレア度の +0 には届かない) */
+export const PLUS_RATE = 1.03
 type GearStats = Pick<Item, 'atk' | 'hp' | 'crit' | 'heal'>
 const STAT_KEYS = ['atk', 'hp', 'crit', 'heal'] as const
 /** 強化前の強さと強化段階から、今の強さ */

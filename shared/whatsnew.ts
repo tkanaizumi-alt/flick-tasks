@@ -7,7 +7,7 @@ export const WHATS_NEW_VERSION = '2026-11-18c'
 export type WhatsNewAction = 'history' | 'templates' | 'people' | 'calendar' | 'game'
 
 export const WHATS_NEW: { icon: string; title: string; desc: string; action?: WhatsNewAction; button?: string; game?: boolean }[] = [
-  { icon: '🌌', title: 'ステージ100まで（シークレット）', desc: 'ステージ30の先に、100まで隠しステージが続きます。ボスは倒すまで「？？？」。倒すと地図と図鑑に載ります。100の先は無限の塔', action: 'game', button: '冒険を開く', game: true },
+  { icon: '🌌', title: 'ステージ100まで（シークレット）', desc: 'ステージ30の先に、100まで隠しステージが続きます。地図には倒したボスと次のボスだけが出て、倒すたびに道がのびます。100の先は無限の塔', action: 'game', button: '冒険を開く', game: true },
   { icon: '💎', title: '装備はレア度が大事に', desc: '同じステージの装備なら、1つ上のレア度の+0は下のレア度の+10に負けません（UR > SR+10）。今の装備も新しい強さに計算し直しました。バトルのキャラは丸い枠のない姿に', action: 'game', button: '冒険を開く', game: true },
   { icon: '🎬', title: 'バトルが動画のように', desc: '画面が大きくなり、駆け寄って斬る・火球が飛ぶ・必殺技のカットイン・倒すと敵が砕ける、などの演出が付きました。オートは ⏩ で早送り', action: 'game', button: '冒険を開く', game: true },
   { icon: '⚔️', title: '職業のわざ', desc: 'ターン制バトルで、職業ごとの「わざ」と必殺技が使えます（戦士は二段斬り、魔法使いは火球など）。上位職でわざが2つに', action: 'game', button: '冒険を開く', game: true },

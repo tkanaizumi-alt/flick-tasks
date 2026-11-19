@@ -16,7 +16,6 @@ import {
   canLearn,
   effectiveStats,
   enemyForStage,
-  veiled,
   levelInfo,
   skinCondition,
   skinUnlocked,
@@ -140,8 +139,6 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
   const achievedIds = useMemo(() => (player.achievements ?? []).map((a) => a.id), [player.achievements])
   const eff = effectiveStats(player)
   const enemy = enemyForStage(player.stage)
-  // シークレットのボスは、倒すまで名前とアイコンを隠す
-  const shown = veiled(enemy, false)
   const rate = useMemo(() => winRate(player, enemy), [player, enemy.stage])
   const claimable = missions.filter((m) => m.done && !m.claimed).length
 
@@ -282,10 +279,10 @@ export function Adventure({ player, name, picture, onPlayer, toast, onCelebrate 
             }}
           />
           <section className="panel glass boss" data-testid="boss">
-            <div className="boss-icon">{shown.icon}</div>
+            <div className="boss-icon">{enemy.icon}</div>
             <div className="boss-body">
               <div className="boss-stage">ステージ {enemy.stage}</div>
-              <div className="boss-name">{shown.name}</div>
+              <div className="boss-name">{enemy.name}</div>
               <div className="boss-stats">
                 HP {enemy.hp} ・ 攻撃 {enemy.atk}
               </div>
