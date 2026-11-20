@@ -132,3 +132,7 @@
 .track-me { position: absolute; top: 50%; transform: translate(-50%, -50%); }
 .track-me .av-img, .track-me .av-text { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--c-todo); }
 .track-stage { font-size: 12px; font-weight: 800; text-align: right; white-space: nowrap; }
+/* 進み具合: ステージ 31 から先はシークレットの区間 (うすい紫)。30 の目盛りは区切り */
+.track-secret { position: absolute; right: 0; top: 50%; height: 6px; margin-top: -3px; border-radius: 0 3px 3px 0; background: rgba(123, 44, 255, 0.12); }
+.track-tick { width: 1.5px; height: 9px; margin-top: -4.5px; opacity: 0.55; }
+.track-tick.gate { width: 2px; height: 14px; margin-top: -7px; opacity: 1; background: #7b2cff; }
